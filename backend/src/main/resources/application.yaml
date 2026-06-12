@@ -1,6 +1,5 @@
 spring:
-  application
-  :
+  application:
     name: fxflow
 
   datasource:
