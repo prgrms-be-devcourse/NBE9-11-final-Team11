@@ -7,13 +7,13 @@ spring:
     username: myuser
     password: mypassword
 
-    jpa:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
       hibernate:
-        ddl-auto: update
-      properties:
-        hibernate:
-          format_sql: true
+        format_sql: true
 
-    sql:
-      init:
-        mode: always
+  sql:
+    init:
+      mode: always
