@@ -1,0 +1,5 @@
+package com.fxflow.domain.wallet.controller;
+
+public class WalletController {
+
+}
