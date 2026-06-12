@@ -61,4 +61,12 @@ public class GlobalExceptionHandler {
         return field;
     }
 
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleException(Exception e) {
+        log.error("Unhandled Exception: ", e);
+        ErrorCode errorCode = GlobalErrorCode.INTERNAL_SERVER_ERROR;
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(ErrorResponse.from(errorCode));
+    }
 }
