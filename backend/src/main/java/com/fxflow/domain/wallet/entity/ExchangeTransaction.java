@@ -1,5 +1,9 @@
 package com.fxflow.domain.wallet.entity;
 
-public class ExchangeTransaction {
+import jakarta.persistence.Entity;
+import com.fxflow.global.entity.BaseEntity;
+
+@Entity
+public class ExchangeTransaction extends BaseEntity {
 
 }
