@@ -13,3 +13,11 @@ __v0_jsx-dev-runtime.ts
 node_modules
 .next/
 .DS_Store
+
+# Node
+npm-debug.log
+yarn-error.log
+
+# Build output
+dist/
+build/
