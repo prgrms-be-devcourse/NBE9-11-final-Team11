@@ -4,10 +4,12 @@ import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.global.entity.BaseEntity;
 import jakarta.persistence.*;
+import lombok.Getter;
 
 import java.math.BigDecimal;
 
 @Entity
+@Getter
 @Table(name = "ledger_entries")
 public class LedgerEntry extends BaseEntity {
 
@@ -28,8 +30,8 @@ public class LedgerEntry extends BaseEntity {
     @Column(name = "mock_bank_account_id")
     private Long mockBankAccountId;
 
-    // todo: company pool FK
-    // private CompanyPool companyPool;
+    @Column(name = "company_pool_id")
+    private Long companyPoolId;
 
     @Column(name = "currency_code", nullable = false, length = 3)
     private String currencyCode;
