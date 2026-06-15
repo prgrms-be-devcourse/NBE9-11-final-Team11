@@ -99,7 +99,7 @@ public class TransactionLimitValidator {
                 user.getId(), newBalanceKrw, user.getWalletLimitKrw());
     }
 
-    // ── 4. 일일 입금 한도 검증 ─────────────────────────────────────────────
+    // 4. 일일 입금 한도 검증
     public void validateDailyDeposit(User user, BigDecimal amountKrw) {
         log.info("[일일 입금 한도 검증 시작] userId={}, 요청액={}KRW", user.getId(), amountKrw);
 
@@ -142,6 +142,7 @@ public class TransactionLimitValidator {
         log.info("[일일 출금 한도 검증 완료] userId={}, 누적액={}KRW, 요청액={}KRW, 한도={}KRW",
                 user.getId(), usedAmount, amountKrw, limit.getLimitAmount());
     }
+
     // 6. 1회 입금  한도 검증
     public void validatePerDeposit(User user, BigDecimal amountKrw) {
         log.info("[1회 입금 한도 검증 시작] userId={}, 요청액={}KRW", user.getId(), amountKrw);

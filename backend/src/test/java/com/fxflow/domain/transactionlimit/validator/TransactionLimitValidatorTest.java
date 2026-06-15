@@ -352,6 +352,13 @@ class TransactionLimitValidatorTest {
         }
 
         @Test
+        @DisplayName("성공: 요청액이 한도와 동일")
+        void success_equalToLimit() {
+            assertThatCode(() -> validator.validatePerDeposit(user, new BigDecimal("2000000")))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
         @DisplayName("실패: 요청액이 한도 초과")
         void fail_exceeded() {
             assertThatThrownBy(() -> validator.validatePerDeposit(user, new BigDecimal("2500000")))
@@ -382,6 +389,13 @@ class TransactionLimitValidatorTest {
         @DisplayName("성공: 요청액이 한도 미만")
         void success() {
             assertThatCode(() -> validator.validatePerWithdrawal(user, new BigDecimal("1500000")))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("성공: 요청액이 한도와 동일")
+        void success_equalToLimit() {
+            assertThatCode(() -> validator.validatePerWithdrawal(user, new BigDecimal("2000000")))
                     .doesNotThrowAnyException();
         }
 
