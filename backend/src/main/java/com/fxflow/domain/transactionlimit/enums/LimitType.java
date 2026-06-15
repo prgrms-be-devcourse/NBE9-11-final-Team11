@@ -1,6 +1,15 @@
 package com.fxflow.domain.transactionlimit.enums;
 
 public enum LimitType {
-    PER_REMITTANCE,    // 건당 한도 $5,000
-    ANNUAL_REMITTANCE  // 연간 한도 $100,000
+    // ── 해외송금 한도 ───────────────────────────────────────
+    PER_REMITTANCE,         // 건당 송금 한도  (USD $5,000)
+    ANNUAL_REMITTANCE,      // 연간 송금 한도  (USD $100,000)
+
+    // ── 모의계좌 입금 한도 ──────────────────────────────────
+    PER_DEPOSIT,            // 1회 입금 한도   (KRW 200만/300만)
+    DAILY_DEPOSIT,          // 일일 입금 한도  (KRW 200만/300만)
+
+    // ── 모의계좌 출금 한도 ──────────────────────────────────
+    PER_WITHDRAWAL,         // 1회 출금 한도   (KRW 200만/300만)
+    DAILY_WITHDRAWAL        // 일일 출금 한도  (KRW 200만/300만)
 }

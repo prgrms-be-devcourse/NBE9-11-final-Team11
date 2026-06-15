@@ -9,20 +9,54 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum TransactionLimitErrorCode implements ErrorCode {
 
+    // ── 정책 조회 ──────────────────────────────────────────────────────────
     LIMIT_POLICY_NOT_FOUND(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "LIMIT_POLICY_NOT_FOUND",
             "한도 정책을 찾을 수 없습니다."
     ),
-    PER_TRANSACTION_LIMIT_EXCEEDED(
+
+    // ── 해외송금 한도 ───────────────────────────────────────────────────────
+    PER_REMITTANCE_LIMIT_EXCEEDED(
             HttpStatus.CONFLICT,
-            "PER_TRANSACTION_LIMIT_EXCEEDED",
-            "건당 송금 한도를 초과했습니다."
+            "PER_REMITTANCE_LIMIT_EXCEEDED",
+            "건당 송금 한도를 초과했습니다."         // USD $5,000
     ),
-    ANNUAL_LIMIT_EXCEEDED(
+    ANNUAL_REMITTANCE_LIMIT_EXCEEDED(
             HttpStatus.CONFLICT,
-            "ANNUAL_LIMIT_EXCEEDED",
-            "연간 송금 한도를 초과했습니다."
+            "ANNUAL_REMITTANCE_LIMIT_EXCEEDED",
+            "연간 송금 한도를 초과했습니다."         // USD $100,000
+    ),
+
+    // ── 모의계좌 입금 한도 ──────────────────────────────────────────────────
+    PER_DEPOSIT_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "PER_DEPOSIT_LIMIT_EXCEEDED",
+            "1회 입금 한도를 초과했습니다."          // KRW 200만/300만
+    ),
+    DAILY_DEPOSIT_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "DAILY_DEPOSIT_LIMIT_EXCEEDED",
+            "일일 입금 한도를 초과했습니다."         // KRW 200만/300만
+    ),
+
+    // ── 모의계좌 출금 한도 ──────────────────────────────────────────────────
+    PER_WITHDRAWAL_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "PER_WITHDRAWAL_LIMIT_EXCEEDED",
+            "1회 출금 한도를 초과했습니다."          // KRW 200만/300만
+    ),
+    DAILY_WITHDRAWAL_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "DAILY_WITHDRAWAL_LIMIT_EXCEEDED",
+            "일일 출금 한도를 초과했습니다."         // KRW 200만/300만
+    ),
+
+    // ── 월렛 보유 한도 ──────────────────────────────────────────────────────
+    WALLET_HOLDING_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "WALLET_HOLDING_LIMIT_EXCEEDED",
+            "월렛 보유 한도를 초과했습니다."         // KRW 200만/300만
     );
 
     private final HttpStatus status;
