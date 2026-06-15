@@ -32,7 +32,7 @@ public class UserLimitUsage extends BaseEntity {
      * 연간 송금 누적액 (USD 기준)
      * 송금 완료 시마다 누적, 연간 한도 $100,000 검증에 사용
      */
-    @Column(name = "annual_used_usd", nullable = false, precision = 18, scale = 2)
+    @Column(name = "annual_used_usd", nullable = false, precision = 18, scale = 8)
     private BigDecimal annualUsedUsd;
 
     /**

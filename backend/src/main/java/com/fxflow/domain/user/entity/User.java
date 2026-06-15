@@ -46,7 +46,7 @@ public class User extends BaseEntity {
     @Column(name = "limit_tier", nullable = false, length = 20)
     private LimitTier limitTier;
 
-    @Column(nullable = false, precision = 18, scale = 2)
+    @Column(nullable = false, precision = 18, scale = 8)
     private BigDecimal walletLimitKrw;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
