@@ -6,8 +6,10 @@ import com.fxflow.domain.transactionlimit.enums.LimitType;
 import com.fxflow.domain.transactionlimit.errorcode.TransactionLimitErrorCode;
 import com.fxflow.domain.transactionlimit.repository.TransactionLimitRepository;
 import com.fxflow.domain.user.entity.User;
-import com.fxflow.domain.userlimitusage.entity.UserLimitUsage;
-import com.fxflow.domain.userlimitusage.repository.UserLimitUsageRepository;
+import com.fxflow.domain.userlimitusage.entity.UserAnnualUsage;
+import com.fxflow.domain.userlimitusage.entity.UserDailyUsage;
+import com.fxflow.domain.userlimitusage.repository.UserAnnualUsageRepository;
+import com.fxflow.domain.userlimitusage.repository.UserDailyUsageRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +24,9 @@ import java.time.LocalDate;
 public class TransactionLimitValidator {
 
     private final TransactionLimitRepository transactionLimitRepository;
-    private final UserLimitUsageRepository userLimitUsageRepository;
+    private final UserAnnualUsageRepository userAnnualUsageRepository;
+    private final UserDailyUsageRepository userDailyUsageRepository;
+
 
     //공통 한도정책 조회
     private TransactionLimit getLimit(LimitType limitType, LimitTier tier, String currencyCode) {
@@ -59,9 +63,9 @@ public class TransactionLimitValidator {
         TransactionLimit limit = getLimit(LimitType.ANNUAL_REMITTANCE, LimitTier.STANDARD, "USD");
 
         int currentYear = LocalDate.now().getYear();
-        BigDecimal usedAmount = userLimitUsageRepository
+        BigDecimal usedAmount = userAnnualUsageRepository
                 .findByUserIdAndYear(user.getId(), currentYear)
-                .map(UserLimitUsage::getAnnualUsedUsd)
+                .map(UserAnnualUsage::getAnnualUsedUsd)
                 .orElse(BigDecimal.ZERO);
 
         if (usedAmount.add(amountUsd).compareTo(limit.getLimitAmount()) > 0) {
@@ -75,6 +79,12 @@ public class TransactionLimitValidator {
     }
 
     // 3. 월렛 보유 한도 검증
+    /**
+     * TODO: 환율 API 구현 후 아래 방식으로 수정 필요
+     * - USD 잔액을 현재 환율로 원화 환산
+     * - KRW 잔액 + USD 원화 환산액 합산하여 검증
+     * - 현재는 KRW 잔액만 검증
+     */
     public void validateWalletHolding(User user, BigDecimal newBalanceKrw) {
         log.info("[월렛 보유 한도 검증 시작] userId={}, 변경후잔액={}KRW", user.getId(), newBalanceKrw);
 
@@ -94,14 +104,20 @@ public class TransactionLimitValidator {
 
         TransactionLimit limit = getLimit(LimitType.DAILY_DEPOSIT, user.getLimitTier(), "KRW");
 
-        if (amountKrw.compareTo(limit.getLimitAmount()) > 0) {
-            log.warn("[일일 입금 한도 검증 실패] userId={}, 요청액={}KRW, 한도={}KRW",
-                    user.getId(), amountKrw, limit.getLimitAmount());
+        // 오늘 누적 입금액 조회
+        BigDecimal usedAmount = userDailyUsageRepository
+                .findByUserIdAndUsageDate(user.getId(), LocalDate.now())
+                .map(UserDailyUsage::getDailyDepositUsed)
+                .orElse(BigDecimal.ZERO);
+
+        if (usedAmount.add(amountKrw).compareTo(limit.getLimitAmount()) > 0) {
+            log.warn("[일일 입금 한도 검증 실패] userId={}, 누적액={}KRW, 요청액={}KRW, 한도={}KRW",
+                    user.getId(), usedAmount, amountKrw, limit.getLimitAmount());
             throw new BusinessException(TransactionLimitErrorCode.DAILY_DEPOSIT_LIMIT_EXCEEDED);
         }
 
-        log.info("[일일 입금 한도 검증 완료] userId={}, 요청액={}KRW, 한도={}KRW",
-                user.getId(), amountKrw, limit.getLimitAmount());
+        log.info("[일일 입금 한도 검증 완료] userId={}, 누적액={}KRW, 요청액={}KRW, 한도={}KRW",
+                user.getId(), usedAmount, amountKrw, limit.getLimitAmount());
     }
 
     // ── 5. 일일 출금 한도 검증 ─────────────────────────────────────────────
@@ -110,13 +126,19 @@ public class TransactionLimitValidator {
 
         TransactionLimit limit = getLimit(LimitType.DAILY_WITHDRAWAL, user.getLimitTier(), "KRW");
 
-        if (amountKrw.compareTo(limit.getLimitAmount()) > 0) {
-            log.warn("[일일 출금 한도 검증 실패] userId={}, 요청액={}KRW, 한도={}KRW",
-                    user.getId(), amountKrw, limit.getLimitAmount());
+        // 오늘 누적 출금액 조회
+        BigDecimal usedAmount = userDailyUsageRepository
+                .findByUserIdAndUsageDate(user.getId(), LocalDate.now())
+                .map(UserDailyUsage::getDailyWithdrawalUsed)
+                .orElse(BigDecimal.ZERO);
+
+        if (usedAmount.add(amountKrw).compareTo(limit.getLimitAmount()) > 0) {
+            log.warn("[일일 출금 한도 검증 실패] userId={}, 누적액={}KRW, 요청액={}KRW, 한도={}KRW",
+                    user.getId(), usedAmount, amountKrw, limit.getLimitAmount());
             throw new BusinessException(TransactionLimitErrorCode.DAILY_WITHDRAWAL_LIMIT_EXCEEDED);
         }
 
-        log.info("[일일 출금 한도 검증 완료] userId={}, 요청액={}KRW, 한도={}KRW",
-                user.getId(), amountKrw, limit.getLimitAmount());
+        log.info("[일일 출금 한도 검증 완료] userId={}, 누적액={}KRW, 요청액={}KRW, 한도={}KRW",
+                user.getId(), usedAmount, amountKrw, limit.getLimitAmount());
     }
 }
