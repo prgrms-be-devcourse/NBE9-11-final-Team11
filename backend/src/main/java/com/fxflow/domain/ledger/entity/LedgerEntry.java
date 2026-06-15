@@ -2,8 +2,6 @@ package com.fxflow.domain.ledger.entity;
 
 import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
-import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
-import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.global.entity.BaseEntity;
 import jakarta.persistence.*;
 
@@ -24,13 +22,11 @@ public class LedgerEntry extends BaseEntity {
     @Column(name = "ledger_direction", nullable = false, length = 10)
     private LedgerDirection ledgerDirection;
 
-    @ManyToOne
-    @JoinColumn(name = "wallet_id")
-    private Wallet wallet;
+    @Column(name = "wallet_id")
+    private Long walletId;
 
-    @ManyToOne
-    @JoinColumn(name = "mock_bank_account_id")
-    private MockBankAccount mockBankAccount;
+    @Column(name = "mock_bank_account_id")
+    private Long mockBankAccountId;
 
     // todo: company pool FK
     // private CompanyPool companyPool;
