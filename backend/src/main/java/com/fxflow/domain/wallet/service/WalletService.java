@@ -40,6 +40,6 @@ public class WalletService {
                     return wallet.getBalance().multiply(rate);
                 })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return WalletBalanceResponse.from(krw.longValue(), walletResponses);
+        return WalletBalanceResponse.from(krw.setScale(0, java.math.RoundingMode.HALF_UP).longValue(), walletResponses);
     }
 }
