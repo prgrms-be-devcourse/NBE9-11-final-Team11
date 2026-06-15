@@ -67,7 +67,7 @@ public class ExchangeTransaction extends BaseEntity {
 
 
     private ExchangeTransaction(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, ExchangeStatus status, String idempotencyKey) {
-        this.transactionId = "EX_" + System.currentTimeMillis();
+        this.transactionId = "EX_" + java.util.UUID.randomUUID().toString().replace("-", "");
         this.user = user;
         this.fromWallet = fromWallet;
         this.toWallet = toWallet;
