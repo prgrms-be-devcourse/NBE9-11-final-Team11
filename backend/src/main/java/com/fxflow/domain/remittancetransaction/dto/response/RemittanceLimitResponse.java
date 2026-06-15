@@ -10,11 +10,20 @@ public record RemittanceLimitResponse(
         BigDecimal availableYearUsd
 ) {
 
-    public static RemittanceLimitResponse of(Long userId, BigDecimal currentYearTotalUsd, BigDecimal availableYearUsd) {
+    public static RemittanceLimitResponse of(
+            Long userId,
+            BigDecimal maxPerTransactionUsd,
+            BigDecimal maxPerYearUsd,
+            BigDecimal currentYearTotalUsd
+    ) {
+        BigDecimal availableYearUsd = maxPerYearUsd
+                .subtract(currentYearTotalUsd)
+                .max(BigDecimal.ZERO);
+
         return new RemittanceLimitResponse(
                 userId,
-                new BigDecimal("5000.00"),
-                new BigDecimal("100000.00"),
+                maxPerTransactionUsd,
+                maxPerYearUsd,
                 currentYearTotalUsd,
                 availableYearUsd
         );
