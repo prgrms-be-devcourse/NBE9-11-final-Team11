@@ -19,25 +19,25 @@ import java.time.LocalDateTime;
 public class FxRate extends BaseEntity {
 
     @Column(name = "base_currency", length = 10, nullable = false)
-    private String baseCurrency;
+    private String baseCurrency; // 기준 통화
 
     @Column(name = "quote_currency", length = 10, nullable = false)
-    private String quoteCurrency;
+    private String quoteCurrency; // 상대 통화
 
     @Column(name = "mid_rate", precision = 18, scale = 2, nullable = false)
-    private BigDecimal midRate;
+    private BigDecimal midRate; // 기준 환율
 
     @Column(name = "spread", precision = 18, scale = 2, nullable = false)
-    private BigDecimal spread;
+    private BigDecimal spread; // 스프레드
 
     @Column(name = "applied_rate", precision = 18, scale = 2, nullable = false)
-    private BigDecimal appliedRate;
+    private BigDecimal appliedRate; // 적용 환율
 
     @Column(name = "source", length = 50, nullable = false)
-    private String source;
+    private String source; // 출처
 
     @Column(name = "fetched_at", nullable = false)
-    private LocalDateTime fetchedAt;
+    private LocalDateTime fetchedAt; // 수집 시각
 
     @Builder
     private FxRate(String baseCurrency, String quoteCurrency, BigDecimal midRate,
