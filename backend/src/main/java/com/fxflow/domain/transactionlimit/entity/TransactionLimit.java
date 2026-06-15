@@ -58,7 +58,7 @@ public class TransactionLimit extends BaseEntity {
      * 한도 금액
      * 송금 한도는 USD 기준, 입출금 한도는 KRW 기준
      */
-    @Column(name = "limit_amount", nullable = false, precision = 18, scale = 2)
+    @Column(name = "limit_amount", nullable = false, precision = 18, scale = 8)
     private BigDecimal limitAmount;
 
     /**
