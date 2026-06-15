@@ -16,18 +16,20 @@ public class LedgerEntry extends BaseEntity {
     @Column(name = "journal_id", nullable = false, length = 100)
     private String journalId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "entry_type", nullable = false, length = 30)
     private LedgerEntryType entryType;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "ledger_direction", nullable = false, length = 10)
     private LedgerDirection ledgerDirection;
 
     @ManyToOne
-    @JoinColumn(name = "wallet_id", nullable = false)
+    @JoinColumn(name = "wallet_id")
     private Wallet wallet;
 
     @ManyToOne
-    @JoinColumn(name = "mock_bank_account_id", nullable = false)
+    @JoinColumn(name = "mock_bank_account_id")
     private MockBankAccount mockBankAccount;
 
     // todo: company pool FK
