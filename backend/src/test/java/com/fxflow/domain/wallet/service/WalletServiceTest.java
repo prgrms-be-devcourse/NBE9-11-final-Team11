@@ -34,10 +34,6 @@ class WalletServiceTest {
     void setUp() throws Exception {
         usdWallet = Wallet.create(null, "USD", BigDecimal.ZERO);
         krwWallet = Wallet.create(null, "KRW", BigDecimal.ZERO);
-        setField(usdWallet, "currencyCode", "USD");
-        setField(usdWallet, "balance", new BigDecimal("100"));
-        setField(krwWallet, "currencyCode", "KRW");
-        setField(krwWallet, "balance", new BigDecimal("50000"));
     }
 
     @Test
