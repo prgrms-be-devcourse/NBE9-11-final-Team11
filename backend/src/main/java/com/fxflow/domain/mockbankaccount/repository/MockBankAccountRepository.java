@@ -1,4 +1,7 @@
 package com.fxflow.domain.mockbankaccount.repository;
 
-public interface MockBankAccountRepository {
+import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface MockBankAccountRepository extends JpaRepository<MockBankAccount,Integer> {
 }
