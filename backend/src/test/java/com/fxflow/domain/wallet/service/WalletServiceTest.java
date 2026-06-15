@@ -33,8 +33,8 @@ class WalletServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        usdWallet = Wallet.create(null, "USD", BigDecimal.ZERO);
-        krwWallet = Wallet.create(null, "KRW", BigDecimal.ZERO);
+        usdWallet = Wallet.create(null, "USD", new BigDecimal("100"));
+        krwWallet = Wallet.create(null, "KRW", new BigDecimal("50000"));
     }
 
     @Test
