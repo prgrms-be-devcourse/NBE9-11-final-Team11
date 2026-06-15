@@ -3,6 +3,7 @@ package com.fxflow.domain.user.entity;
 import com.fxflow.domain.user.enums.UserRole;
 import com.fxflow.domain.user.enums.UserStatus;
 import com.fxflow.domain.wallet.entity.Wallet;
+import com.fxflow.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -22,12 +23,7 @@ import java.util.List;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
-public class User {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
-
+public class User extends BaseEntity {
     @Column(nullable = false, unique = true, length = 255)
     private String email;
 
@@ -38,8 +34,8 @@ public class User {
     private String name;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "stats", nullable = false, length = 20)
-    private UserStatus stats;
+    @Column(name = "status", nullable = false, length = 20)
+    private UserStatus status;
 
     @Column(nullable = false, length = 30)
     private String kycStatus;
@@ -50,15 +46,7 @@ public class User {
 
     @Column(nullable = false, precision = 18, scale = 2)
     private BigDecimal walletLimitKrw;
-
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @LastModifiedDate
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
-
+    
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private List<Wallet> wallets = new ArrayList<>();
 
@@ -67,7 +55,7 @@ public class User {
         this.email = email;
         this.passwordHash = passwordHash;
         this.name = name;
-        this.stats = UserStatus.ACTIVE;
+        this.status = UserStatus.ACTIVE;
         this.kycStatus = "PENDING";
         this.role = UserRole.USER;
         this.walletLimitKrw = new BigDecimal("2000000");
@@ -75,6 +63,6 @@ public class User {
 
     // 회원 탈퇴
     public void withdraw() {
-        this.stats = UserStatus.WITHDRAWN;
+        this.status = UserStatus.WITHDRAWN;
     }
 }

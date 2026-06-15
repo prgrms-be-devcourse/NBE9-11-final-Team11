@@ -21,11 +21,7 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
-public class MockBankAccount {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+public class MockBankAccount extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -45,15 +41,7 @@ public class MockBankAccount {
 
     @Version
     @Column(nullable = false)
-    private Integer version;            // 낙관적 락 — Integer
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @LastModifiedDate
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    private Long version;            // 낙관적 락 — Integer
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;    // soft delete — NULL 허용
