@@ -12,7 +12,6 @@ import java.math.BigDecimal;
 @Table(name = "remittance_transactions")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AttributeOverride(name = "id", column = @Column(name = "id"))
 public class RemittanceTransaction extends BaseEntity {
 
     @Column(name = "user_id", nullable = false)

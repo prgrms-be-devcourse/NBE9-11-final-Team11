@@ -12,7 +12,6 @@ import java.math.BigDecimal;
 @Table(name = "virtual_accounts")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AttributeOverride(name = "id", column = @Column(name = "virtual_account_id"))
 public class VirtualAccount extends BaseEntity {
 
     @Column(name = "remittance_transaction_id", nullable = false)

@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 @Table(name = "recipients")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AttributeOverride(name = "id", column = @Column(name = "recipient_id"))
 public class Recipient extends BaseEntity {
 
     @Column(name = "user_id", nullable = false)
