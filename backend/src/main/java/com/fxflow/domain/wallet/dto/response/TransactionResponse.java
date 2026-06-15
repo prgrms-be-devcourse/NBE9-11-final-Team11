@@ -1,0 +1,27 @@
+package com.fxflow.domain.wallet.dto.response;
+
+import com.fxflow.domain.ledger.entity.LedgerEntry;
+import com.fxflow.domain.ledger.enums.LedgerEntryType;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+public record TransactionResponse (
+    Long transactionId,
+    LedgerEntryType type,
+    String currency,
+    BigDecimal amount,
+    BigDecimal balanceAfter,
+    LocalDateTime createdAt
+) {
+    public static TransactionResponse from(LedgerEntry ledgerEntry) {
+        return new TransactionResponse(
+                ledgerEntry.getId(),
+                ledgerEntry.getEntryType(),
+                ledgerEntry.getCurrencyCode(),
+                ledgerEntry.getAmount(),
+                ledgerEntry.getBalanceAfter(),
+                ledgerEntry.getCreatedAt()
+        );
+    }
+}

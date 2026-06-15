@@ -4,10 +4,12 @@ import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.global.entity.BaseEntity;
 import jakarta.persistence.*;
+import lombok.Getter;
 
 import java.math.BigDecimal;
 
 @Entity
+@Getter
 @Table(name = "ledger_entries")
 public class LedgerEntry extends BaseEntity {
 
