@@ -75,11 +75,48 @@ public class TransactionLimitValidator {
     }
 
     // 3. 월렛 보유 한도 검증
-    public void validateWalletHolding(User user, BigDecimal newBalanceKrw) { }
+    public void validateWalletHolding(User user, BigDecimal newBalanceKrw) {
+        log.info("[월렛 보유 한도 검증 시작] userId={}, 변경후잔액={}KRW", user.getId(), newBalanceKrw);
 
-    // 4. 일일 입금 한도 검증
-    public void validateDailyDeposit(User user, BigDecimal amountKrw) { }
+        if (newBalanceKrw.compareTo(user.getWalletLimitKrw()) > 0) {
+            log.warn("[월렛 보유 한도 검증 실패] userId={}, 변경후잔액={}KRW, 한도={}KRW",
+                    user.getId(), newBalanceKrw, user.getWalletLimitKrw());
+            throw new BusinessException(TransactionLimitErrorCode.WALLET_HOLDING_LIMIT_EXCEEDED);
+        }
 
-    // 5. 일일 출금 한도 검증
-    public void validateDailyWithdrawal(User user, BigDecimal amountKrw) { }
+        log.info("[월렛 보유 한도 검증 완료] userId={}, 변경후잔액={}KRW, 한도={}KRW",
+                user.getId(), newBalanceKrw, user.getWalletLimitKrw());
+    }
+
+    // ── 4. 일일 입금 한도 검증 ─────────────────────────────────────────────
+    public void validateDailyDeposit(User user, BigDecimal amountKrw) {
+        log.info("[일일 입금 한도 검증 시작] userId={}, 요청액={}KRW", user.getId(), amountKrw);
+
+        TransactionLimit limit = getLimit(LimitType.DAILY_DEPOSIT, user.getLimitTier(), "KRW");
+
+        if (amountKrw.compareTo(limit.getLimitAmount()) > 0) {
+            log.warn("[일일 입금 한도 검증 실패] userId={}, 요청액={}KRW, 한도={}KRW",
+                    user.getId(), amountKrw, limit.getLimitAmount());
+            throw new BusinessException(TransactionLimitErrorCode.DAILY_DEPOSIT_LIMIT_EXCEEDED);
+        }
+
+        log.info("[일일 입금 한도 검증 완료] userId={}, 요청액={}KRW, 한도={}KRW",
+                user.getId(), amountKrw, limit.getLimitAmount());
+    }
+
+    // ── 5. 일일 출금 한도 검증 ─────────────────────────────────────────────
+    public void validateDailyWithdrawal(User user, BigDecimal amountKrw) {
+        log.info("[일일 출금 한도 검증 시작] userId={}, 요청액={}KRW", user.getId(), amountKrw);
+
+        TransactionLimit limit = getLimit(LimitType.DAILY_WITHDRAWAL, user.getLimitTier(), "KRW");
+
+        if (amountKrw.compareTo(limit.getLimitAmount()) > 0) {
+            log.warn("[일일 출금 한도 검증 실패] userId={}, 요청액={}KRW, 한도={}KRW",
+                    user.getId(), amountKrw, limit.getLimitAmount());
+            throw new BusinessException(TransactionLimitErrorCode.DAILY_WITHDRAWAL_LIMIT_EXCEEDED);
+        }
+
+        log.info("[일일 출금 한도 검증 완료] userId={}, 요청액={}KRW, 한도={}KRW",
+                user.getId(), amountKrw, limit.getLimitAmount());
+    }
 }
