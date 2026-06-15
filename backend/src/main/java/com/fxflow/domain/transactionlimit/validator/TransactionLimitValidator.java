@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 
 @Slf4j
 @Component
@@ -104,9 +105,9 @@ public class TransactionLimitValidator {
 
         TransactionLimit limit = getLimit(LimitType.DAILY_DEPOSIT, user.getLimitTier(), "KRW");
 
-        // 오늘 누적 입금액 조회
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         BigDecimal usedAmount = userDailyUsageRepository
-                .findByUserIdAndUsageDate(user.getId(), LocalDate.now())
+                .findByUserIdAndUsageDate(user.getId(), today)
                 .map(UserDailyUsage::getDailyDepositUsed)
                 .orElse(BigDecimal.ZERO);
 
@@ -126,9 +127,9 @@ public class TransactionLimitValidator {
 
         TransactionLimit limit = getLimit(LimitType.DAILY_WITHDRAWAL, user.getLimitTier(), "KRW");
 
-        // 오늘 누적 출금액 조회
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         BigDecimal usedAmount = userDailyUsageRepository
-                .findByUserIdAndUsageDate(user.getId(), LocalDate.now())
+                .findByUserIdAndUsageDate(user.getId(), today)
                 .map(UserDailyUsage::getDailyWithdrawalUsed)
                 .orElse(BigDecimal.ZERO);
 
