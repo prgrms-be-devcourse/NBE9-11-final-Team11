@@ -63,7 +63,7 @@ public class TransactionLimitValidator {
 
         TransactionLimit limit = getLimit(LimitType.ANNUAL_REMITTANCE, LimitTier.STANDARD, "USD");
 
-        int currentYear = LocalDate.now().getYear();
+        int currentYear = LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).getYear();
         BigDecimal usedAmount = userAnnualUsageRepository
                 .findByUserIdAndYear(user.getId(), currentYear)
                 .map(UserAnnualUsage::getAnnualUsedUsd)
