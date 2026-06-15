@@ -327,4 +327,85 @@ class TransactionLimitValidatorTest {
                     .doesNotThrowAnyException();
         }
     }
+    // ── 6. 1회 입금 한도 검증 ─────────────────────────────────────────────
+    @Nested
+    @DisplayName("1회 입금 한도 검증")
+    class ValidatePerDeposit {
+
+        @BeforeEach
+        void setUp() {
+            when(user.getId()).thenReturn(1L);
+            when(user.getLimitTier()).thenReturn(LimitTier.STANDARD);
+            when(transactionLimitRepository
+                    .findByLimitTypeAndTierAndCurrencyCodeAndIsActiveTrue(
+                            LimitType.PER_DEPOSIT, LimitTier.STANDARD, "KRW"))
+                    .thenReturn(Optional.of(
+                            mockLimit(LimitType.PER_DEPOSIT, LimitTier.STANDARD, "KRW", new BigDecimal("2000000"))
+                    ));
+        }
+
+        @Test
+        @DisplayName("성공: 요청액이 한도 미만")
+        void success() {
+            assertThatCode(() -> validator.validatePerDeposit(user, new BigDecimal("1500000")))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("성공: 요청액이 한도와 동일")
+        void success_equalToLimit() {
+            assertThatCode(() -> validator.validatePerDeposit(user, new BigDecimal("2000000")))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("실패: 요청액이 한도 초과")
+        void fail_exceeded() {
+            assertThatThrownBy(() -> validator.validatePerDeposit(user, new BigDecimal("2500000")))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(TransactionLimitErrorCode.PER_DEPOSIT_LIMIT_EXCEEDED);
+        }
+    }
+
+    // ── 7. 1회 출금 한도 검증 ─────────────────────────────────────────────
+    @Nested
+    @DisplayName("1회 출금 한도 검증")
+    class ValidatePerWithdrawal {
+
+        @BeforeEach
+        void setUp() {
+            when(user.getId()).thenReturn(1L);
+            when(user.getLimitTier()).thenReturn(LimitTier.STANDARD);
+            when(transactionLimitRepository
+                    .findByLimitTypeAndTierAndCurrencyCodeAndIsActiveTrue(
+                            LimitType.PER_WITHDRAWAL, LimitTier.STANDARD, "KRW"))
+                    .thenReturn(Optional.of(
+                            mockLimit(LimitType.PER_WITHDRAWAL, LimitTier.STANDARD, "KRW", new BigDecimal("2000000"))
+                    ));
+        }
+
+        @Test
+        @DisplayName("성공: 요청액이 한도 미만")
+        void success() {
+            assertThatCode(() -> validator.validatePerWithdrawal(user, new BigDecimal("1500000")))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("성공: 요청액이 한도와 동일")
+        void success_equalToLimit() {
+            assertThatCode(() -> validator.validatePerWithdrawal(user, new BigDecimal("2000000")))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("실패: 요청액이 한도 초과")
+        void fail_exceeded() {
+            assertThatThrownBy(() -> validator.validatePerWithdrawal(user, new BigDecimal("2500000")))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(TransactionLimitErrorCode.PER_WITHDRAWAL_LIMIT_EXCEEDED);
+        }
+    }
 }
