@@ -15,6 +15,9 @@ public class FxRateService {
     }
 
     public BigDecimal getRate(String from, String to) {
+        if (from == null || to == null) {
+            throw new IllegalArgumentException("Currency codes must not be null");
+        }
         if (from.equals(to)) {
             return BigDecimal.ONE;
         }
