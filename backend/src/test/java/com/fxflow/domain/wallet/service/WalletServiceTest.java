@@ -11,9 +11,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import java.lang.reflect.Field;
+
 import java.math.BigDecimal;
 import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
@@ -57,13 +58,16 @@ class WalletServiceTest {
         assertThat(response.walletResponseList()).hasSize(2);
     }
 
-    private void setField(
-            Object target,
-            String fieldName,
-            Object value
-    ) throws Exception {
-        Field field = target.getClass().getDeclaredField(fieldName);
-        field.setAccessible(true);
-        field.set(target, value);
+    @Test
+    void getWalletBalance_emptyWallets() {
+
+        when(walletRepository.findByUserId(1L))
+                .thenReturn(List.of());
+
+        WalletBalanceResponse response =
+                walletService.getWalletBalance(1L);
+
+        assertThat(response.totalKrw()).isEqualTo(0L);
+        assertThat(response.walletResponseList()).isEmpty();
     }
 }
