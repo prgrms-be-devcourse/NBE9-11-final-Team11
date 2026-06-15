@@ -32,5 +32,32 @@ public class Wallet extends BaseEntity {
 
     private LocalDateTime deletedAt;
 
+    private Wallet(User user, String currencyCode, BigDecimal balance) {
+        this.user = user;
+        this.currencyCode = currencyCode;
+        this.balance = balance;
+    }
+
+    public static Wallet create(User user, String currencyCode, BigDecimal balance) {
+        return new Wallet(user, currencyCode, balance);
+    }
+
+    public void updateBalance(BigDecimal amount) {
+        this.balance = this.balance.add(amount);
+    }
+
+    public void updateBalance(BigDecimal amount, String currencyCode) {
+        if (this.currencyCode.equals(currencyCode)) {
+            this.updateBalance(amount);
+        }
+    }
+
+    public void delete() {
+        this.deletedAt = LocalDateTime.now();
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
 
 }
