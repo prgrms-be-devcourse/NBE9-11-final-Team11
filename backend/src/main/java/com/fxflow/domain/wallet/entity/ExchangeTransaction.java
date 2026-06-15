@@ -34,10 +34,10 @@ public class ExchangeTransaction extends BaseEntity {
     @Column(name = "to_currency_code", length = 3, nullable = false)
     private String toCurrencyCode;
 
-    @Column(name = "from_amount", precision = 18, scale = 8, nullable = false)
+    @Column(name = "from_amount", precision = 18, scale = 2, nullable = false)
     private BigDecimal fromAmount;
 
-    @Column(name = "to_amount", precision = 18, scale = 8, nullable = false)
+    @Column(name = "to_amount", precision = 18, scale = 2, nullable = false)
     private BigDecimal toAmount;
 
     @Column(name = "base_rate", precision = 18, scale = 8, nullable = false)
@@ -56,6 +56,7 @@ public class ExchangeTransaction extends BaseEntity {
     @Column(length = 100, nullable = false, unique = true)
     private String idempotencyKey;
 
+    @Column(name = "failure_reason", length = 255)
     private String failureReason;
 
     @Column(name = "fee_amount", nullable = false)
@@ -72,6 +73,10 @@ public class ExchangeTransaction extends BaseEntity {
         this.toAmount = toAmount;
         this.baseRate = baseRate;
         this.spreadRate = spreadRate;
+        this.finalRate = finalRate;
+        this.status = status;
+        this.idempotencyKey = idempotencyKey;
+        this.feeAmount = BigDecimal.ZERO;
     }
 
     public static ExchangeTransaction create(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, ExchangeStatus status, String idempotencyKey) {
