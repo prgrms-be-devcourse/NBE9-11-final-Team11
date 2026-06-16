@@ -1,3 +1,13 @@
+-- ── 자금 풀 초기 데이터 ───────────────────────────────────────
+-- KRW: target 100억, floor 80억(80%), ceiling 120억(120%)
+-- USD: target 650만, floor 520만(80%), ceiling 780만(120%)
+INSERT INTO company_pools (currency_code, balance, target_balance, floor_balance, ceiling_balance, created_at, updated_at)
+VALUES
+    ('KRW', 10000000000.00, 10000000000.00,  8000000000.00, 12000000000.00, now(), now()),
+    ('USD',     6500000.00,     6500000.00,     5200000.00,     7800000.00, now(), now())
+ON CONFLICT (currency_code) DO NOTHING;
+
+-- ── 통화 ──────────────────────────────────────────────────
 INSERT INTO currencies (currency_code, currency_name, symbol, decimal_places, created_at)
 VALUES
     ('KRW', '원화', '₩', 0, now()),
