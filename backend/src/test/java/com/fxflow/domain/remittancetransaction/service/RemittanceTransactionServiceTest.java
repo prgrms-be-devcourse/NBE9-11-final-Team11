@@ -89,7 +89,7 @@ class RemittanceTransactionServiceTest {
         assertThat(response.transferId()).isEqualTo(transferId);
         assertThat(response.status()).isEqualTo(TransferStatus.PENDING);
         assertThat(response.virtualAccount().bankName()).isEqualTo("하나은행");
-        assertThat(response.virtualAccount().amount()).isEqualByComparingTo(new BigDecimal("1008000.00"));
+        assertThat(response.virtualAccount().amount()).isEqualTo(new BigDecimal("1008000"));
         assertThat(response.virtualAccount().expiredAt()).isNotNull();
 
         ArgumentCaptor<RemittanceTransaction> transactionCaptor =
