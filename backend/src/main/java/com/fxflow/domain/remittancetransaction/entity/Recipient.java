@@ -6,8 +6,16 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
-@Table(name = "recipients")
+@Table(
+        name = "recipients",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_recipient_user_bank_account",
+                columnNames = {"user_id", "country_code", "bank_name", "account_number"}
+        )
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Recipient extends BaseEntity {
@@ -15,23 +23,61 @@ public class Recipient extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "target_user_id")
+    private Long targetUserId;
+
     @Column(name = "name", length = 100, nullable = false)
     private String name;
 
-    @Column(name = "bank_code", length = 20, nullable = false)
-    private String bankCode;
+    @Column(name = "country_code", length = 10, nullable = false)
+    private String countryCode;
 
-    @Column(name = "account_number", length = 50, nullable = false, unique = true)
+    @Column(name = "currency_code", length = 10, nullable = false)
+    private String currencyCode;
+
+    @Column(name = "bank_name", length = 100, nullable = false)
+    private String bankName;
+
+    @Column(name = "account_number", length = 50, nullable = false)
     private String accountNumber;
 
-    private Recipient(Long userId, String name, String bankCode, String accountNumber) {
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    private Recipient(
+            Long userId,
+            Long targetUserId,
+            String name,
+            String countryCode,
+            String currencyCode,
+            String bankName,
+            String accountNumber
+    ) {
         this.userId = userId;
+        this.targetUserId = targetUserId;
         this.name = name;
-        this.bankCode = bankCode;
+        this.countryCode = countryCode;
+        this.currencyCode = currencyCode;
+        this.bankName = bankName;
         this.accountNumber = accountNumber;
     }
 
-    public static Recipient create(Long userId, String name, String bankCode, String accountNumber) {
-        return new Recipient(userId, name, bankCode, accountNumber);
+    public static Recipient create(
+            Long userId,
+            String name,
+            String countryCode,
+            String currencyCode,
+            String bankName,
+            String accountNumber
+    ) {
+        return new Recipient(
+                userId,
+                null,
+                name,
+                countryCode,
+                currencyCode,
+                bankName,
+                accountNumber
+        );
     }
 }
