@@ -10,6 +10,7 @@ import com.fxflow.domain.remittancetransaction.errorcode.RecipientErrorCode;
 import com.fxflow.domain.remittancetransaction.repository.RecipientRepository;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.remittancetransaction.repository.VirtualAccountRepository;
+import com.fxflow.domain.remittancetransaction.validator.RemittanceValidator;
 import com.fxflow.domain.transactionlimit.entity.TransactionLimit;
 import com.fxflow.domain.transactionlimit.enums.LimitTier;
 import com.fxflow.domain.transactionlimit.enums.LimitType;
@@ -45,6 +46,7 @@ public class RemittanceTransactionService {
     private final RemittanceTransactionRepository remittanceTransactionRepository;
     private final VirtualAccountRepository virtualAccountRepository;
     private final RemittanceQuoteProvider remittanceQuoteProvider;
+    private final RemittanceValidator remittanceValidator;
 
     /**
      * 유저의 해외송금 잔여 한도를 조회한다.
@@ -78,6 +80,9 @@ public class RemittanceTransactionService {
     ) {
         RemittanceQuoteSnapshot quote = remittanceQuoteProvider.getQuote(request.quoteId());
         validateRecipient(userId, quote.recipientId());
+
+        // 견적의 USD 환산 금액으로 건당/연간 해외송금 한도를 검증한다.
+        remittanceValidator.validateLimits(userId, quote.amountUsd());
 
         // TODO: 현재는 임시 UUID를 저장한다. 추후 Idempotency-Key 헤더 기반 중복 요청 방지로 교체한다.
         String idempotencyKey = UUID.randomUUID().toString();
