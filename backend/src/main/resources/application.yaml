@@ -1,6 +1,8 @@
 spring:
   application:
     name: fxflow
+  profiles:
+    include: secret
 
   datasource:
     url: jdbc:postgresql://localhost:5432/mydb
