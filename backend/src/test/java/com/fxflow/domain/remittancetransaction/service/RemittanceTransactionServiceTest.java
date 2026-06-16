@@ -12,6 +12,8 @@ import com.fxflow.domain.remittancetransaction.errorcode.RemittanceTransactionEr
 import com.fxflow.domain.remittancetransaction.repository.RecipientRepository;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.remittancetransaction.repository.VirtualAccountRepository;
+import com.fxflow.domain.remittancetransaction.validator.RemittanceValidator;
+import com.fxflow.domain.transactionlimit.errorcode.TransactionLimitErrorCode;
 import com.fxflow.domain.transactionlimit.repository.TransactionLimitRepository;
 import com.fxflow.domain.userlimitusage.repository.UserAnnualUsageRepository;
 import com.fxflow.global.exception.BusinessException;
@@ -51,6 +53,9 @@ class RemittanceTransactionServiceTest {
 
     @Mock
     private RemittanceQuoteProvider remittanceQuoteProvider;
+
+    @Mock
+    private RemittanceValidator remittanceValidator;
 
     @InjectMocks
     private RemittanceTransactionService remittanceTransactionService;
@@ -102,6 +107,7 @@ class RemittanceTransactionServiceTest {
         assertThat(savedTransaction.getReason()).isEqualTo(RemittanceReason.LIVING_EXPENSES.name());
         assertThat(savedTransaction.getReasonDetail()).isEqualTo("생활비 송금");
         assertThat(savedTransaction.getStatus()).isEqualTo(TransferStatus.PENDING);
+        verify(remittanceValidator).validateLimits(userId, quote.amountUsd());
 
         ArgumentCaptor<VirtualAccount> virtualAccountCaptor =
                 ArgumentCaptor.forClass(VirtualAccount.class);
@@ -132,6 +138,29 @@ class RemittanceTransactionServiceTest {
                 .isEqualTo(RemittanceTransactionErrorCode.QUOTE_NOT_FOUND);
 
         verifyNoInteractions(recipientRepository);
+        verifyNoInteractions(remittanceTransactionRepository);
+        verifyNoInteractions(virtualAccountRepository);
+    }
+
+    @Test
+    @DisplayName("실패: 송금 한도를 초과하면 송금 주문과 가상계좌를 생성하지 않는다")
+    void createTransfer_fail_limitExceeded() {
+        // given
+        Long userId = 1L;
+        RemittanceTransactionCreateRequest request = createRequest();
+        RemittanceQuoteSnapshot quote = createQuote();
+        BusinessException exception =
+                new BusinessException(TransactionLimitErrorCode.ANNUAL_REMITTANCE_LIMIT_EXCEEDED);
+
+        when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
+        when(recipientRepository.existsByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
+                .thenReturn(true);
+        doThrow(exception).when(remittanceValidator).validateLimits(userId, quote.amountUsd());
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request))
+                .isSameAs(exception);
+
         verifyNoInteractions(remittanceTransactionRepository);
         verifyNoInteractions(virtualAccountRepository);
     }
