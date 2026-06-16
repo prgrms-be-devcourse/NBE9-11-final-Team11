@@ -2,20 +2,38 @@ package com.fxflow.domain.wallet.service;
 
 
 import com.fxflow.domain.fxrate.service.FxRateService;
+import com.fxflow.domain.ledger.entity.LedgerEntry;
+import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
 import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
 import com.fxflow.domain.wallet.entity.Wallet;
+import com.fxflow.domain.wallet.errorcode.WalletErrorCode;
 import com.fxflow.domain.wallet.repository.WalletRepository;
+import com.fxflow.global.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,6 +43,8 @@ class WalletServiceTest {
     private WalletRepository walletRepository;
     @Mock
     private FxRateService fxRateService;
+    @Mock
+    private LedgerEntryRepository ledgerEntryRepository;
 
     @InjectMocks
     private WalletService walletService;
@@ -32,7 +52,7 @@ class WalletServiceTest {
     private Wallet krwWallet;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         usdWallet = Wallet.create(null, "USD", new BigDecimal("100"));
         krwWallet = Wallet.create(null, "KRW", new BigDecimal("50000"));
     }
@@ -69,5 +89,131 @@ class WalletServiceTest {
 
         assertThat(response.totalKrw()).isEqualTo(0L);
         assertThat(response.walletResponseList()).isEmpty();
+    }
+
+    // -- Transaction History --
+    @Test
+    @DisplayName("currency 지정 시 해당 지갑의 거래내역을 조회한다")
+    void getTransactionHistory_withCurrency_success() {
+        // given
+        Long userId = 1L;
+        String currency = "KRW";
+        Wallet wallet = Wallet.create(null, currency, BigDecimal.valueOf(1000000));
+        ReflectionTestUtils.setField(wallet, "id", 10L);
+
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<LedgerEntry> emptyPage = new PageImpl<>(List.of());
+
+        given(walletRepository.findByUserIdAndCurrencyCode(userId, currency))
+                .willReturn(Optional.of(wallet));
+        given(ledgerEntryRepository.findByWalletIdInAndFilters(List.of(10L), currency, null, null, pageable))
+                .willReturn(emptyPage);
+
+        // when
+        TransactionHistoryResponse response = walletService.getTransactionHistory(
+                userId, currency, null, null, pageable);
+
+        // then
+        assertThat(response.totalCount()).isEqualTo(0);
+        verify(walletRepository).findByUserIdAndCurrencyCode(userId, currency);
+    }
+
+    @Test
+    @DisplayName("해당 통화의 지갑이 없으면 WALLET_NOT_FOUND 예외가 발생한다")
+    void getTransactionHistory_walletNotFound() {
+        // given
+        Long userId = 1L;
+        String currency = "USD";
+        Pageable pageable = PageRequest.of(0, 20);
+
+        given(walletRepository.findByUserIdAndCurrencyCode(userId, currency))
+                .willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() ->
+                walletService.getTransactionHistory(userId, currency, null, null, pageable)
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(WalletErrorCode.WALLET_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("from, to 날짜가 있으면 시작일 00:00:00, 종료일 23:59:59로 변환되어 조회된다")
+    void getTransactionHistory_withDateRange() {
+        // given
+        Long userId = 1L;
+        String currency = "KRW";
+        LocalDate from = LocalDate.of(2025, 1, 1);
+        LocalDate to = LocalDate.of(2025, 6, 1);
+        Wallet wallet = Wallet.create(null, currency, BigDecimal.ZERO);
+        ReflectionTestUtils.setField(wallet, "id", 10L);
+        Pageable pageable = PageRequest.of(0, 20);
+
+        given(walletRepository.findByUserIdAndCurrencyCode(userId, currency))
+                .willReturn(Optional.of(wallet));
+        given(ledgerEntryRepository.findByWalletIdInAndFilters(
+                eq(List.of(10L)), eq(currency),
+                eq(LocalDateTime.of(2025, 1, 1, 0, 0, 0)),
+                eq(LocalDateTime.of(2025, 6, 1, 23, 59, 59)),
+                eq(pageable)
+        )).willReturn(new PageImpl<>(List.of()));
+
+        // when
+        walletService.getTransactionHistory(userId, currency, from, to, pageable);
+
+        // then
+        verify(ledgerEntryRepository).findByWalletIdInAndFilters(
+                eq(List.of(10L)), eq(currency),
+                eq(LocalDateTime.of(2025, 1, 1, 0, 0, 0)),
+                eq(LocalDateTime.of(2025, 6, 1, 23, 59, 59)),
+                eq(pageable)
+        );
+    }
+
+    @Test
+    @DisplayName("from, to가 없으면 null로 조회된다")
+    void getTransactionHistory_withoutDateRange() {
+        // given
+        Long userId = 1L;
+        String currency = "KRW";
+        Wallet wallet = Wallet.create(null, currency, BigDecimal.ZERO);
+        ReflectionTestUtils.setField(wallet, "id", 10L);
+        Pageable pageable = PageRequest.of(0, 20);
+
+        given(walletRepository.findByUserIdAndCurrencyCode(userId, currency))
+                .willReturn(Optional.of(wallet));
+        given(ledgerEntryRepository.findByWalletIdInAndFilters(List.of(10L), currency, null, null, pageable))
+                .willReturn(new PageImpl<>(List.of()));
+
+        // when
+        walletService.getTransactionHistory(userId, currency, null, null, pageable);
+
+        // then
+        verify(ledgerEntryRepository).findByWalletIdInAndFilters(List.of(10L), currency, null, null, pageable);
+    }
+
+    @Test
+    @DisplayName("currency가 없으면 유저의 모든 지갑 거래내역을 조회한다")
+    void getTransactionHistory_withoutCurrency() {
+        // given
+        Long userId = 1L;
+        Wallet krwWallet = Wallet.create(null, "KRW", BigDecimal.ZERO);
+        Wallet usdWallet = Wallet.create(null, "USD", BigDecimal.ZERO);
+        ReflectionTestUtils.setField(krwWallet, "id", 10L);
+        ReflectionTestUtils.setField(usdWallet, "id", 11L);
+
+        Pageable pageable = PageRequest.of(0, 20);
+
+        given(walletRepository.findByUserId(userId))
+                .willReturn(List.of(krwWallet, usdWallet));
+        given(ledgerEntryRepository.findByWalletIdInAndFilters(List.of(10L, 11L), null, null, null, pageable))
+                .willReturn(new PageImpl<>(List.of()));
+
+        // when
+        walletService.getTransactionHistory(userId, null, null, null, pageable);
+
+        // then
+        verify(ledgerEntryRepository).findByWalletIdInAndFilters(List.of(10L, 11L), null, null, null, pageable);
     }
 }
