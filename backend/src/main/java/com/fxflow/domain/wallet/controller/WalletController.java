@@ -27,7 +27,7 @@ public class WalletController {
     private final P2pTransferService p2pTransferService;
 
     // todo: userDetails
-    @GetMapping("/")
+    @GetMapping
     public ResponseEntity<WalletBalanceResponse> getWalletBalance(
             @AuthenticationPrincipal UserDetails userDetails
     ){
