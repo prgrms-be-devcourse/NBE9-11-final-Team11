@@ -20,13 +20,13 @@ public class CompanyPoolService {
     private final CompanyPoolRepository companyPoolRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
 
-    public CompanyPool getKrwPool() {
-        return companyPoolRepository.findByCurrencyCode("KRW")
+    public CompanyPool getPoolByCurrency(String currencyCode) {
+        return companyPoolRepository.findByCurrencyCode(currencyCode)
                 .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
     }
 
-    public CompanyPool deposit(String journalId, BigDecimal amount) {
-        CompanyPool pool = getKrwPool();
+    public CompanyPool deposit(String journalId, String currencyCode, BigDecimal amount) {
+        CompanyPool pool = getPoolByCurrency(currencyCode);
         BigDecimal balanceBefore = pool.getBalance();
         BigDecimal balanceAfter = balanceBefore.add(amount);
 

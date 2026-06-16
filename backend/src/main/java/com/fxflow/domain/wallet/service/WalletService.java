@@ -1,5 +1,6 @@
 package com.fxflow.domain.wallet.service;
 
+import com.fxflow.domain.companypool.entity.CompanyPool;
 import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.fxrate.service.FxRateService;
 import com.fxflow.domain.ledger.entity.LedgerEntry;
@@ -116,7 +117,8 @@ public class WalletService {
         wallet.updateBalance(amount);
         walletRepository.save(wallet);
 
-        companyPoolService.deposit(journalId, amount);
+        CompanyPool pool = companyPoolService.deposit(journalId, "KRW", amount);
+        Long companyPoolId = pool.getId();
 
         LedgerEntry walletEntry =
                 LedgerEntry.create(
@@ -125,7 +127,7 @@ public class WalletService {
                         LedgerDirection.CREDIT,
                         walletId,
                         null,
-                        1L,
+                        null,
                         "KRW",
                         amount,
                         balanceBefore,
