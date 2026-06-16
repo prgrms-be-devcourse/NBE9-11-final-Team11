@@ -5,6 +5,7 @@ import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 public record RemittanceTransactionCreateResponse(
@@ -35,7 +36,7 @@ public record RemittanceTransactionCreateResponse(
             return new VirtualAccountResponse(
                     virtualAccount.getBankName(),
                     virtualAccount.getAccountNumber(),
-                    virtualAccount.getExpectedAmount(),
+                    virtualAccount.getExpectedAmount().setScale(0, RoundingMode.DOWN),
                     virtualAccount.getExpiredAt()
             );
         }
