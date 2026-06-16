@@ -62,6 +62,10 @@ public class WalletService {
             walletIds = walletRepository.findByUserId(userId).stream().map(Wallet::getId).toList();
         }
 
+        if (walletIds.isEmpty()) {  // 사용자의 월렛이 없을 시 DB 조회하지 않고 바로 빈 페이지 반환
+            return TransactionHistoryResponse.from(Page.empty(pageable));
+        }
+
         LocalDateTime fromDateTime = from != null ? from.atStartOfDay() : null;
         LocalDateTime toDateTime = to != null ? to.atTime(23, 59, 59) : null;
 
