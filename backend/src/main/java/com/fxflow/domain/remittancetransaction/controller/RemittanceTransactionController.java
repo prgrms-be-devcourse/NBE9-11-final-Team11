@@ -9,13 +9,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/transfers")
 @RequiredArgsConstructor
+@RequestMapping("/api/v1")
 public class RemittanceTransactionController {
 
     private final RemittanceTransactionService remittanceTransactionService;
 
-    @GetMapping("/limit")
+    @GetMapping("/transfers/limit")
     public ResponseEntity<RemittanceLimitResponse> getRemittanceLimit() {
         // TODO: 인증 레이어 완성 후 @AuthenticationPrincipal로 실제 유저 ID 주입받도록 수정할 것
         Long mockUserId = 1L;
@@ -25,14 +25,12 @@ public class RemittanceTransactionController {
     }
 
     /*
-    @GetMapping("/limit")
+    @GetMapping("/transfers/limit")
     public ResponseEntity<RemittanceLimitResponse> getRemittanceLimit(
-            @AuthenticationPrincipal CustomUserDetails userDetails // 인증된 유저 객체 주입
+            @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        Long userId = userDetails.getId(); // 토큰에서 추출한 실제 유저 ID 사용
+        Long userId = userDetails.getId();
         return ResponseEntity.ok(service.getRemittanceLimit(userId));
     }
-
      */
-
 }
