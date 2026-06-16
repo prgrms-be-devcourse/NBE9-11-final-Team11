@@ -60,4 +60,38 @@ public class RebalancingOrder extends BaseEntity {
 
     @Column(nullable = false, unique = true, length = 100)
     private String idempotencyKey;
+
+    private RebalancingOrder(CompanyPool buyPool, CompanyPool sellPool,
+                             BigDecimal buyAmount, BigDecimal sellAmount,
+                             BigDecimal buyBalanceBefore, BigDecimal sellBalanceBefore,
+                             BigDecimal midRate, BigDecimal appliedRate,
+                             RebalancingStatus status, CappedBy cappedBy,
+                             TriggerType triggerType, String reason,
+                             String idempotencyKey) {
+        this.buyPool = buyPool;
+        this.sellPool = sellPool;
+        this.buyAmount = buyAmount;
+        this.sellAmount = sellAmount;
+        this.buyBalanceBefore = buyBalanceBefore;
+        this.sellBalanceBefore = sellBalanceBefore;
+        this.midRate = midRate;
+        this.appliedRate = appliedRate;
+        this.status = status;
+        this.cappedBy = cappedBy;
+        this.triggerType = triggerType;
+        this.reason = reason;
+        this.idempotencyKey = idempotencyKey;
+    }
+
+    public static RebalancingOrder create(CompanyPool buyPool, CompanyPool sellPool,
+                                          BigDecimal buyAmount, BigDecimal sellAmount,
+                                          BigDecimal buyBalanceBefore, BigDecimal sellBalanceBefore,
+                                          BigDecimal midRate, BigDecimal appliedRate,
+                                          RebalancingStatus status, CappedBy cappedBy,
+                                          TriggerType triggerType, String reason,
+                                          String idempotencyKey) {
+        return new RebalancingOrder(buyPool, sellPool, buyAmount, sellAmount,
+                buyBalanceBefore, sellBalanceBefore, midRate, appliedRate,
+                status, cappedBy, triggerType, reason, idempotencyKey);
+    }
 }
