@@ -7,7 +7,6 @@ import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
-import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
 import com.fxflow.domain.wallet.dto.request.ChargeRequest;
 import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
@@ -35,14 +34,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class WalletService {
 
-    public static final BigDecimal MAX_KRW_BALANCE = new BigDecimal("2000000");
-
     private final WalletRepository walletRepository;
-    private final ExchangeService exchangeService;
-    private final P2pTransferService p2pTransferService;
     private final FxRateService fxRateService;
     private final LedgerEntryRepository ledgerEntryRepository;
-    private final TransactionLimitValidator transactionLimitValidator;
     private final MockBankAccountService mockBankAccountService;
     private final CompanyPoolService companyPoolService;
 
