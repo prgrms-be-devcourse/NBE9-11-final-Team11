@@ -1,4 +1,9 @@
 package com.fxflow.domain.wallet.dto.request;
 
-public class ChargeRequest {
+import java.math.BigDecimal;
+
+public record ChargeRequest (
+        Long bankAccountId,
+        BigDecimal amount
+) {
 }

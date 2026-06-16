@@ -1,6 +1,9 @@
 package com.fxflow.domain.mockbankaccount.service;
 
-
+import com.fxflow.domain.ledger.entity.LedgerEntry;
+import com.fxflow.domain.ledger.enums.LedgerDirection;
+import com.fxflow.domain.ledger.enums.LedgerEntryType;
+import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankLinkResponse;
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
@@ -11,10 +14,10 @@ import com.fxflow.domain.user.repository.UserRepository;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -24,16 +27,78 @@ import java.util.regex.Pattern;
 @Service
 @RequiredArgsConstructor
 public class MockBankAccountService {
-
     private static final String KRW = "KRW";
-    private static final String USD="USD";
+    private static final String USD = "USD";
 
     private final MockBankAccountRepository mockBankAccountRepository;
+    private final LedgerEntryRepository ledgerEntryRepository;
     private final UserRepository userRepository;
     private final WalletRepository walletRepository;
-
     private static final Pattern ACCOUNT_NUMBER_PATTERN = Pattern.compile("^[0-9-]+$");
     private static final int ACCOUNT_NUMBER_DIGIT_LENGTH = 12;
+
+    public MockBankAccount findById(Long bankAccountId) {
+        return mockBankAccountRepository.findById(bankAccountId).orElseThrow(
+                () -> new IllegalArgumentException("Bank account not found") // todo: exception
+        );
+    }
+
+    @Transactional
+    public void withdraw(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
+        MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndUserId(bankAccountId, userId)
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+
+        BigDecimal balanceBefore = bankAccount.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_INSUFFICIENT_BALANCE);
+        }
+        bankAccount.withdraw(amount);
+        LedgerEntry entry = LedgerEntry.create(
+                journalId,
+                LedgerEntryType.CHARGE,
+                LedgerDirection.DEBIT,
+                null,
+                bankAccountId,
+                null,
+                currencyCode,
+                amount,
+                balanceBefore,
+                balanceAfter,
+                null
+        );
+        ledgerEntryRepository.save(entry);
+        mockBankAccountRepository.save(bankAccount);
+    }
+
+    @Transactional
+    public void deposit(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
+        MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndUserId(bankAccountId, userId)
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+
+        BigDecimal balanceBefore = bankAccount.getBalance();
+        BigDecimal balanceAfter = balanceBefore.add(amount);
+
+        bankAccount.deposit(amount);
+
+        LedgerEntry entry = LedgerEntry.create(
+                journalId,
+                LedgerEntryType.WITHDRAW,
+                LedgerDirection.CREDIT,
+                null,
+                bankAccountId,
+                null,
+                currencyCode,
+                amount,
+                balanceBefore,
+                balanceAfter,
+                null
+        );
+
+        ledgerEntryRepository.save(entry);
+        mockBankAccountRepository.save(bankAccount);
+    }
+
     /**
      * KRW 모의계좌 연결
      * 유저당 1개만 허용, 계좌번호 중복 불가
@@ -88,6 +153,7 @@ public class MockBankAccountService {
             throw new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_INVALID_FORMAT);
         }
     }
+
     /**
      * KRW/USD Wallet 생성 (0원 시작)
      * 이미 존재하면 생성하지 않음 — 재연결/중복 호출 방어

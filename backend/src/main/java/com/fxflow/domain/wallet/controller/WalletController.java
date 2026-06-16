@@ -1,6 +1,9 @@
 package com.fxflow.domain.wallet.controller;
 
+import com.fxflow.domain.wallet.dto.request.ChargeRequest;
+import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
+import com.fxflow.domain.wallet.dto.response.TransactionResponse;
 import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
 import com.fxflow.domain.wallet.service.P2pTransferService;
 import com.fxflow.domain.wallet.service.WalletService;
@@ -11,10 +14,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 
@@ -38,18 +38,33 @@ public class WalletController {
     // todo: userDetails
     @GetMapping("/transactions")
     public ResponseEntity<TransactionHistoryResponse> getTransactionHistory(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) String currency,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to
     ){
-        Long userId = 1L;
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        TransactionHistoryResponse res = walletService.getTransactionHistory(1L, currency, from, to, pageable);
+        TransactionHistoryResponse res = walletService.getTransactionHistory(userId, currency, from, to, pageable);
         return ResponseEntity.ok(res);
     }
 
+    @PostMapping("/charge")
+    public ResponseEntity<TransactionResponse> charge(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody ChargeRequest request
+    ){
+        TransactionResponse res = walletService.charge(userId, request);
+        return ResponseEntity.ok(res);
+    }
 
+    @PostMapping("/withdraw")
+    public ResponseEntity<TransactionResponse> withdraw(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody WithdrawRequest request
+    ){
+        TransactionResponse res = walletService.withdraw(userId, request);
+        return ResponseEntity.ok(res);
+    }
 }
