@@ -8,6 +8,7 @@ import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
 import com.fxflow.domain.mockbankaccount.repository.MockBankAccountRepository;
 import com.fxflow.global.exception.BusinessException;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +26,7 @@ public class MockBankAccountService {
         );
     }
 
+    @Transactional
     public void withdraw(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
         MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndUserId(bankAccountId, userId)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
@@ -48,6 +50,34 @@ public class MockBankAccountService {
                 balanceAfter,
                 null
         );
+        ledgerEntryRepository.save(entry);
+        mockBankAccountRepository.save(bankAccount);
+    }
+
+    @Transactional
+    public void deposit(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
+        MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndUserId(bankAccountId, userId)
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+
+        BigDecimal balanceBefore = bankAccount.getBalance();
+        BigDecimal balanceAfter = balanceBefore.add(amount);
+
+        bankAccount.deposit(amount);
+
+        LedgerEntry entry = LedgerEntry.create(
+                journalId,
+                LedgerEntryType.WITHDRAW,
+                LedgerDirection.CREDIT,
+                null,
+                bankAccountId,
+                null,
+                currencyCode,
+                amount,
+                balanceBefore,
+                balanceAfter,
+                null
+        );
+
         ledgerEntryRepository.save(entry);
         mockBankAccountRepository.save(bankAccount);
     }

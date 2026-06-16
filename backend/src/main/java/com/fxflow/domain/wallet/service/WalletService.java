@@ -1,6 +1,5 @@
 package com.fxflow.domain.wallet.service;
 
-import com.fxflow.domain.companypool.entity.CompanyPool;
 import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.fxrate.service.FxRateService;
 import com.fxflow.domain.ledger.entity.LedgerEntry;
@@ -113,11 +112,10 @@ public class WalletService {
         mockBankAccountService.withdraw(userId, journalId, bankAccountId, amount, "KRW");
 
         // wallet credit
-        wallet.updateBalance(amount);
+        wallet.deposit(amount);
         walletRepository.save(wallet);
 
-        CompanyPool pool = companyPoolService.deposit(journalId, "KRW", amount);
-        Long companyPoolId = pool.getId();
+        companyPoolService.deposit(journalId, "KRW", amount);
 
         LedgerEntry walletEntry =
                 LedgerEntry.create(
@@ -138,6 +136,49 @@ public class WalletService {
     }
 
     public TransactionResponse withdraw(Long userId, WithdrawRequest request) {
-        return null;
+        Long bankAccountId = request.bankAccountId();
+
+        BigDecimal amount = request.amount();
+        if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(WalletPolicy.MAX_KRW_BALANCE) > 0) {
+            throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
+        }
+
+        // check wallet balance
+        Wallet wallet = getWallet(userId, "KRW");
+        Long walletId = wallet.getId();
+        BigDecimal balanceBefore = wallet.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
+        }
+
+        String journalId = "JRN_" + UUID.randomUUID();
+
+        // mock bank account credit
+        mockBankAccountService.deposit(userId, journalId, bankAccountId, amount, "KRW");
+
+        // wallet credit
+        wallet.withdraw(amount);
+        walletRepository.save(wallet);
+
+        companyPoolService.withdraw(journalId, "KRW", amount);
+//        companyPoolService.apply(List.of(PoolChange.decrease(“KRW", amount)));
+
+        LedgerEntry walletEntry =
+                LedgerEntry.create(
+                        journalId,
+                        LedgerEntryType.WITHDRAW,
+                        LedgerDirection.DEBIT,
+                        walletId,
+                        null,
+                        null,
+                        "KRW",
+                        amount,
+                        balanceBefore,
+                        balanceAfter,
+                        null
+                );
+        ledgerEntryRepository.save(walletEntry);
+        return TransactionResponse.from(walletEntry);
     }
 }

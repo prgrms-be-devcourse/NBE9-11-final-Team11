@@ -40,7 +40,7 @@ public class CompanyPoolService {
                 null,
                 null,
                 pool.getId(),
-                "KRW",
+                currencyCode,
                 amount,
                 balanceBefore,
                 balanceAfter,
@@ -49,5 +49,31 @@ public class CompanyPoolService {
         ledgerEntryRepository.save(poolEntry);
 
         return pool;
+    }
+
+    public void withdraw(String journalId, String currencyCode, BigDecimal amount) {
+        CompanyPool pool = getPoolByCurrency(currencyCode);
+        BigDecimal balanceBefore = pool.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
+            // todo: error
+        }
+        pool.decrease(amount);
+        companyPoolRepository.save(pool);
+
+        LedgerEntry poolEntry = LedgerEntry.create(
+                journalId,
+                LedgerEntryType.WITHDRAW,
+                LedgerDirection.DEBIT,
+                null,
+                null,
+                pool.getId(),
+                currencyCode,
+                amount,
+                balanceBefore,
+                balanceAfter,
+                null
+        );
+        ledgerEntryRepository.save(poolEntry);
     }
 }

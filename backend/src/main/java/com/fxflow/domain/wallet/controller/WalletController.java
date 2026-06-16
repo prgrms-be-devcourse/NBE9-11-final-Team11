@@ -38,35 +38,32 @@ public class WalletController {
     // todo: userDetails
     @GetMapping("/transactions")
     public ResponseEntity<TransactionHistoryResponse> getTransactionHistory(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) String currency,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to
     ){
-        Long userId = 1L;
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        TransactionHistoryResponse res = walletService.getTransactionHistory(1L, currency, from, to, pageable);
+        TransactionHistoryResponse res = walletService.getTransactionHistory(userId, currency, from, to, pageable);
         return ResponseEntity.ok(res);
     }
 
     @PostMapping("/charge")
     public ResponseEntity<TransactionResponse> charge(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @AuthenticationPrincipal Long userId,
             @RequestBody ChargeRequest request
     ){
-        Long userId = 1L;
         TransactionResponse res = walletService.charge(userId, request);
         return ResponseEntity.ok(res);
     }
 
     @PostMapping("/withdraw")
     public ResponseEntity<TransactionResponse> withdraw(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @AuthenticationPrincipal Long userId,
             @RequestBody WithdrawRequest request
     ){
-        Long userId = 1L;
         TransactionResponse res = walletService.withdraw(userId, request);
         return ResponseEntity.ok(res);
     }
