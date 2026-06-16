@@ -8,7 +8,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public record MockBankResponse(
+public record MockBankLinkResponse(
         MockAccountInfo mockAccount,
         List<WalletInfo> wallets,
         LocalDateTime linkedAt
@@ -26,12 +26,12 @@ public record MockBankResponse(
             BigDecimal balance
     ) {}
 
-    public static MockBankResponse of(MockBankAccount account, List<Wallet> wallets) {
+    public static MockBankLinkResponse of(MockBankAccount account, List<Wallet> wallets) {
         List<WalletInfo> walletInfos = wallets.stream()
                 .map(w -> new WalletInfo(w.getId(), w.getCurrencyCode(), formatBalance(w.getBalance(), w.getCurrencyCode())))
                 .toList();
 
-        return new MockBankResponse(
+        return new MockBankLinkResponse(
                 new MockAccountInfo(
                         account.getBankName(),
                         account.getAccountNumber(),

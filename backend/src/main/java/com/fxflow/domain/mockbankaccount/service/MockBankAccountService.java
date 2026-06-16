@@ -1,6 +1,7 @@
 package com.fxflow.domain.mockbankaccount.service;
 
 
+import com.fxflow.domain.mockbankaccount.dto.response.MockBankLinkResponse;
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
 import com.fxflow.domain.mockbankaccount.repository.MockBankAccountRepository;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -37,7 +39,7 @@ public class MockBankAccountService {
      * 유저당 1개만 허용, 계좌번호 중복 불가
      */
     @Transactional
-    public void linkAccount(Long userId, String bankName, String accountNumber) {
+    public MockBankLinkResponse linkAccount(Long userId, String bankName, String accountNumber) {
         log.info("[모의계좌 연결 시작] userId={}, bankName={}", userId, bankName);
 
         validateAccountNumberFormat(accountNumber);
@@ -58,11 +60,10 @@ public class MockBankAccountService {
         MockBankAccount account = MockBankAccount.create(user, bankName, accountNumber);
         mockBankAccountRepository.save(account);
 
-        createWallets(user);
+        List<Wallet> wallets = createWallets(user);
 
         log.info("[모의계좌 연결 완료] userId={}, accountNumber={}", userId, accountNumber);
-
-
+        return MockBankLinkResponse.of(account, wallets);
     }
 
     /**
@@ -91,14 +92,14 @@ public class MockBankAccountService {
      * KRW/USD Wallet 생성 (0원 시작)
      * 이미 존재하면 생성하지 않음 — 재연결/중복 호출 방어
      */
-    private void createWallets (User user){
-        if(!walletRepository.existsByUserIdAndCurrencyCode(user.getId(),KRW)){
-            walletRepository.save(Wallet.create(user,KRW, BigDecimal.ZERO));
-            log.info("[Wallet 생성] userId={}, currencyCode={}", user.getId(), KRW);
-        }
-        if(!walletRepository.existsByUserIdAndCurrencyCode(user.getId(),USD)){
-            walletRepository.save(Wallet.create(user,USD,BigDecimal.ZERO));
-            log.info("[Wallet 생성] userId={}, currencyCode={}", user.getId(), USD);
-        }
+    private List<Wallet> createWallets(User user) {
+        Wallet krwWallet = walletRepository.findByUserIdAndCurrencyCode(user.getId(), KRW)
+                .orElseGet(() -> walletRepository.save(Wallet.create(user, KRW, BigDecimal.ZERO)));
+        Wallet usdWallet = walletRepository.findByUserIdAndCurrencyCode(user.getId(), USD)
+                .orElseGet(() -> walletRepository.save(Wallet.create(user, USD, BigDecimal.ZERO)));
+
+        log.info("[Wallet 생성] userId={}, krwWalletId={}, usdWalletId={}", user.getId(), krwWallet.getId(), usdWallet.getId());
+
+        return List.of(krwWallet, usdWallet);
     }
 }
