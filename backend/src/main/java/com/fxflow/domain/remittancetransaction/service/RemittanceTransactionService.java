@@ -79,6 +79,9 @@ public class RemittanceTransactionService {
         RemittanceQuoteSnapshot quote = remittanceQuoteProvider.getQuote(request.quoteId());
         validateRecipient(userId, quote.recipientId());
 
+        // TODO: 현재는 임시 UUID를 저장한다. 추후 Idempotency-Key 헤더 기반 중복 요청 방지로 교체한다.
+        String idempotencyKey = UUID.randomUUID().toString();
+
         RemittanceTransaction remittanceTransaction = RemittanceTransaction.create(
                 userId,
                 quote.recipientId(),
@@ -99,7 +102,7 @@ public class RemittanceTransactionService {
                 quote.amountUsd(),
                 request.reason().name(),
                 request.reasonDetail(),
-                UUID.randomUUID().toString()
+                idempotencyKey
         );
 
         RemittanceTransaction savedTransaction = remittanceTransactionRepository.save(remittanceTransaction);

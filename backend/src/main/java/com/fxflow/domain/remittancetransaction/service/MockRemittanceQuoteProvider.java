@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 @Service
 public class MockRemittanceQuoteProvider implements RemittanceQuoteProvider {
 
+    // 임시 견적 ID. 실제로는 견적 생성 API/Redis에서 발급된 quoteId를 조회해야 한다.
     private static final String MOCK_QUOTE_ID = "TQUOTE-001";
 
     /**
@@ -21,6 +22,7 @@ public class MockRemittanceQuoteProvider implements RemittanceQuoteProvider {
             throw new BusinessException(RemittanceTransactionErrorCode.QUOTE_NOT_FOUND);
         }
 
+        // TQUOTE-001이 가리키는 임시 견적 데이터: 1,000,000 KRW 송금 + 8,000 KRW 수수료
         return new RemittanceQuoteSnapshot(
                 MOCK_QUOTE_ID,
                 1L,
