@@ -16,8 +16,7 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
     @Query("SELECT l FROM LedgerEntry l WHERE l.walletId IN :walletIds " +
             "AND (:currency IS NULL OR l.currencyCode = :currency) " +
             "AND (:from IS NULL OR l.createdAt >= :from) " +
-            "AND (:to IS NULL OR l.createdAt <= :to) " +
-            "ORDER BY l.createdAt DESC")
+            "AND (:to IS NULL OR l.createdAt <= :to) ")
     Page<LedgerEntry> findByWalletIdInAndFilters(
             @Param("walletIds") List<Long> walletId,
             @Param("currency") String currency,
