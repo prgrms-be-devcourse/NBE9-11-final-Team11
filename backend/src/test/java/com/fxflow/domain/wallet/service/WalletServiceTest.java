@@ -239,7 +239,7 @@ class WalletServiceTest {
         Long userId = 1L;
         ChargeRequest request = new ChargeRequest(10L, new BigDecimal("5000"));
         when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
-        when(companyPoolService.deposit(anyString(), any(BigDecimal.class))).thenReturn(mock(CompanyPool.class));
+        when(companyPoolService.deposit(anyString(), eq("KRW"), any(BigDecimal.class))).thenReturn(mock(CompanyPool.class));
 
         // when
         TransactionResponse response = walletService.charge(userId, request);
@@ -258,7 +258,7 @@ class WalletServiceTest {
                 );
         verify(walletRepository, times(1)).save(krwWallet);
         // only wallet ledger entry saved here; bank entry is inside mocked withdraw
-        verify(companyPoolService, times(1)).deposit(anyString(), eq(new BigDecimal("5000")));
+        verify(companyPoolService, times(1)).deposit(anyString(), eq("KRW"), eq(new BigDecimal("5000")));
 
         ArgumentCaptor<LedgerEntry> captor = ArgumentCaptor.forClass(LedgerEntry.class);
         verify(ledgerEntryRepository, times(1)).save(captor.capture());
