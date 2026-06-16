@@ -7,6 +7,10 @@ import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
+import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
+import com.fxflow.domain.user.entity.User;
+import com.fxflow.domain.user.service.UserService;
+import com.fxflow.domain.userlimitusage.service.UserDailyUsageService;
 import com.fxflow.domain.wallet.dto.request.ChargeRequest;
 import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
@@ -39,6 +43,9 @@ public class WalletService {
     private final LedgerEntryRepository ledgerEntryRepository;
     private final MockBankAccountService mockBankAccountService;
     private final CompanyPoolService companyPoolService;
+    private final TransactionLimitValidator transactionLimitValidator;
+    private final UserService userService;
+    private final UserDailyUsageService userDailyUsageService;
 
 
     private Wallet getWallet(Long userId, String currencyCode){
@@ -96,11 +103,18 @@ public class WalletService {
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
         }
+
         // check wallet balance
         Wallet wallet = getWallet(userId, "KRW");
         Long walletId = wallet.getId();
         BigDecimal balanceBefore = wallet.getBalance();
         BigDecimal balanceAfter = balanceBefore.add(amount);
+
+        // daily deposit limit check
+        User user = userService.getUser(userId);
+        transactionLimitValidator.validatePerDeposit(user, amount);
+        transactionLimitValidator.validateDailyDeposit(user, amount);
+        transactionLimitValidator.validateWalletHolding(user, balanceAfter);
 
         if (balanceAfter.compareTo(WalletPolicy.MAX_KRW_BALANCE) > 0) {
             throw new BusinessException(WalletErrorCode.WALLET_LIMIT_EXCEEDED);
@@ -132,6 +146,8 @@ public class WalletService {
                         null
                 );
         ledgerEntryRepository.save(walletEntry);
+
+        userDailyUsageService.addDeposit(userId, LocalDate.now(), amount);
         return TransactionResponse.from(walletEntry);
     }
 
@@ -142,6 +158,11 @@ public class WalletService {
         if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(WalletPolicy.MAX_KRW_BALANCE) > 0) {
             throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
         }
+
+        // daily withdrawal limit check
+        User user = userService.getUser(userId);
+        transactionLimitValidator.validatePerWithdrawal(user, amount);
+        transactionLimitValidator.validateDailyWithdrawal(user, amount);
 
         // check wallet balance
         Wallet wallet = getWallet(userId, "KRW");
@@ -179,6 +200,8 @@ public class WalletService {
                         null
                 );
         ledgerEntryRepository.save(walletEntry);
+
+        userDailyUsageService.addWithdrawal(userId, LocalDate.now(), amount);
         return TransactionResponse.from(walletEntry);
     }
 }

@@ -7,7 +7,6 @@ import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.enums.UserStatus;
 import com.fxflow.domain.user.errorcode.UserErrorCode;
 import com.fxflow.domain.user.repository.UserRepository;
-import com.fxflow.global.config.PasswordEncoderConfig;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -72,5 +71,10 @@ public class UserService {
         }
         log.info("[로그인 완료] userId={}, email={}", user.getId(), user.getEmail());
         return user;
+    }
+
+    public User getUser(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
     }
 }
