@@ -52,16 +52,17 @@ public class User extends BaseEntity {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private List<Wallet> wallets = new ArrayList<>();
 
-    @Builder
-    private User(String email, String passwordHash, String name) {
-        this.email = email;
-        this.passwordHash = passwordHash;
-        this.name = name;
-        this.status = UserStatus.ACTIVE;
-        this.kycStatus = "PENDING";
-        this.role = UserRole.USER;
-        this.limitTier = LimitTier.STANDARD;
-        this.walletLimitKrw = new BigDecimal("2000000");
+    public static User create(String email, String passwordHash, String name) {
+        User user = new User();
+        user.email = email;
+        user.passwordHash = passwordHash;
+        user.name = name;
+        user.status = UserStatus.ACTIVE;
+        user.kycStatus = "PENDING";
+        user.role = UserRole.USER;
+        user.limitTier = LimitTier.STANDARD;
+        user.walletLimitKrw = new BigDecimal("2000000");
+        return user;
     }
 
     // 회원 탈퇴
