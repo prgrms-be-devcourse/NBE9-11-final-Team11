@@ -97,7 +97,6 @@ public class WalletService {
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
         }
-
         // check wallet balance
         Wallet wallet = getWallet(userId, "KRW");
         Long walletId = wallet.getId();
@@ -111,7 +110,7 @@ public class WalletService {
         String journalId = "JRN_" + UUID.randomUUID();
 
         // mock bank account debit
-        mockBankAccountService.withdraw(journalId, walletId, bankAccountId, amount, "KRW");
+        mockBankAccountService.withdraw(userId, journalId, bankAccountId, amount, "KRW");
 
         // wallet credit
         wallet.updateBalance(amount);

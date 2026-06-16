@@ -250,8 +250,8 @@ class WalletServiceTest {
 
         verify(mockBankAccountService, times(1))
                 .withdraw(
+                        eq(userId),
                         anyString(),
-                        eq(krwWallet.getId()),
                         eq(10L),
                         eq(new BigDecimal("5000")),
                         eq("KRW")

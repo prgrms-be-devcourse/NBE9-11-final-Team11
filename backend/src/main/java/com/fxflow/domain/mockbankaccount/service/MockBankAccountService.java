@@ -25,8 +25,10 @@ public class MockBankAccountService {
         );
     }
 
-    public void withdraw(String journalId, Long walletId, Long bankAccountId, BigDecimal amount, String currencyCode) {
-        MockBankAccount bankAccount = findById(bankAccountId);
+    public void withdraw(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
+        MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndUserId(bankAccountId, userId)
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+
         BigDecimal balanceBefore = bankAccount.getBalance();
         BigDecimal balanceAfter = balanceBefore.subtract(amount);
         if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
