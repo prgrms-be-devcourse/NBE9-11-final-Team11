@@ -12,13 +12,13 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/recipients")
 @RequiredArgsConstructor
+@RequestMapping("/api/v1")
 public class RecipientController {
 
     private final RecipientService recipientService;
 
-    @PostMapping
+    @PostMapping("/recipients")
     public ResponseEntity<RecipientResponse> createRecipient(
             @Valid @RequestBody RecipientCreateRequest request
     ) {
@@ -29,7 +29,7 @@ public class RecipientController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @GetMapping
+    @GetMapping("/recipients")
     public ResponseEntity<List<RecipientResponse>> getRecipients() {
         // TODO: 인증 레이어 완성 후 @AuthenticationPrincipal로 실제 유저 ID 주입받도록 수정할 것
         Long mockUserId = 1L;
