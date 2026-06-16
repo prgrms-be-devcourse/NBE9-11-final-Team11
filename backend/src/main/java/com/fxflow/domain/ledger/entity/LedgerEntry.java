@@ -4,13 +4,16 @@ import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.global.entity.BaseEntity;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
 @Entity
 @Getter
 @Table(name = "ledger_entries")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LedgerEntry extends BaseEntity {
 
     @Column(name = "journal_id", nullable = false, length = 100)
@@ -45,9 +48,36 @@ public class LedgerEntry extends BaseEntity {
     @Column(name = "balance_after", nullable = false, precision = 18, scale = 2)
     private BigDecimal balanceAfter;
 
-    @Column(name = "ref_type", nullable = false, length = 50)
-    private String refType;
+//    @Column(name = "ref_type", nullable = false, length = 50)
+//    private String refType;
+    // 이미 entry type이 CHARGE, WITHDRAW, EXCHANGE, TRANSFER 구분
 
     @Column(name = "ref_id", nullable = false, length = 50)
     private String refId;
+
+    private LedgerEntry(String journalId, LedgerEntryType entryType, LedgerDirection ledgerDirection,
+                        Long walletId, Long mockBankAccountId, Long companyPoolId, String currencyCode,
+                        BigDecimal amount, BigDecimal balanceBefore, BigDecimal balanceAfter,
+                        String refId){
+        this.journalId = journalId;
+        this.entryType = entryType;
+        this.ledgerDirection = ledgerDirection;
+        this.walletId = walletId;
+        this.mockBankAccountId = mockBankAccountId;
+        this.companyPoolId = companyPoolId;
+        this.currencyCode = currencyCode;
+        this.amount = amount;
+        this.balanceBefore = balanceBefore;
+        this.balanceAfter = balanceAfter;
+    }
+
+    public static LedgerEntry create(
+            String journalId, LedgerEntryType entryType, LedgerDirection ledgerDirection,
+            Long walletId, Long mockBankAccountId, Long companyPoolId, String currencyCode,
+            BigDecimal amount, BigDecimal balanceBefore, BigDecimal balanceAfter,
+            String refId
+    ) {
+        return new LedgerEntry(
+                journalId, entryType, ledgerDirection, walletId, mockBankAccountId, companyPoolId, currencyCode, amount, balanceBefore, balanceAfter, refId);
+    }
 }
