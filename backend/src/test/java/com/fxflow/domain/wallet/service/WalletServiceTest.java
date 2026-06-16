@@ -8,6 +8,7 @@ import com.fxflow.domain.ledger.entity.LedgerEntry;
 import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
 import com.fxflow.domain.wallet.dto.request.ChargeRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
@@ -328,5 +329,37 @@ class WalletServiceTest {
 
         verify(walletRepository, never()).save(any());
         verify(ledgerEntryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("월렛 충전 - 다른 유저의 모의계좌로 충전 시도")
+    void charge_fail_bankAccountNotOwned() {
+        // given
+        Long userId = 1L;
+        Long otherUsersBankAccountId = 99L;
+        ChargeRequest request = new ChargeRequest(otherUsersBankAccountId, new BigDecimal("5000"));
+
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet)); // add this
+
+        doThrow(new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND))
+                .when(mockBankAccountService)
+                .withdraw(
+                        eq(userId),
+                        anyString(),
+                        eq(otherUsersBankAccountId),
+                        any(BigDecimal.class),
+                        eq("KRW")
+                );
+
+        // when & then
+        assertThatThrownBy(() ->
+                walletService.charge(userId, request)
+        )
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND.getMessage());
+
+        verify(walletRepository, never()).save(any());
+        verify(ledgerEntryRepository, never()).save(any());
+        verify(companyPoolService, never()).deposit(anyString(), anyString(), any(BigDecimal.class));
     }
 }
