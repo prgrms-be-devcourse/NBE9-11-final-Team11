@@ -1,37 +1,54 @@
 package com.fxflow.domain.wallet.service;
 
+import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.fxrate.service.FxRateService;
 import com.fxflow.domain.ledger.entity.LedgerEntry;
+import com.fxflow.domain.ledger.enums.LedgerDirection;
+import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
+import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
+import com.fxflow.domain.wallet.dto.request.ChargeRequest;
+import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
+import com.fxflow.domain.wallet.dto.response.TransactionResponse;
 import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
 import com.fxflow.domain.wallet.dto.response.WalletResponse;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.errorcode.WalletErrorCode;
+import com.fxflow.domain.wallet.policy.WalletPolicy;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class WalletService {
+
+    public static final BigDecimal MAX_KRW_BALANCE = new BigDecimal("2000000");
 
     private final WalletRepository walletRepository;
     private final ExchangeService exchangeService;
     private final P2pTransferService p2pTransferService;
     private final FxRateService fxRateService;
     private final LedgerEntryRepository ledgerEntryRepository;
+    private final TransactionLimitValidator transactionLimitValidator;
+    private final MockBankAccountService mockBankAccountService;
+    private final CompanyPoolService companyPoolService;
 
-    private Wallet getWallet(){
-        return walletRepository.findById(1L).orElseThrow(
+
+    private Wallet getWallet(Long userId, String currencyCode){
+        return walletRepository.findByUserIdAndCurrencyCode(userId, currencyCode).orElseThrow(
                 () -> new BusinessException(WalletErrorCode.WALLET_NOT_FOUND)
         );
     }
@@ -75,5 +92,57 @@ public class WalletService {
 
         // DTO 변환
         return TransactionHistoryResponse.from(entries);
+    }
+
+    @Transactional
+    public TransactionResponse charge(Long userId, ChargeRequest request) {
+        Long bankAccountId = request.bankAccountId();
+
+        BigDecimal amount = request.amount();
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
+        }
+
+        // check wallet balance
+        Wallet wallet = getWallet(userId, "KRW");
+        Long walletId = wallet.getId();
+        BigDecimal balanceBefore = wallet.getBalance();
+        BigDecimal balanceAfter = balanceBefore.add(amount);
+
+        if (balanceAfter.compareTo(WalletPolicy.MAX_KRW_BALANCE) > 0) {
+            throw new BusinessException(WalletErrorCode.WALLET_LIMIT_EXCEEDED);
+        }
+
+        String journalId = "JRN_" + UUID.randomUUID();
+
+        // mock bank account debit
+        mockBankAccountService.withdraw(journalId, walletId, bankAccountId, amount, "KRW");
+
+        // wallet credit
+        wallet.updateBalance(amount);
+        walletRepository.save(wallet);
+
+        companyPoolService.deposit(journalId, amount);
+
+        LedgerEntry walletEntry =
+                LedgerEntry.create(
+                        journalId,
+                        LedgerEntryType.CHARGE,
+                        LedgerDirection.CREDIT,
+                        walletId,
+                        null,
+                        1L,
+                        "KRW",
+                        amount,
+                        balanceBefore,
+                        balanceAfter,
+                        null
+                );
+        ledgerEntryRepository.save(walletEntry);
+        return TransactionResponse.from(walletEntry);
+    }
+
+    public TransactionResponse withdraw(Long userId, WithdrawRequest request) {
+        return null;
     }
 }

@@ -1,6 +1,9 @@
 package com.fxflow.domain.wallet.controller;
 
+import com.fxflow.domain.wallet.dto.request.ChargeRequest;
+import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
+import com.fxflow.domain.wallet.dto.response.TransactionResponse;
 import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
 import com.fxflow.domain.wallet.service.P2pTransferService;
 import com.fxflow.domain.wallet.service.WalletService;
@@ -11,10 +14,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 
@@ -51,5 +51,23 @@ public class WalletController {
         return ResponseEntity.ok(res);
     }
 
+    @PostMapping("/charge")
+    public ResponseEntity<TransactionResponse> charge(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody ChargeRequest request
+    ){
+        Long userId = 1L;
+        TransactionResponse res = walletService.charge(userId, request);
+        return ResponseEntity.ok(res);
+    }
 
+    @PostMapping("/withdraw")
+    public ResponseEntity<TransactionResponse> withdraw(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody WithdrawRequest request
+    ){
+        Long userId = 1L;
+        TransactionResponse res = walletService.withdraw(userId, request);
+        return ResponseEntity.ok(res);
+    }
 }

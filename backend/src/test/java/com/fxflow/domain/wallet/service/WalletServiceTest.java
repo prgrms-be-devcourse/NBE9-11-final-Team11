@@ -1,19 +1,28 @@
 package com.fxflow.domain.wallet.service;
 
 
+import com.fxflow.domain.companypool.entity.CompanyPool;
+import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.fxrate.service.FxRateService;
 import com.fxflow.domain.ledger.entity.LedgerEntry;
+import com.fxflow.domain.ledger.enums.LedgerDirection;
+import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
+import com.fxflow.domain.wallet.dto.request.ChargeRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
+import com.fxflow.domain.wallet.dto.response.TransactionResponse;
 import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.errorcode.WalletErrorCode;
+import com.fxflow.domain.wallet.policy.WalletPolicy;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -31,10 +40,11 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class WalletServiceTest {
@@ -45,6 +55,10 @@ class WalletServiceTest {
     private FxRateService fxRateService;
     @Mock
     private LedgerEntryRepository ledgerEntryRepository;
+    @Mock
+    private MockBankAccountService mockBankAccountService;
+    @Mock
+    private CompanyPoolService companyPoolService;
 
     @InjectMocks
     private WalletService walletService;
@@ -215,5 +229,104 @@ class WalletServiceTest {
 
         // then
         verify(ledgerEntryRepository).findByWalletIdInAndFilters(List.of(10L, 11L), null, null, null, pageable);
+    }
+
+    // -- Charge --
+    @Test
+    @DisplayName("월렛 충전 - 모의계좌 -> 원화 월렛")
+    void charge_success() {
+        // given
+        Long userId = 1L;
+        ChargeRequest request = new ChargeRequest(10L, new BigDecimal("5000"));
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+        when(companyPoolService.deposit(anyString(), any(BigDecimal.class))).thenReturn(mock(CompanyPool.class));
+
+        // when
+        TransactionResponse response = walletService.charge(userId, request);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(krwWallet.getBalance()).isEqualByComparingTo("55000");
+
+        verify(mockBankAccountService, times(1))
+                .withdraw(
+                        anyString(),
+                        eq(krwWallet.getId()),
+                        eq(10L),
+                        eq(new BigDecimal("5000")),
+                        eq("KRW")
+                );
+        verify(walletRepository, times(1)).save(krwWallet);
+        // only wallet ledger entry saved here; bank entry is inside mocked withdraw
+        verify(companyPoolService, times(1)).deposit(anyString(), eq(new BigDecimal("5000")));
+
+        ArgumentCaptor<LedgerEntry> captor = ArgumentCaptor.forClass(LedgerEntry.class);
+        verify(ledgerEntryRepository, times(1)).save(captor.capture());
+        LedgerEntry savedEntry = captor.getValue();
+        assertAll(
+                () -> assertThat(savedEntry.getEntryType()).isEqualTo(LedgerEntryType.CHARGE),
+                () -> assertThat(savedEntry.getLedgerDirection()).isEqualTo(LedgerDirection.CREDIT),
+                () -> assertThat(savedEntry.getCurrencyCode()).isEqualTo("KRW"),
+                () -> assertThat(savedEntry.getAmount()).isEqualByComparingTo("5000"),
+                () -> assertThat(savedEntry.getBalanceBefore()).isEqualByComparingTo("50000"),
+                () -> assertThat(savedEntry.getBalanceAfter()).isEqualByComparingTo("55000"),
+                () -> assertThat(savedEntry.getWalletId()).isEqualTo(krwWallet.getId())
+        );
+    }
+
+    @Test
+    @DisplayName("월렛 충전 - invalid amount (0원 이하)")
+    void charge_fail_invalidAmount() {
+
+        // given
+        Long userId = 1L;
+
+        ChargeRequest request = new ChargeRequest(
+                10L,
+                BigDecimal.ZERO
+        );
+
+        // when & then
+        assertThatThrownBy(() ->
+                walletService.charge(userId, request)
+        )
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(WalletErrorCode.INVALID_AMOUNT.getMessage());
+
+        verify(walletRepository, never()).save(any());
+        verify(ledgerEntryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("월렛 충전 - 200만원 제한")
+    void charge_fail_walletLimitExceeded() {
+
+        // given
+        Long userId = 1L;
+
+        Wallet limitWallet =
+                Wallet.create(
+                        null,
+                        "KRW",
+                        WalletPolicy.MAX_KRW_BALANCE
+                );
+
+        ChargeRequest request = new ChargeRequest(
+                10L,
+                new BigDecimal("1")
+        );
+
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW"))
+                .thenReturn(Optional.of(limitWallet));
+
+        // when & then
+        assertThatThrownBy(() ->
+                walletService.charge(userId, request)
+        )
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(WalletErrorCode.WALLET_LIMIT_EXCEEDED.getMessage());
+
+        verify(walletRepository, never()).save(any());
+        verify(ledgerEntryRepository, never()).save(any());
     }
 }
