@@ -6,6 +6,7 @@ import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransaction
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceQuoteSnapshot;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceMockFundedResponse;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionCreateResponse;
+import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
 import com.fxflow.domain.remittancetransaction.enums.RemittanceReason;
@@ -13,6 +14,7 @@ import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.domain.remittancetransaction.enums.VirtualAccountStatus;
 import com.fxflow.domain.remittancetransaction.errorcode.RecipientErrorCode;
 import com.fxflow.domain.remittancetransaction.errorcode.RemittanceTransactionErrorCode;
+import com.fxflow.domain.remittancetransaction.event.RemittanceFundedEvent;
 import com.fxflow.domain.remittancetransaction.repository.RecipientRepository;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.remittancetransaction.repository.VirtualAccountRepository;
@@ -28,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -69,6 +72,9 @@ class RemittanceTransactionServiceTest {
     @Mock
     private CompanyPoolService companyPoolService;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private RemittanceTransactionService remittanceTransactionService;
 
@@ -81,10 +87,11 @@ class RemittanceTransactionServiceTest {
         Long virtualAccountId = 20L;
         RemittanceTransactionCreateRequest request = createRequest();
         RemittanceQuoteSnapshot quote = createQuote();
+        Recipient recipient = createRecipient(userId);
 
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
-        when(recipientRepository.existsByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
-                .thenReturn(true);
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
+                .thenReturn(Optional.of(recipient));
         when(remittanceTransactionRepository.save(any(RemittanceTransaction.class)))
                 .thenAnswer(invocation -> {
                     RemittanceTransaction remittanceTransaction = invocation.getArgument(0);
@@ -116,6 +123,11 @@ class RemittanceTransactionServiceTest {
 
         assertThat(savedTransaction.getUserId()).isEqualTo(userId);
         assertThat(savedTransaction.getRecipientId()).isEqualTo(quote.recipientId());
+        assertThat(savedTransaction.getRecipientName()).isEqualTo("John Doe");
+        assertThat(savedTransaction.getRecipientCountryCode()).isEqualTo("US");
+        assertThat(savedTransaction.getRecipientCurrencyCode()).isEqualTo("USD");
+        assertThat(savedTransaction.getRecipientBankName()).isEqualTo("Chase Bank");
+        assertThat(savedTransaction.getRecipientAccountNumber()).isEqualTo("1234567890");
         assertThat(savedTransaction.getReason()).isEqualTo(RemittanceReason.LIVING_EXPENSES.name());
         assertThat(savedTransaction.getReasonDetail()).isEqualTo("생활비 송금");
         assertThat(savedTransaction.getStatus()).isEqualTo(TransferStatus.PENDING);
@@ -161,12 +173,13 @@ class RemittanceTransactionServiceTest {
         Long userId = 1L;
         RemittanceTransactionCreateRequest request = createRequest();
         RemittanceQuoteSnapshot quote = createQuote();
+        Recipient recipient = createRecipient(userId);
         BusinessException exception =
                 new BusinessException(TransactionLimitErrorCode.ANNUAL_REMITTANCE_LIMIT_EXCEEDED);
 
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
-        when(recipientRepository.existsByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
-                .thenReturn(true);
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
+                .thenReturn(Optional.of(recipient));
         doThrow(exception).when(remittanceValidator).validateLimits(userId, quote.amountUsd());
 
         // when & then
@@ -186,8 +199,8 @@ class RemittanceTransactionServiceTest {
         RemittanceQuoteSnapshot quote = createQuote();
 
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
-        when(recipientRepository.existsByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
-                .thenReturn(false);
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
+                .thenReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request))
@@ -240,6 +253,17 @@ class RemittanceTransactionServiceTest {
                 "KRW",
                 new BigDecimal("1008000.00")
         );
+        ArgumentCaptor<RemittanceFundedEvent> eventCaptor =
+                ArgumentCaptor.forClass(RemittanceFundedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        RemittanceFundedEvent event = eventCaptor.getValue();
+
+        assertThat(event.transferId()).isEqualTo(transferId);
+        assertThat(event.userId()).isEqualTo(userId);
+        assertThat(event.amountKrw()).isEqualByComparingTo(new BigDecimal("1008000.00"));
+        assertThat(event.receiveCurrency()).isEqualTo("USD");
+        assertThat(event.receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
+        assertThat(event.fundedAt()).isNotNull();
     }
 
     @Test
@@ -379,10 +403,26 @@ class RemittanceTransactionServiceTest {
         );
     }
 
+    private Recipient createRecipient(Long userId) {
+        return Recipient.create(
+                userId,
+                "John Doe",
+                "US",
+                "USD",
+                "Chase Bank",
+                "1234567890"
+        );
+    }
+
     private RemittanceTransaction createPendingTransaction(Long userId, Long transferId) {
         RemittanceTransaction remittanceTransaction = RemittanceTransaction.create(
                 userId,
                 1L,
+                "John Doe",
+                "US",
+                "USD",
+                "Chase Bank",
+                "1234567890",
                 null,
                 "BANK_TRANSFER",
                 null,
