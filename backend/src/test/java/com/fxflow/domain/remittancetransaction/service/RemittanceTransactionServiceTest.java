@@ -122,11 +122,6 @@ class RemittanceTransactionServiceTest {
 
         assertThat(savedTransaction.getUserId()).isEqualTo(userId);
         assertThat(savedTransaction.getRecipientId()).isEqualTo(quote.recipientId());
-        assertThat(savedTransaction.getRecipientName()).isEqualTo("John Doe");
-        assertThat(savedTransaction.getRecipientCountryCode()).isEqualTo("US");
-        assertThat(savedTransaction.getRecipientCurrencyCode()).isEqualTo("USD");
-        assertThat(savedTransaction.getRecipientBankName()).isEqualTo("Chase Bank");
-        assertThat(savedTransaction.getRecipientAccountNumber()).isEqualTo("1234567890");
         assertThat(savedTransaction.getReason()).isEqualTo(RemittanceReason.LIVING_EXPENSES.name());
         assertThat(savedTransaction.getReasonDetail()).isEqualTo("생활비 송금");
         assertThat(savedTransaction.getStatus()).isEqualTo(TransferStatus.PENDING);
@@ -394,9 +389,12 @@ class RemittanceTransactionServiceTest {
         Long userId = 1L;
         Long transferId = 10L;
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        Recipient recipient = createRecipient(userId);
 
         when(remittanceTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId))
                 .thenReturn(List.of(remittanceTransaction));
+        when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
+                .thenReturn(Optional.of(recipient));
 
         // when
         List<RemittanceTransactionSummaryResponse> responses =
@@ -424,9 +422,12 @@ class RemittanceTransactionServiceTest {
         Long userId = 1L;
         Long transferId = 10L;
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        Recipient recipient = createRecipient(userId);
 
         when(remittanceTransactionRepository.findByIdAndUserId(transferId, userId))
                 .thenReturn(Optional.of(remittanceTransaction));
+        when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
+                .thenReturn(Optional.of(recipient));
 
         // when
         RemittanceTransactionDetailResponse response =
@@ -501,11 +502,6 @@ class RemittanceTransactionServiceTest {
         RemittanceTransaction remittanceTransaction = RemittanceTransaction.create(
                 userId,
                 1L,
-                "John Doe",
-                "US",
-                "USD",
-                "Chase Bank",
-                "1234567890",
                 null,
                 "BANK_TRANSFER",
                 null,

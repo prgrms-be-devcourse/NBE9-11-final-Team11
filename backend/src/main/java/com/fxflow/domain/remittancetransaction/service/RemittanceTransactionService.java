@@ -92,7 +92,10 @@ public class RemittanceTransactionService {
     public List<RemittanceTransactionSummaryResponse> getTransfers(Long userId) {
         return remittanceTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId)
                 .stream()
-                .map(RemittanceTransactionSummaryResponse::from)
+                .map(remittanceTransaction -> RemittanceTransactionSummaryResponse.from(
+                        remittanceTransaction,
+                        getRecipientForHistory(remittanceTransaction.getRecipientId())
+                ))
                 .toList();
     }
 
@@ -108,7 +111,9 @@ public class RemittanceTransactionService {
                         RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
                 ));
 
-        return RemittanceTransactionDetailResponse.from(remittanceTransaction);
+        Recipient recipient = getRecipientForHistory(remittanceTransaction.getRecipientId());
+
+        return RemittanceTransactionDetailResponse.from(remittanceTransaction, recipient);
     }
 
     /**
@@ -131,11 +136,6 @@ public class RemittanceTransactionService {
         RemittanceTransaction remittanceTransaction = RemittanceTransaction.create(
                 userId,
                 quote.recipientId(),
-                recipient.getName(),
-                recipient.getCountryCode(),
-                recipient.getCurrencyCode(),
-                recipient.getBankName(),
-                recipient.getAccountNumber(),
                 null,
                 "BANK_TRANSFER",
                 null,
@@ -231,6 +231,15 @@ public class RemittanceTransactionService {
      */
     private Recipient getRecipient(Long userId, Long recipientId) {
         return recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(recipientId, userId)
+                .orElseThrow(() -> new BusinessException(RecipientErrorCode.RECIPIENT_NOT_FOUND));
+    }
+
+    /**
+     * 송금 내역 조회에 사용할 수취인을 조회한다.
+     * Soft Delete 된 수취인도 과거 송금 내역에서는 보여야 하므로 deletedAt 조건을 걸지 않는다.
+     */
+    private Recipient getRecipientForHistory(Long recipientId) {
+        return recipientRepository.findById(recipientId)
                 .orElseThrow(() -> new BusinessException(RecipientErrorCode.RECIPIENT_NOT_FOUND));
     }
 

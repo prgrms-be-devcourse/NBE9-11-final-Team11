@@ -1,6 +1,7 @@
 package com.fxflow.domain.remittancetransaction.dto.response;
 
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
+import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 
 import java.math.BigDecimal;
@@ -23,15 +24,18 @@ public record RemittanceTransactionSummaryResponse(
 
     /**
      * 송금 내역 목록에 필요한 요약 정보를 생성한다.
-     * 수취인 정보는 현재 주소록이 아니라 송금 당시 저장된 스냅샷을 사용한다.
+     * 수취인 정보는 recipientId로 연결된 수취인 주소록에서 조회한다.
      */
-    public static RemittanceTransactionSummaryResponse from(RemittanceTransaction remittanceTransaction) {
+    public static RemittanceTransactionSummaryResponse from(
+            RemittanceTransaction remittanceTransaction,
+            Recipient recipient
+    ) {
         return new RemittanceTransactionSummaryResponse(
                 remittanceTransaction.getId(),
-                remittanceTransaction.getRecipientName(),
-                remittanceTransaction.getRecipientCountryCode(),
-                remittanceTransaction.getRecipientCurrencyCode(),
-                remittanceTransaction.getRecipientBankName(),
+                recipient.getName(),
+                recipient.getCountryCode(),
+                recipient.getCurrencyCode(),
+                recipient.getBankName(),
                 remittanceTransaction.getSendAmount(),
                 remittanceTransaction.getSendCurrency(),
                 remittanceTransaction.getReceiveAmount(),
