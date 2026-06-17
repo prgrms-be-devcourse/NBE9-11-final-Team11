@@ -37,6 +37,7 @@ class RebalancingServiceTest {
 
     @Mock private CompanyPoolRepository companyPoolRepository;
     @Mock private RebalancingRepository rebalancingRepository;
+    @Mock private RebalancingAuditService auditService;
     @Mock private FxRateService fxRateService;
 
     @InjectMocks private RebalancingService rebalancingService;
@@ -71,7 +72,7 @@ class RebalancingServiceTest {
     }
 
     @Test
-    @DisplayName("둘 다 floor 미만 → BOTH_BELOW_FLOOR 예외, 이력 미저장")
+    @DisplayName("둘 다 floor 미만 → BOTH_BELOW_FLOOR 예외, MANUAL_REQUIRED 기록 저장 (별도 트랜잭션)")
     void execute_bothBelowFloor_throwsException() {
         givenPools(new BigDecimal("7000000000"), new BigDecimal("5000000")); // 7B, 500만
 
@@ -79,6 +80,7 @@ class RebalancingServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(PoolErrorCode.BOTH_BELOW_FLOOR));
+        verify(auditService).saveManualRequired(eq(TriggerType.MANUAL), any(), anyString());
         verify(rebalancingRepository, never()).save(any());
     }
 
@@ -181,8 +183,8 @@ class RebalancingServiceTest {
     private void givenPools(BigDecimal krwBalance, BigDecimal usdBalance) {
         CompanyPool krwPool = mockPool("KRW", krwBalance, KRW_TARGET, KRW_FLOOR, KRW_CEILING);
         CompanyPool usdPool = mockPool("USD", usdBalance, USD_TARGET, USD_FLOOR, USD_CEILING);
-        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(krwPool));
-        given(companyPoolRepository.findByCurrencyCode("USD")).willReturn(Optional.of(usdPool));
+        given(companyPoolRepository.findByCurrencyCodeWithLock("KRW")).willReturn(Optional.of(krwPool));
+        given(companyPoolRepository.findByCurrencyCodeWithLock("USD")).willReturn(Optional.of(usdPool));
     }
 
     private CompanyPool mockPool(String currencyCode, BigDecimal balance,
