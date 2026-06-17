@@ -69,6 +69,8 @@ public class LedgerEntry extends BaseEntity {
         this.amount = amount;
         this.balanceBefore = balanceBefore;
         this.balanceAfter = balanceAfter;
+        // 원장 기록이 어떤 업무 거래에서 발생했는지 추적하기 위한 참조 ID
+        this.refId = refId;
     }
 
     public static LedgerEntry create(
