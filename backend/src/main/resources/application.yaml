@@ -21,3 +21,10 @@ spring:
   sql:
     init:
       mode: always
+
+exchange:
+  fee:
+    rates:
+      KRW-USD: 0.001
+      USD-KRW: 0.001
+  quote-expiration-minutes: 5
