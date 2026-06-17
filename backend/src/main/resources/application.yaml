@@ -1,13 +1,18 @@
 spring:
   application:
     name: fxflow
-  profiles:
-    include: secret
+  config:
+    import: "optional:classpath:application-secret.yaml"
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/mydb
-    username: myuser
-    password: mypassword
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/mydb}
+    username: ${SPRING_DATASOURCE_USERNAME:myuser}
+    password: ${SPRING_DATASOURCE_PASSWORD:mypassword}
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
 
   jpa:
     hibernate:
@@ -21,6 +26,9 @@ spring:
   sql:
     init:
       mode: always
+
+twelvedata:
+  api-key: ${TWELVEDATA_API_KEY:}
 
 exchange:
   fee:
