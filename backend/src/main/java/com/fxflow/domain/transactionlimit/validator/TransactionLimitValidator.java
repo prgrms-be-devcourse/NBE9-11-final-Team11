@@ -8,8 +8,12 @@ import com.fxflow.domain.transactionlimit.repository.TransactionLimitRepository;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.userlimitusage.entity.UserAnnualUsage;
 import com.fxflow.domain.userlimitusage.entity.UserDailyUsage;
+import com.fxflow.domain.userlimitusage.entity.UserExchangeAnnualUsage;
+import com.fxflow.domain.userlimitusage.entity.UserExchangeDailyUsage;
 import com.fxflow.domain.userlimitusage.repository.UserAnnualUsageRepository;
 import com.fxflow.domain.userlimitusage.repository.UserDailyUsageRepository;
+import com.fxflow.domain.userlimitusage.repository.UserExchangeAnnualUsageRepository;
+import com.fxflow.domain.userlimitusage.repository.UserExchangeDailyUsageRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +31,8 @@ public class TransactionLimitValidator {
     private final TransactionLimitRepository transactionLimitRepository;
     private final UserAnnualUsageRepository userAnnualUsageRepository;
     private final UserDailyUsageRepository userDailyUsageRepository;
+    private final UserExchangeDailyUsageRepository userExchangeDailyUsageRepository;
+    private final UserExchangeAnnualUsageRepository userExchangeAnnualUsageRepository;
 
 
     //공통 한도정책 조회
@@ -81,7 +87,6 @@ public class TransactionLimitValidator {
 
     // 3. 월렛 보유 한도 검증
     /**
-     * TODO: 환율 API 구현 후 아래 방식으로 수정 필요
      * - USD 잔액을 현재 환율로 원화 환산
      * - KRW 잔액 + USD 원화 환산액 합산하여 검증
      * - 현재는 KRW 잔액만 검증
@@ -173,5 +178,79 @@ public class TransactionLimitValidator {
 
         log.info("[1회 출금 한도 검증 완료] userId={}, 요청액={}KRW, 한도={}KRW",
                 user.getId(), amountKrw, limit.getLimitAmount());
+    }
+    // 8. 건당 환전 한도 검증 (등급 차등 있음 )
+    public void validatePerExchange(User user, BigDecimal amountKrw) {
+        log.info("[건당 환전 한도 검증 시작] userId={}, 요청액={}KRW", user.getId(), amountKrw);
+
+        TransactionLimit limit = getLimit(LimitType.PER_EXCHANGE, user.getLimitTier(), "KRW");
+
+        if (amountKrw.compareTo(limit.getLimitAmount()) > 0) {
+            log.warn("[건당 환전 한도 검증 실패] userId={}, 요청액={}KRW, 한도={}KRW",
+                    user.getId(), amountKrw, limit.getLimitAmount());
+            throw new BusinessException(TransactionLimitErrorCode.PER_EXCHANGE_LIMIT_EXCEEDED);
+        }
+
+        log.info("[건당 환전 한도 검증 완료] userId={}, 요청액={}KRW, 한도={}KRW",
+                user.getId(), amountKrw, limit.getLimitAmount());
+    }
+
+    // 9. 일일 환전 한도 검증 (등급 차등 있음)
+    public void validateDailyExchange(User user, BigDecimal amountKrw) {
+        log.info("[일일 환전 한도 검증 시작] userId={}, 요청액={}KRW", user.getId(), amountKrw);
+
+        TransactionLimit limit = getLimit(LimitType.DAILY_EXCHANGE, user.getLimitTier(), "KRW");
+
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        BigDecimal usedAmount = userExchangeDailyUsageRepository
+                .findByUserIdAndUsageDate(user.getId(), today)
+                .map(UserExchangeDailyUsage::getDailyExchangeUsed)
+                .orElse(BigDecimal.ZERO);
+
+        if (usedAmount.add(amountKrw).compareTo(limit.getLimitAmount()) > 0) {
+            log.warn("[일일 환전 한도 검증 실패] userId={}, 누적액={}KRW, 요청액={}KRW, 한도={}KRW",
+                    user.getId(), usedAmount, amountKrw, limit.getLimitAmount());
+            throw new BusinessException(TransactionLimitErrorCode.DAILY_EXCHANGE_LIMIT_EXCEEDED);
+        }
+
+        log.info("[일일 환전 한도 검증 완료] userId={}, 누적액={}KRW, 요청액={}KRW, 한도={}KRW",
+                user.getId(), usedAmount, amountKrw, limit.getLimitAmount());
+    }
+
+    // 10. 연간 환전 한도 검증 (변경 없음 - 송금처럼 STANDARD 고정 유지)
+    public void validateAnnualExchange(User user, BigDecimal amountUsd) {
+        log.info("[연간 환전 한도 검증 시작] userId={}, 요청액={}USD", user.getId(), amountUsd);
+
+        TransactionLimit limit = getLimit(LimitType.ANNUAL_EXCHANGE, LimitTier.STANDARD, "USD");
+
+        int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+        BigDecimal usedAmount = userExchangeAnnualUsageRepository
+                .findByUserIdAndYear(user.getId(), currentYear)
+                .map(UserExchangeAnnualUsage::getAnnualExchangeUsedUsd)
+                .orElse(BigDecimal.ZERO);
+
+        if (usedAmount.add(amountUsd).compareTo(limit.getLimitAmount()) > 0) {
+            log.warn("[연간 환전 한도 검증 실패] userId={}, 누적액={}USD, 요청액={}USD, 한도={}USD",
+                    user.getId(), usedAmount, amountUsd, limit.getLimitAmount());
+            throw new BusinessException(TransactionLimitErrorCode.ANNUAL_EXCHANGE_LIMIT_EXCEEDED);
+        }
+
+        log.info("[연간 환전 한도 검증 완료] userId={}, 누적액={}USD, 요청액={}USD, 한도={}USD",
+                user.getId(), usedAmount, amountUsd, limit.getLimitAmount());
+    }
+
+    // exchange validator
+    public void validateExchange(User user, BigDecimal amount) {
+        validatePerExchange(user, amount);
+        validateDailyExchange(user, amount);
+        validateAnnualExchange(user, amount);
+    }
+
+    public void validateDeposit(User user, BigDecimal amount) { // todo: method grouping
+        validatePerDeposit(user, amount);
+    }
+
+    public void validateWithdrawal(User user, BigDecimal amount) { // todo: method grouping
+        validatePerWithdrawal(user, amount);
     }
 }

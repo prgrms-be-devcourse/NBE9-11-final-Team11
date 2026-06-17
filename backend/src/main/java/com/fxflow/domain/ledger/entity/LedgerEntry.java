@@ -48,17 +48,16 @@ public class LedgerEntry extends BaseEntity {
     @Column(name = "balance_after", nullable = false, precision = 18, scale = 2)
     private BigDecimal balanceAfter;
 
-//    @Column(name = "ref_type", nullable = false, length = 50)
-//    private String refType;
-    // 이미 entry type이 CHARGE, WITHDRAW, EXCHANGE, TRANSFER 구분
+    @Column(name = "ref_type", length = 50)
+    private String refType;
 
-    @Column(name = "ref_id", nullable = false, length = 50)
+    @Column(name = "ref_id", length = 50)
     private String refId;
 
     private LedgerEntry(String journalId, LedgerEntryType entryType, LedgerDirection ledgerDirection,
                         Long walletId, Long mockBankAccountId, Long companyPoolId, String currencyCode,
                         BigDecimal amount, BigDecimal balanceBefore, BigDecimal balanceAfter,
-                        String refId){
+                        String refType, String refId){
         this.journalId = journalId;
         this.entryType = entryType;
         this.ledgerDirection = ledgerDirection;
@@ -69,15 +68,17 @@ public class LedgerEntry extends BaseEntity {
         this.amount = amount;
         this.balanceBefore = balanceBefore;
         this.balanceAfter = balanceAfter;
+        this.refType = refType;
+        this.refId = refId;
     }
 
     public static LedgerEntry create(
             String journalId, LedgerEntryType entryType, LedgerDirection ledgerDirection,
             Long walletId, Long mockBankAccountId, Long companyPoolId, String currencyCode,
             BigDecimal amount, BigDecimal balanceBefore, BigDecimal balanceAfter,
-            String refId
+            String refType, String refId
     ) {
         return new LedgerEntry(
-                journalId, entryType, ledgerDirection, walletId, mockBankAccountId, companyPoolId, currencyCode, amount, balanceBefore, balanceAfter, refId);
+                journalId, entryType, ledgerDirection, walletId, mockBankAccountId, companyPoolId, currencyCode, amount, balanceBefore, balanceAfter, refType, refId);
     }
 }

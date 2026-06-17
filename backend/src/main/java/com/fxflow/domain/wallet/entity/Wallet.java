@@ -24,7 +24,7 @@ public class Wallet extends BaseEntity {
     private String currencyCode;
 
     @Column(nullable = false)
-    private BigDecimal balance;
+    private BigDecimal balance = BigDecimal.ZERO;;
 
     @Version
     @Column(nullable = false)
@@ -35,20 +35,24 @@ public class Wallet extends BaseEntity {
     private Wallet(User user, String currencyCode, BigDecimal balance) {
         this.user = user;
         this.currencyCode = currencyCode;
-        this.balance = balance;
+        this.balance = (balance == null) ? BigDecimal.ZERO : balance;
     }
 
     public static Wallet create(User user, String currencyCode, BigDecimal balance) {
         return new Wallet(user, currencyCode, balance);
     }
 
-    public void updateBalance(BigDecimal amount) {
+    public void deposit(BigDecimal amount) {
         this.balance = this.balance.add(amount);
     }
 
-    public void updateBalance(BigDecimal amount, String currencyCode) {
+    public void withdraw(BigDecimal amount) {
+        this.balance = this.balance.subtract(amount);
+    }
+
+    public void deposit(BigDecimal amount, String currencyCode) {
         if (this.currencyCode.equals(currencyCode)) {
-            this.updateBalance(amount);
+            this.deposit(amount);
         }
     }
 

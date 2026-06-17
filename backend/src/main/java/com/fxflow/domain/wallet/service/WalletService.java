@@ -1,37 +1,55 @@
 package com.fxflow.domain.wallet.service;
 
+import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.fxrate.service.FxRateService;
 import com.fxflow.domain.ledger.entity.LedgerEntry;
+import com.fxflow.domain.ledger.enums.LedgerDirection;
+import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
+import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
+import com.fxflow.domain.user.entity.User;
+import com.fxflow.domain.user.service.UserService;
+import com.fxflow.domain.userlimitusage.service.UserDailyUsageService;
+import com.fxflow.domain.wallet.dto.request.ChargeRequest;
+import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
+import com.fxflow.domain.wallet.dto.response.TransactionResponse;
 import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
 import com.fxflow.domain.wallet.dto.response.WalletResponse;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.errorcode.WalletErrorCode;
+import com.fxflow.domain.wallet.policy.WalletPolicy;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class WalletService {
 
     private final WalletRepository walletRepository;
-    private final ExchangeService exchangeService;
-    private final P2pTransferService p2pTransferService;
     private final FxRateService fxRateService;
     private final LedgerEntryRepository ledgerEntryRepository;
+    private final MockBankAccountService mockBankAccountService;
+    private final CompanyPoolService companyPoolService;
+    private final TransactionLimitValidator transactionLimitValidator;
+    private final UserService userService;
+    private final UserDailyUsageService userDailyUsageService;
 
-    private Wallet getWallet(){
-        return walletRepository.findById(1L).orElseThrow(
+
+    private Wallet getWallet(Long userId, String currencyCode){
+        return walletRepository.findByUserIdAndCurrencyCode(userId, currencyCode).orElseThrow(
                 () -> new BusinessException(WalletErrorCode.WALLET_NOT_FOUND)
         );
     }
@@ -75,5 +93,114 @@ public class WalletService {
 
         // DTO 변환
         return TransactionHistoryResponse.from(entries);
+    }
+
+    @Transactional
+    public TransactionResponse charge(Long userId, ChargeRequest request) {
+        Long bankAccountId = request.bankAccountId();
+
+        BigDecimal amount = request.amount();
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
+        }
+
+        // check wallet balance
+        Wallet wallet = getWallet(userId, "KRW");
+        Long walletId = wallet.getId();
+        BigDecimal balanceBefore = wallet.getBalance();
+        BigDecimal balanceAfter = balanceBefore.add(amount);
+
+        // daily deposit limit check
+        User user = userService.getUser(userId);
+        transactionLimitValidator.validatePerDeposit(user, amount);
+        transactionLimitValidator.validateDailyDeposit(user, amount);
+        transactionLimitValidator.validateWalletHolding(user, balanceAfter);
+
+        String journalId = "JRN_" + UUID.randomUUID();
+
+        // mock bank account debit
+        mockBankAccountService.withdraw(userId, journalId, bankAccountId, amount, "KRW");
+
+        // wallet credit
+        wallet.deposit(amount);
+        walletRepository.save(wallet);
+
+        companyPoolService.deposit(journalId, "KRW", amount);
+
+        LedgerEntry walletEntry =
+                LedgerEntry.create(
+                        journalId,
+                        LedgerEntryType.CHARGE,
+                        LedgerDirection.CREDIT,
+                        walletId,
+                        null,
+                        null,
+                        "KRW",
+                        amount,
+                        balanceBefore,
+                        balanceAfter,
+                        null,
+                        null
+                );
+        ledgerEntryRepository.save(walletEntry);
+
+        userDailyUsageService.addDeposit(userId, LocalDate.now(java.time.ZoneId.of("Asia/Seoul")), amount);
+        return TransactionResponse.from(walletEntry);
+    }
+
+    @Transactional
+    public TransactionResponse withdraw(Long userId, WithdrawRequest request) {
+        Long bankAccountId = request.bankAccountId();
+
+        BigDecimal amount = request.amount();
+        if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(WalletPolicy.MAX_KRW_BALANCE) > 0) {
+            throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
+        }
+
+        // daily withdrawal limit check
+        User user = userService.getUser(userId);
+        transactionLimitValidator.validatePerWithdrawal(user, amount);
+        transactionLimitValidator.validateDailyWithdrawal(user, amount);
+
+        // check wallet balance
+        Wallet wallet = getWallet(userId, "KRW");
+        Long walletId = wallet.getId();
+        BigDecimal balanceBefore = wallet.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
+        }
+
+        String journalId = "JRN_" + UUID.randomUUID();
+
+        // mock bank account credit
+        mockBankAccountService.deposit(userId, journalId, bankAccountId, amount, "KRW");
+
+        // wallet credit
+        wallet.withdraw(amount);
+        walletRepository.save(wallet);
+
+        companyPoolService.withdraw(journalId, "KRW", amount);
+//        companyPoolService.apply(List.of(PoolChange.decrease(“KRW", amount)));
+
+        LedgerEntry walletEntry =
+                LedgerEntry.create(
+                        journalId,
+                        LedgerEntryType.WITHDRAW,
+                        LedgerDirection.DEBIT,
+                        walletId,
+                        null,
+                        null,
+                        "KRW",
+                        amount,
+                        balanceBefore,
+                        balanceAfter,
+                        null,
+                        null
+                );
+        ledgerEntryRepository.save(walletEntry);
+
+        userDailyUsageService.addWithdrawal(userId, LocalDate.now(java.time.ZoneId.of("Asia/Seoul")), amount);
+        return TransactionResponse.from(walletEntry);
     }
 }

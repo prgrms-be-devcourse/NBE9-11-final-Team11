@@ -18,7 +18,6 @@ public enum WalletErrorCode implements ErrorCode {
     // 충전/인출
     BANK_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "BANK_ACCOUNT_NOT_FOUND", "모의계좌를 찾을 수 없습니다."),
     BANK_ACCOUNT_NOT_LINKED(HttpStatus.CONFLICT, "BANK_ACCOUNT_NOT_LINKED", "연동된 계좌가 없습니다."),
-    WALLET_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "WALLET_LIMIT_EXCEEDED", "지갑 잔액은 200만원을 초과할 수 없습니다."),
     INSUFFICIENT_BALANCE(HttpStatus.CONFLICT, "INSUFFICIENT_BALANCE", "잔액이 부족합니다."),
 
     // 환전
@@ -27,7 +26,6 @@ public enum WalletErrorCode implements ErrorCode {
     QUOTE_NOT_FOUND(HttpStatus.NOT_FOUND, "QUOTE_NOT_FOUND", "견적 정보를 찾을 수 없습니다."),
     QUOTE_EXPIRED(HttpStatus.CONFLICT, "QUOTE_EXPIRED", "견적이 만료되었습니다."),
     QUOTE_ALREADY_USED(HttpStatus.CONFLICT, "QUOTE_ALREADY_USED", "이미 사용된 견적입니다."),
-    EXCHANGE_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "EXCHANGE_LIMIT_EXCEEDED", "일일 환전 한도를 초과했습니다."),
     POOL_UPDATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "POOL_UPDATE_FAILED", "통화 풀 갱신에 실패했습니다."),
 
     // P2P

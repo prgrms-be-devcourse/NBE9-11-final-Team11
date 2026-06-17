@@ -1,19 +1,35 @@
 package com.fxflow.domain.wallet.service;
 
 
+import com.fxflow.domain.companypool.entity.CompanyPool;
+import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.fxrate.service.FxRateService;
 import com.fxflow.domain.ledger.entity.LedgerEntry;
+import com.fxflow.domain.ledger.enums.LedgerDirection;
+import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
+import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
+import com.fxflow.domain.transactionlimit.errorcode.TransactionLimitErrorCode;
+import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
+import com.fxflow.domain.user.entity.User;
+import com.fxflow.domain.user.service.UserService;
+import com.fxflow.domain.userlimitusage.service.UserDailyUsageService;
+import com.fxflow.domain.wallet.dto.request.ChargeRequest;
+import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
+import com.fxflow.domain.wallet.dto.response.TransactionResponse;
 import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.errorcode.WalletErrorCode;
+import com.fxflow.domain.wallet.policy.WalletPolicy;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -31,10 +47,12 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class WalletServiceTest {
@@ -45,6 +63,16 @@ class WalletServiceTest {
     private FxRateService fxRateService;
     @Mock
     private LedgerEntryRepository ledgerEntryRepository;
+    @Mock
+    private MockBankAccountService mockBankAccountService;
+    @Mock
+    private CompanyPoolService companyPoolService;
+    @Mock
+    private UserService userService;
+    @Mock
+    private UserDailyUsageService userDailyUsageService;
+    @Mock
+    private TransactionLimitValidator transactionLimitValidator;
 
     @InjectMocks
     private WalletService walletService;
@@ -215,5 +243,284 @@ class WalletServiceTest {
 
         // then
         verify(ledgerEntryRepository).findByWalletIdInAndFilters(List.of(10L, 11L), null, null, null, pageable);
+    }
+
+    // -- Charge --
+    @Test
+    @DisplayName("월렛 충전 - 모의계좌 -> 원화 월렛")
+    void charge_success() {
+        // given
+        Long userId = 1L;
+        ChargeRequest request = new ChargeRequest(10L, new BigDecimal("5000"));
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+        when(companyPoolService.deposit(anyString(), eq("KRW"), any(BigDecimal.class))).thenReturn(mock(CompanyPool.class));
+        User mockUser = mock(User.class);
+        when(userService.getUser(userId)).thenReturn(mockUser);
+
+        // when
+        TransactionResponse response = walletService.charge(userId, request);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(krwWallet.getBalance()).isEqualByComparingTo("55000");
+
+        verify(mockBankAccountService, times(1))
+                .withdraw(
+                        eq(userId),
+                        anyString(),
+                        eq(10L),
+                        eq(new BigDecimal("5000")),
+                        eq("KRW")
+                );
+        verify(walletRepository, times(1)).save(krwWallet);
+        // only wallet ledger entry saved here; bank entry is inside mocked withdraw
+        verify(companyPoolService, times(1)).deposit(anyString(), eq("KRW"), eq(new BigDecimal("5000")));
+
+        ArgumentCaptor<LedgerEntry> captor = ArgumentCaptor.forClass(LedgerEntry.class);
+        verify(ledgerEntryRepository, times(1)).save(captor.capture());
+        LedgerEntry savedEntry = captor.getValue();
+        assertAll(
+                () -> assertThat(savedEntry.getEntryType()).isEqualTo(LedgerEntryType.CHARGE),
+                () -> assertThat(savedEntry.getLedgerDirection()).isEqualTo(LedgerDirection.CREDIT),
+                () -> assertThat(savedEntry.getCurrencyCode()).isEqualTo("KRW"),
+                () -> assertThat(savedEntry.getAmount()).isEqualByComparingTo("5000"),
+                () -> assertThat(savedEntry.getBalanceBefore()).isEqualByComparingTo("50000"),
+                () -> assertThat(savedEntry.getBalanceAfter()).isEqualByComparingTo("55000"),
+                () -> assertThat(savedEntry.getWalletId()).isEqualTo(krwWallet.getId())
+        );
+    }
+
+    @Test
+    @DisplayName("월렛 충전 - invalid amount (0원 이하)")
+    void charge_fail_invalidAmount() {
+
+        // given
+        Long userId = 1L;
+
+        ChargeRequest request = new ChargeRequest(
+                10L,
+                BigDecimal.ZERO
+        );
+
+        // when & then
+        assertThatThrownBy(() ->
+                walletService.charge(userId, request)
+        )
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(WalletErrorCode.INVALID_AMOUNT.getMessage());
+
+        verify(walletRepository, never()).save(any());
+        verify(ledgerEntryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("월렛 충전 - 보유 한도 초과")
+    void charge_fail_walletLimitExceeded() {
+
+        // given
+        Long userId = 1L;
+        String currency = "KRW";
+
+        BigDecimal initialBalance = new BigDecimal("1999999");
+        BigDecimal chargeAmount = new BigDecimal("2");
+        BigDecimal walletLimit = new BigDecimal("2000000");
+
+        User user = User.create("email", "password", "name");
+        ReflectionTestUtils.setField(user, "id", userId);
+        ReflectionTestUtils.setField(user, "walletLimitKrw", walletLimit);
+
+        Wallet wallet = Wallet.create(user, currency, initialBalance);
+
+        when(userService.getUser(userId)).thenReturn(user);
+
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, currency))
+                .thenReturn(Optional.of(wallet));
+
+        ChargeRequest request = new ChargeRequest(wallet.getId(), chargeAmount);
+
+        willThrow(new BusinessException(TransactionLimitErrorCode.WALLET_HOLDING_LIMIT_EXCEEDED))
+                .given(transactionLimitValidator)
+                .validateWalletHolding(any(User.class), any(BigDecimal.class));
+
+        // when & then
+        assertThatThrownBy(() ->
+                walletService.charge(userId, request)
+        )
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(TransactionLimitErrorCode.WALLET_HOLDING_LIMIT_EXCEEDED.getMessage());
+
+        verify(walletRepository, never()).save(any());
+        verify(ledgerEntryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("월렛 충전 - 다른 유저의 모의계좌로 충전 시도")
+    void charge_fail_bankAccountNotOwned() {
+        // given
+        Long userId = 1L;
+        Long otherUsersBankAccountId = 99L;
+        ChargeRequest request = new ChargeRequest(otherUsersBankAccountId, new BigDecimal("5000"));
+
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet)); // add this
+
+        doThrow(new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND))
+                .when(mockBankAccountService)
+                .withdraw(
+                        eq(userId),
+                        anyString(),
+                        eq(otherUsersBankAccountId),
+                        any(BigDecimal.class),
+                        eq("KRW")
+                );
+
+        User mockUser = mock(User.class);
+        when(userService.getUser(userId)).thenReturn(mockUser);
+
+        // when & then
+        assertThatThrownBy(() ->
+                walletService.charge(userId, request)
+        )
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND.getMessage());
+
+        verify(walletRepository, never()).save(any());
+        verify(ledgerEntryRepository, never()).save(any());
+        verify(companyPoolService, never()).deposit(anyString(), anyString(), any(BigDecimal.class));
+    }
+
+    // -- Withdraw --
+    @Test
+    @DisplayName("월렛 출금 - 원화 월렛 -> 모의계좌")
+    void withdraw_success() {
+        // given
+        Long userId = 1L;
+        WithdrawRequest request = new WithdrawRequest(10L, new BigDecimal("5000"));
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+        User mockUser = mock(User.class);
+        when(userService.getUser(userId)).thenReturn(mockUser);
+
+        // when
+        TransactionResponse response = walletService.withdraw(userId, request);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(krwWallet.getBalance()).isEqualByComparingTo("45000");
+
+        verify(mockBankAccountService, times(1))
+                .deposit(
+                        eq(userId),
+                        anyString(),
+                        eq(10L),
+                        eq(new BigDecimal("5000")),
+                        eq("KRW")
+                );
+        verify(walletRepository, times(1)).save(krwWallet);
+        verify(companyPoolService, times(1)).withdraw(anyString(), eq("KRW"), eq(new BigDecimal("5000")));
+
+        ArgumentCaptor<LedgerEntry> captor = ArgumentCaptor.forClass(LedgerEntry.class);
+        verify(ledgerEntryRepository, times(1)).save(captor.capture());
+        LedgerEntry savedEntry = captor.getValue();
+        assertAll(
+                () -> assertThat(savedEntry.getEntryType()).isEqualTo(LedgerEntryType.WITHDRAW),
+                () -> assertThat(savedEntry.getLedgerDirection()).isEqualTo(LedgerDirection.DEBIT),
+                () -> assertThat(savedEntry.getCurrencyCode()).isEqualTo("KRW"),
+                () -> assertThat(savedEntry.getAmount()).isEqualByComparingTo("5000"),
+                () -> assertThat(savedEntry.getBalanceBefore()).isEqualByComparingTo("50000"),
+                () -> assertThat(savedEntry.getBalanceAfter()).isEqualByComparingTo("45000"),
+                () -> assertThat(savedEntry.getWalletId()).isEqualTo(krwWallet.getId()),
+                () -> assertThat(savedEntry.getMockBankAccountId()).isNull(),
+                () -> assertThat(savedEntry.getCompanyPoolId()).isNull()
+        );
+    }
+
+    @Test
+    @DisplayName("월렛 출금 - invalid amount (0원 이하)")
+    void withdraw_fail_invalidAmount() {
+        // given
+        Long userId = 1L;
+        WithdrawRequest request = new WithdrawRequest(10L, BigDecimal.ZERO);
+
+        // when & then
+        assertThatThrownBy(() ->
+                walletService.withdraw(userId, request)
+        )
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(WalletErrorCode.INVALID_AMOUNT.getMessage());
+
+        verify(walletRepository, never()).save(any());
+        verify(ledgerEntryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("월렛 출금 - 200만원 초과 금액 출금 시도")
+    void withdraw_fail_amountExceedsLimit() {
+        // given
+        Long userId = 1L;
+        WithdrawRequest request = new WithdrawRequest(10L, WalletPolicy.MAX_KRW_BALANCE.add(BigDecimal.ONE));
+
+        // when & then
+        assertThatThrownBy(() ->
+                walletService.withdraw(userId, request)
+        )
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(WalletErrorCode.INVALID_AMOUNT.getMessage());
+
+        verify(walletRepository, never()).save(any());
+        verify(ledgerEntryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("월렛 출금 - 잔액 부족")
+    void withdraw_fail_insufficientBalance() {
+        // given
+        Long userId = 1L;
+        WithdrawRequest request = new WithdrawRequest(10L, new BigDecimal("60000")); // more than krwWallet's 50000
+
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+        User mockUser = mock(User.class);
+        when(userService.getUser(userId)).thenReturn(mockUser);
+
+        // when & then
+        assertThatThrownBy(() ->
+                walletService.withdraw(userId, request)
+        )
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(WalletErrorCode.INSUFFICIENT_BALANCE.getMessage());
+
+        verify(walletRepository, never()).save(any());
+        verify(ledgerEntryRepository, never()).save(any());
+        verify(mockBankAccountService, never()).deposit(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("월렛 출금 - 다른 유저의 모의계좌로 출금 시도")
+    void withdraw_fail_bankAccountNotOwned() {
+        // given
+        Long userId = 1L;
+        Long otherUsersBankAccountId = 99L;
+        WithdrawRequest request = new WithdrawRequest(otherUsersBankAccountId, new BigDecimal("5000"));
+
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+
+        doThrow(new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND))
+                .when(mockBankAccountService)
+                .deposit(
+                        eq(userId),
+                        anyString(),
+                        eq(otherUsersBankAccountId),
+                        any(BigDecimal.class),
+                        eq("KRW")
+                );
+
+        // when & then
+        assertThatThrownBy(() ->
+                walletService.withdraw(userId, request)
+        )
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND.getMessage());
+
+        verify(walletRepository, never()).save(any());
+        verify(ledgerEntryRepository, never()).save(any());
+        verify(companyPoolService, never()).withdraw(anyString(), anyString(), any(BigDecimal.class));
     }
 }

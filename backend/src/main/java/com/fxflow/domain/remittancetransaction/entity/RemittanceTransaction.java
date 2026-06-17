@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import java.math.BigDecimal;
 
 @Entity
@@ -65,6 +66,12 @@ public class RemittanceTransaction extends BaseEntity {
     @Column(name = "amount_usd", precision = 18, scale = 2, nullable = false)
     private BigDecimal amountUsd;
 
+    @Column(name = "reason", length = 50, nullable = false)
+    private String reason;
+
+    @Column(name = "reason_detail", length = 255)
+    private String reasonDetail;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 30, nullable = false)
     private TransferStatus status;
@@ -75,7 +82,28 @@ public class RemittanceTransaction extends BaseEntity {
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 
-    private RemittanceTransaction(Long userId, Long recipientId, Long targetUserId, String method, Long sourceWalletId, Long targetWalletId, Long sourceMockAccountId, Long targetMockAccountId, Long exchangeTransactionId, String sendCurrency, BigDecimal sendAmount, String receiveCurrency, BigDecimal receiveAmount, BigDecimal appliedRate, BigDecimal feeAmount, BigDecimal amountKrw, BigDecimal amountUsd, String idempotencyKey) {
+    private RemittanceTransaction(
+            Long userId,
+            Long recipientId,
+            Long targetUserId,
+            String method,
+            Long sourceWalletId,
+            Long targetWalletId,
+            Long sourceMockAccountId,
+            Long targetMockAccountId,
+            Long exchangeTransactionId,
+            String sendCurrency,
+            BigDecimal sendAmount,
+            String receiveCurrency,
+            BigDecimal receiveAmount,
+            BigDecimal appliedRate,
+            BigDecimal feeAmount,
+            BigDecimal amountKrw,
+            BigDecimal amountUsd,
+            String reason,
+            String reasonDetail,
+            String idempotencyKey
+    ) {
         this.userId = userId;
         this.recipientId = recipientId;
         this.targetUserId = targetUserId;
@@ -93,19 +121,75 @@ public class RemittanceTransaction extends BaseEntity {
         this.feeAmount = feeAmount;
         this.amountKrw = amountKrw;
         this.amountUsd = amountUsd;
-        this.status = TransferStatus.PENDING; // 초기 상태는 무조건 PENDING 고정
+        this.reason = reason;
+        this.reasonDetail = reasonDetail;
+        this.status = TransferStatus.PENDING;
         this.idempotencyKey = idempotencyKey;
     }
 
-    public static RemittanceTransaction create(Long userId, Long recipientId, Long targetUserId, String method, Long sourceWalletId, Long targetWalletId, Long sourceMockAccountId, Long targetMockAccountId, Long exchangeTransactionId, String sendCurrency, BigDecimal sendAmount, String receiveCurrency, BigDecimal receiveAmount, BigDecimal appliedRate, BigDecimal feeAmount, BigDecimal amountKrw, BigDecimal amountUsd, String idempotencyKey) {
-        return new RemittanceTransaction(userId, recipientId, targetUserId, method, sourceWalletId, targetWalletId, sourceMockAccountId, targetMockAccountId, exchangeTransactionId, sendCurrency, sendAmount, receiveCurrency, receiveAmount, appliedRate, feeAmount, amountKrw, amountUsd, idempotencyKey);
+    public static RemittanceTransaction create(
+            Long userId,
+            Long recipientId,
+            Long targetUserId,
+            String method,
+            Long sourceWalletId,
+            Long targetWalletId,
+            Long sourceMockAccountId,
+            Long targetMockAccountId,
+            Long exchangeTransactionId,
+            String sendCurrency,
+            BigDecimal sendAmount,
+            String receiveCurrency,
+            BigDecimal receiveAmount,
+            BigDecimal appliedRate,
+            BigDecimal feeAmount,
+            BigDecimal amountKrw,
+            BigDecimal amountUsd,
+            String reason,
+            String reasonDetail,
+            String idempotencyKey
+    ) {
+        return new RemittanceTransaction(
+                userId,
+                recipientId,
+                targetUserId,
+                method,
+                sourceWalletId,
+                targetWalletId,
+                sourceMockAccountId,
+                targetMockAccountId,
+                exchangeTransactionId,
+                sendCurrency,
+                sendAmount,
+                receiveCurrency,
+                receiveAmount,
+                appliedRate,
+                feeAmount,
+                amountKrw,
+                amountUsd,
+                reason,
+                reasonDetail,
+                idempotencyKey
+        );
     }
 
-    // --- 비즈니스 도메인 상태 변경 메서드들 ---
-    public void fund() { this.status = TransferStatus.FUNDED; }
-    public void startProcessing() { this.status = TransferStatus.PROCESSING; }
-    public void complete() { this.status = TransferStatus.COMPLETED; }
-    public void cancel() { this.status = TransferStatus.CANCELED; }
+    public void fund(Long sourceMockAccountId) {
+        this.sourceMockAccountId = sourceMockAccountId;
+        this.status = TransferStatus.FUNDED;
+    }
+
+    public void startProcessing() {
+        this.status = TransferStatus.PROCESSING;
+    }
+
+    public void complete() {
+        this.status = TransferStatus.COMPLETED;
+    }
+
+    public void cancel() {
+        this.status = TransferStatus.CANCELED;
+    }
+
     public void fail(String failureReason) {
         this.status = TransferStatus.FAILED;
         this.failureReason = failureReason;

@@ -17,7 +17,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "mock_bank_accounts")
+@Table(
+        name = "mock_bank_accounts",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_mock_bank_account_user_currency", columnNames = {"user_id", "currency_code"}),
+                @UniqueConstraint(name = "uk_mock_bank_account_number", columnNames = {"account_number"})
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
@@ -28,7 +34,7 @@ public class MockBankAccount extends BaseEntity {
     private User user;
 
     @Column(name = "currency_code", nullable = false, length = 10)
-    private String currencyCode;        // KRW,USD
+    private String currencyCode;        // KRW: 사용자가 직접 연결 / USD: 시딩 데이터(받는 가상계좌)
 
     @Column(name = "bank_name", nullable = false, length = 100)
     private String bankName;
@@ -46,14 +52,31 @@ public class MockBankAccount extends BaseEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;    // soft delete — NULL 허용
 
-    @Builder
-    private MockBankAccount(User user, String bankName, String accountNumber) {
-        this.user = user;
-        this.currencyCode = "KRW";
-        this.bankName = bankName;
-        this.accountNumber = accountNumber;
-        this.balance = new BigDecimal("10000000"); // 초기 1,000만원
+    public static MockBankAccount create(User user, String bankName, String accountNumber) {
+        MockBankAccount account = new MockBankAccount();
+        account.user = user;
+        account.currencyCode = "KRW";
+        account.bankName = bankName;
+        account.accountNumber = accountNumber;
+        account.balance = new BigDecimal("10000000"); // 초기 1,000만원
+        return account;
     }
+
+    /**
+     * USD 등 시딩용 가상계좌 생성 (받는 계좌 역할, 운영진이 미리 데이터 등록)
+     */
+    public static MockBankAccount createSeedAccount(
+            User user, String currencyCode, String bankName, String accountNumber, BigDecimal initialBalance
+    ) {
+        MockBankAccount account = new MockBankAccount();
+        account.user = user;
+        account.currencyCode = currencyCode;
+        account.bankName = bankName;
+        account.accountNumber = accountNumber;
+        account.balance = initialBalance;
+        return account;
+    }
+
 
     // 입금
     public void deposit(BigDecimal amount) {
