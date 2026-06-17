@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -48,6 +49,18 @@ public class RecipientService {
                 .stream()
                 .map(RecipientResponse::from)
                 .toList();
+    }
+
+    /**
+     * 수취인 주소록에서 특정 수취인을 Soft Delete 처리한다.
+     * 수취인 정보는 수정하지 않고, 새 계좌가 필요하면 새 수취인을 등록하는 정책을 따른다.
+     */
+    @Transactional
+    public void deleteRecipient(Long userId, Long recipientId) {
+        Recipient recipient = recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(recipientId, userId)
+                .orElseThrow(() -> new BusinessException(RecipientErrorCode.RECIPIENT_NOT_FOUND));
+
+        recipient.delete(LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")));
     }
 
     /**

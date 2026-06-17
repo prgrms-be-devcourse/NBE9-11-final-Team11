@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface RecipientRepository extends JpaRepository<Recipient, Long> {
@@ -32,4 +33,10 @@ public interface RecipientRepository extends JpaRepository<Recipient, Long> {
      * Soft Delete 처리된 수취인은 유효하지 않은 수취인으로 판단한다.
      */
     boolean existsByIdAndUserIdAndDeletedAtIsNull(Long id, Long userId);
+
+    /**
+     * 송금 주문 생성 시 사용할 수취인을 조회한다.
+     * 송금 당시 수취인 정보를 거래에 스냅샷으로 저장하기 위해 사용한다.
+     */
+    Optional<Recipient> findByIdAndUserIdAndDeletedAtIsNull(Long id, Long userId);
 }

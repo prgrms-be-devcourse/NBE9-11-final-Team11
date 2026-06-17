@@ -41,4 +41,17 @@ public class RecipientController {
         List<RecipientResponse> response = recipientService.getRecipients(userId);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * 로그인한 사용자의 해외 수취인을 삭제한다.
+     * 실제 데이터는 남겨 과거 송금 내역의 참조가 깨지지 않도록 한다.
+     */
+    @DeleteMapping("/recipients/{recipientId}")
+    public ResponseEntity<Void> deleteRecipient(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long recipientId
+    ) {
+        recipientService.deleteRecipient(userId, recipientId);
+        return ResponseEntity.noContent().build();
+    }
 }

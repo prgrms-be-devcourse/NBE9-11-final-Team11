@@ -4,6 +4,8 @@ import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransaction
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceLimitResponse;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceMockFundedResponse;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionCreateResponse;
+import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionDetailResponse;
+import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionSummaryResponse;
 import com.fxflow.domain.remittancetransaction.service.RemittanceTransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -27,6 +31,33 @@ public class RemittanceTransactionController {
             @AuthenticationPrincipal Long userId
     ) {
         RemittanceLimitResponse response = remittanceTransactionService.getRemittanceLimit(userId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 로그인한 사용자의 해외송금 내역 목록을 조회한다.
+     */
+    @GetMapping("/transfers")
+    public ResponseEntity<List<RemittanceTransactionSummaryResponse>> getTransfers(
+            @AuthenticationPrincipal Long userId
+    ) {
+        List<RemittanceTransactionSummaryResponse> response =
+                remittanceTransactionService.getTransfers(userId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 로그인한 사용자의 특정 해외송금 내역을 상세 조회한다.
+     */
+    @GetMapping("/transfers/{transferId}")
+    public ResponseEntity<RemittanceTransactionDetailResponse> getTransfer(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long transferId
+    ) {
+        RemittanceTransactionDetailResponse response =
+                remittanceTransactionService.getTransfer(userId, transferId);
+
         return ResponseEntity.ok(response);
     }
 
