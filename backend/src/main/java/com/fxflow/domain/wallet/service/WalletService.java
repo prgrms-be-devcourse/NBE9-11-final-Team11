@@ -202,7 +202,7 @@ public class WalletService {
                 );
         ledgerEntryRepository.save(walletEntry);
 
-        userDailyUsageService.addWithdrawal(userId, LocalDate.now(), amount);
+        userDailyUsageService.addWithdrawal(userId, LocalDate.now(java.time.ZoneId.of("Asia/Seoul")), amount);
         return TransactionResponse.from(walletEntry);
     }
 }
