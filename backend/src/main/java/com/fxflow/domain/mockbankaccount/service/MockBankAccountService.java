@@ -59,6 +59,7 @@ public class MockBankAccountService {
                 amount,
                 balanceBefore,
                 balanceAfter,
+                null,
                 null
         );
         ledgerEntryRepository.save(entry);
@@ -86,6 +87,7 @@ public class MockBankAccountService {
                 amount,
                 balanceBefore,
                 balanceAfter,
+                null,
                 null
         );
 
@@ -201,7 +203,8 @@ public class MockBankAccountService {
                 amount,
                 balanceBefore,
                 balanceAfter,
-                refId
+                refId,
+                null
         );
 
         ledgerEntryRepository.save(entry);
