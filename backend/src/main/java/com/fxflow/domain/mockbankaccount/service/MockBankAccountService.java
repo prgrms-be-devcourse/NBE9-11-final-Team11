@@ -20,12 +20,6 @@ public class MockBankAccountService {
     private final MockBankAccountRepository mockBankAccountRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
 
-    public MockBankAccount findById(Long bankAccountId) {
-        return mockBankAccountRepository.findById(bankAccountId).orElseThrow(
-                () -> new IllegalArgumentException("Bank account not found") // todo: exception
-        );
-    }
-
     @Transactional
     public void withdraw(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
         MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndUserId(bankAccountId, userId)
