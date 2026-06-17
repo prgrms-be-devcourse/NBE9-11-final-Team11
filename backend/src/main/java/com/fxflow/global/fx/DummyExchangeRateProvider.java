@@ -1,11 +1,13 @@
 package com.fxflow.global.fx;
 
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+@Primary
 @Service
 public class DummyExchangeRateProvider implements ExchangeRateProvider {
 
