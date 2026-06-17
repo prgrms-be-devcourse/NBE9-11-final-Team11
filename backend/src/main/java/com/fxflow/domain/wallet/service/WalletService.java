@@ -151,6 +151,7 @@ public class WalletService {
         return TransactionResponse.from(walletEntry);
     }
 
+    @Transactional
     public TransactionResponse withdraw(Long userId, WithdrawRequest request) {
         Long bankAccountId = request.bankAccountId();
 
