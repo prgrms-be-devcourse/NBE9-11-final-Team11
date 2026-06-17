@@ -238,4 +238,19 @@ public class TransactionLimitValidator {
         log.info("[연간 환전 한도 검증 완료] userId={}, 누적액={}USD, 요청액={}USD, 한도={}USD",
                 user.getId(), usedAmount, amountUsd, limit.getLimitAmount());
     }
+
+    // exchange validator
+    public void validateExchange(User user, BigDecimal amount) {
+        validatePerExchange(user, amount);
+        validateDailyExchange(user, amount);
+        validateAnnualExchange(user, amount);
+    }
+
+    public void validateDeposit(User user, BigDecimal amount) { // todo: method grouping
+        validatePerDeposit(user, amount);
+    }
+
+    public void validateWithdrawal(User user, BigDecimal amount) { // todo: method grouping
+        validatePerWithdrawal(user, amount);
+    }
 }
