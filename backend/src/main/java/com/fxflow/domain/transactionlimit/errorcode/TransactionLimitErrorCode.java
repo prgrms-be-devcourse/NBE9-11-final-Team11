@@ -57,6 +57,21 @@ public enum TransactionLimitErrorCode implements ErrorCode {
             HttpStatus.CONFLICT,
             "WALLET_HOLDING_LIMIT_EXCEEDED",
             "월렛 보유 한도를 초과했습니다."         // KRW 200만/300만
+    ),
+    PER_EXCHANGE_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "PER_EXCHANGE_LIMIT_EXCEEDED",
+            "건당 환전 한도를 초과했습니다."         // KRW 200만
+    ),
+    DAILY_EXCHANGE_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "DAILY_EXCHANGE_LIMIT_EXCEEDED",
+            "일일 환전 한도를 초과했습니다."         // KRW 200만
+    ),
+    ANNUAL_EXCHANGE_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "ANNUAL_EXCHANGE_LIMIT_EXCEEDED",
+            "연간 환전 한도를 초과했습니다."         // USD $100,000
     );
 
     private final HttpStatus status;
