@@ -40,6 +40,23 @@ public class FxRate extends BaseEntity {
 
     private FxRate(String baseCurrency, String quoteCurrency, BigDecimal midRate,
                     String source, LocalDateTime fetchedAt) {
+        // 잘못된 상태의 객체 생성을 막기 위한 필수값 검증 (금융 도메인 불변식)
+        if (baseCurrency == null || baseCurrency.isBlank()) {
+            throw new IllegalArgumentException("Base currency must not be null or blank");
+        }
+        if (quoteCurrency == null || quoteCurrency.isBlank()) {
+            throw new IllegalArgumentException("Quote currency must not be null or blank");
+        }
+        // 환율은 0 이하일 수 없다 (0이면 KRW↔USD 변환 시 0으로 나누기 발생)
+        if (midRate == null || midRate.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Mid rate must be positive");
+        }
+        if (source == null || source.isBlank()) {
+            throw new IllegalArgumentException("Source must not be null or blank");
+        }
+        if (fetchedAt == null) {
+            throw new IllegalArgumentException("Fetched at must not be null");
+        }
         this.baseCurrency = baseCurrency;
         this.quoteCurrency = quoteCurrency;
         this.midRate = midRate;
