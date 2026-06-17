@@ -147,7 +147,7 @@ public class WalletService {
                 );
         ledgerEntryRepository.save(walletEntry);
 
-        userDailyUsageService.addDeposit(userId, LocalDate.now(), amount);
+        userDailyUsageService.addDeposit(userId, LocalDate.now(java.time.ZoneId.of("Asia/Seoul")), amount);
         return TransactionResponse.from(walletEntry);
     }
 
