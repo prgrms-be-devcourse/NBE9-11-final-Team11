@@ -37,12 +37,6 @@ public class MockBankAccountService {
     private static final Pattern ACCOUNT_NUMBER_PATTERN = Pattern.compile("^[0-9-]+$");
     private static final int ACCOUNT_NUMBER_DIGIT_LENGTH = 12;
 
-    public MockBankAccount findById(Long bankAccountId) {
-        return mockBankAccountRepository.findById(bankAccountId).orElseThrow(
-                () -> new IllegalArgumentException("Bank account not found") // todo: exception
-        );
-    }
-
     @Transactional
     public void withdraw(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
         MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndUserId(bankAccountId, userId)
