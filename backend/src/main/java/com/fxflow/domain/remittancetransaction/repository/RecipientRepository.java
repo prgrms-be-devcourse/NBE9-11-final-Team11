@@ -26,4 +26,10 @@ public interface RecipientRepository extends JpaRepository<Recipient, Long> {
             String bankName,
             String accountNumber
     );
+
+    /**
+     * 특정 수취인이 로그인한 사용자의 수취인인지 확인한다.
+     * Soft Delete 처리된 수취인은 유효하지 않은 수취인으로 판단한다.
+     */
+    boolean existsByIdAndUserIdAndDeletedAtIsNull(Long id, Long userId);
 }

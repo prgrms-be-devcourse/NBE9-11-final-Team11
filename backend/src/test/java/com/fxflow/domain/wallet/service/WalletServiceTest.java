@@ -10,6 +10,10 @@ import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
+import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
+import com.fxflow.domain.user.entity.User;
+import com.fxflow.domain.user.service.UserService;
+import com.fxflow.domain.userlimitusage.service.UserDailyUsageService;
 import com.fxflow.domain.wallet.dto.request.ChargeRequest;
 import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
@@ -61,6 +65,12 @@ class WalletServiceTest {
     private MockBankAccountService mockBankAccountService;
     @Mock
     private CompanyPoolService companyPoolService;
+    @Mock
+    private UserService userService;
+    @Mock
+    private UserDailyUsageService userDailyUsageService;
+    @Mock
+    private TransactionLimitValidator transactionLimitValidator;
 
     @InjectMocks
     private WalletService walletService;
@@ -242,6 +252,8 @@ class WalletServiceTest {
         ChargeRequest request = new ChargeRequest(10L, new BigDecimal("5000"));
         when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
         when(companyPoolService.deposit(anyString(), eq("KRW"), any(BigDecimal.class))).thenReturn(mock(CompanyPool.class));
+        User mockUser = mock(User.class);
+        when(userService.getUser(userId)).thenReturn(mockUser);
 
         // when
         TransactionResponse response = walletService.charge(userId, request);
@@ -321,6 +333,9 @@ class WalletServiceTest {
         when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW"))
                 .thenReturn(Optional.of(limitWallet));
 
+        User mockUser = mock(User.class);
+        when(userService.getUser(userId)).thenReturn(mockUser);
+
         // when & then
         assertThatThrownBy(() ->
                 walletService.charge(userId, request)
@@ -352,6 +367,9 @@ class WalletServiceTest {
                         eq("KRW")
                 );
 
+        User mockUser = mock(User.class);
+        when(userService.getUser(userId)).thenReturn(mockUser);
+
         // when & then
         assertThatThrownBy(() ->
                 walletService.charge(userId, request)
@@ -372,6 +390,8 @@ class WalletServiceTest {
         Long userId = 1L;
         WithdrawRequest request = new WithdrawRequest(10L, new BigDecimal("5000"));
         when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+        User mockUser = mock(User.class);
+        when(userService.getUser(userId)).thenReturn(mockUser);
 
         // when
         TransactionResponse response = walletService.withdraw(userId, request);
@@ -451,6 +471,8 @@ class WalletServiceTest {
         WithdrawRequest request = new WithdrawRequest(10L, new BigDecimal("60000")); // more than krwWallet's 50000
 
         when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+        User mockUser = mock(User.class);
+        when(userService.getUser(userId)).thenReturn(mockUser);
 
         // when & then
         assertThatThrownBy(() ->
