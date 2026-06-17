@@ -143,6 +143,7 @@ public class WalletService {
                         amount,
                         balanceBefore,
                         balanceAfter,
+                        null,
                         null
                 );
         ledgerEntryRepository.save(walletEntry);
@@ -198,6 +199,7 @@ public class WalletService {
                         amount,
                         balanceBefore,
                         balanceAfter,
+                        null,
                         null
                 );
         ledgerEntryRepository.save(walletEntry);

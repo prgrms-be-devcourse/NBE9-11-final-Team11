@@ -5,7 +5,6 @@ import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
 import com.fxflow.domain.wallet.dto.response.TransactionResponse;
 import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
-import com.fxflow.domain.wallet.service.P2pTransferService;
 import com.fxflow.domain.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -13,7 +12,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -24,18 +22,15 @@ import java.time.LocalDate;
 public class WalletController {
 
     private final WalletService walletService;
-    private final P2pTransferService p2pTransferService;
 
-    // todo: userDetails
     @GetMapping
     public ResponseEntity<WalletBalanceResponse> getWalletBalance(
-            @AuthenticationPrincipal UserDetails userDetails
+            @AuthenticationPrincipal Long userId
     ){
-        WalletBalanceResponse res = walletService.getWalletBalance(1L);
+        WalletBalanceResponse res = walletService.getWalletBalance(userId);
         return ResponseEntity.ok(res);
     }
 
-    // todo: userDetails
     @GetMapping("/transactions")
     public ResponseEntity<TransactionHistoryResponse> getTransactionHistory(
             @AuthenticationPrincipal Long userId,
