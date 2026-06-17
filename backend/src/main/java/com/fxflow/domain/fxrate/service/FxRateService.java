@@ -38,9 +38,12 @@ public class FxRateService {
 
     public FxRateService(FxRateRepository fxRateRepository,
                          ApplicationEventPublisher eventPublisher,
+                         RestClient.Builder restClientBuilder,
                          @Value("${twelvedata.api-key:}") String apiKey) {
         this.fxRateRepository = fxRateRepository;
-        this.restClient = RestClient.create();
+        // Spring Boot가 자동 구성한 RestClient.Builder를 주입받아 사용한다.
+        // (메시지 컨버터·Observation·타임아웃 등 자동 설정 상속, 테스트에서도 빌더 직접 주입 가능)
+        this.restClient = restClientBuilder.build();
         this.eventPublisher = eventPublisher;
         this.apiKey = apiKey;
     }
@@ -84,7 +87,7 @@ public class FxRateService {
         }
         return fxRateRepository
                 .findFirstByBaseCurrencyAndQuoteCurrencyOrderByFetchedAtDesc(from, to)
-                .orElseThrow()
+                .orElseThrow(() -> new BusinessException(FxRateErrorCode.FX_RATE_NOT_FOUND))
                 .getMidRate();
     }
 

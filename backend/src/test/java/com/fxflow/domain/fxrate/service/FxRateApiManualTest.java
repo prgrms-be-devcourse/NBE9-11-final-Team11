@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -37,7 +38,7 @@ class FxRateApiManualTest {
         FxRateRepository fxRateRepository = mock(FxRateRepository.class);
         ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
         String apiKey = System.getenv("TWELVEDATA_API_KEY");
-        FxRateService fxRateService = new FxRateService(fxRateRepository, eventPublisher, apiKey);
+        FxRateService fxRateService = new FxRateService(fxRateRepository, eventPublisher, RestClient.builder(), apiKey);
 
         // when - 실제 Twelve Data 호출
         fxRateService.collectUsdKrwRate();

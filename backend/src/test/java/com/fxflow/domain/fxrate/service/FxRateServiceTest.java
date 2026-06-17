@@ -17,7 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -25,7 +24,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,14 +55,13 @@ class FxRateServiceTest {
 
     @BeforeEach
     void setUp() {
-        // FxRateService는 생성자에서 RestClient.create()로 클라이언트를 직접 만든다.
-        // 테스트에서는 외부 호출 없이 검증하기 위해, MockRestServiceServer에 바인딩한
-        // RestClient로 해당 필드를 교체한다. (요청 URL/응답 매핑까지 실제 직렬화 경로로 검증)
+        // FxRateService가 RestClient.Builder를 주입받는 구조라,
+        // MockRestServiceServer에 바인딩한 빌더를 그대로 생성자에 전달해 외부 호출 없이 검증한다.
+        // (요청 URL/응답 매핑까지 실제 직렬화 경로로 검증)
         RestClient.Builder builder = RestClient.builder();
         mockServer = MockRestServiceServer.bindTo(builder).build();
 
-        fxRateService = new FxRateService(fxRateRepository, eventPublisher, "test-api-key");
-        ReflectionTestUtils.setField(fxRateService, "restClient", builder.build());
+        fxRateService = new FxRateService(fxRateRepository, eventPublisher, builder, "test-api-key");
     }
 
     @Nested
@@ -181,7 +178,7 @@ class FxRateServiceTest {
         }
 
         @Test
-        @DisplayName("저장된 환율이 없으면 NoSuchElementException")
+        @DisplayName("저장된 환율이 없으면 FX_RATE_NOT_FOUND 비즈니스 예외")
         void notFound() {
             // given
             given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyOrderByFetchedAtDesc("USD", "KRW"))
@@ -189,7 +186,9 @@ class FxRateServiceTest {
 
             // when & then
             assertThatThrownBy(() -> fxRateService.getRate("USD", "KRW"))
-                    .isInstanceOf(NoSuchElementException.class);
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(FxRateErrorCode.FX_RATE_NOT_FOUND);
         }
     }
 }
