@@ -1,5 +1,4 @@
 package com.fxflow.global.fx;
-
 import java.util.Optional;
 
 /**
