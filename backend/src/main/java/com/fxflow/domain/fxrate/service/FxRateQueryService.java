@@ -5,6 +5,7 @@ import com.fxflow.domain.fxrate.repository.FxRateRepository;
 import com.fxflow.global.fx.ExchangeRateProvider;
 import com.fxflow.global.fx.FxRateSnapshot;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import java.util.Optional;
  */
 @Service
 @RequiredArgsConstructor
+@Primary
 public class FxRateQueryService implements ExchangeRateProvider {
 
     private final FxRateRepository fxRateRepository;
