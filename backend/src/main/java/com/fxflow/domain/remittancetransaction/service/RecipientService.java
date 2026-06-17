@@ -60,7 +60,7 @@ public class RecipientService {
         Recipient recipient = recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(recipientId, userId)
                 .orElseThrow(() -> new BusinessException(RecipientErrorCode.RECIPIENT_NOT_FOUND));
 
-        recipient.delete(LocalDateTime.now());
+        recipient.delete(LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")));
     }
 
     /**
