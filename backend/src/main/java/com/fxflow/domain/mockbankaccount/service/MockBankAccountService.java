@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 public class MockBankAccountService {
     private static final String KRW = "KRW";
     private static final String USD = "USD";
+    private static final String REMITTANCE_TRANSACTION_REF_TYPE = "REMITTANCE_TRANSACTION";
 
     private final MockBankAccountRepository mockBankAccountRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
@@ -94,6 +95,7 @@ public class MockBankAccountService {
         ledgerEntryRepository.save(entry);
         mockBankAccountRepository.save(bankAccount);
     }
+
 
     /**
      * KRW 모의계좌 연결
@@ -164,5 +166,50 @@ public class MockBankAccountService {
         log.info("[Wallet 생성] userId={}, krwWalletId={}, usdWalletId={}", user.getId(), krwWallet.getId(), usdWallet.getId());
 
         return List.of(krwWallet, usdWallet);
+    }
+
+    /**
+     * Wallet 충전/출금이 아니므로 LedgerEntryType.TRANSFER로 기록한다.
+     */
+    @Transactional
+    public Long withdrawForRemittance(
+            Long userId,
+            String journalId,
+            BigDecimal amount,
+            String currencyCode,
+            String refId
+    ) {
+        MockBankAccount bankAccount = mockBankAccountRepository
+                .findFirstByUser_IdAndCurrencyCodeAndDeletedAtIsNull(userId, currencyCode)
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+
+        BigDecimal balanceBefore = bankAccount.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+
+        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_INSUFFICIENT_BALANCE);
+        }
+
+        bankAccount.withdraw(amount);
+
+        LedgerEntry entry = LedgerEntry.create(
+                journalId,
+                LedgerEntryType.TRANSFER,
+                LedgerDirection.DEBIT,
+                null,
+                bankAccount.getId(),
+                null,
+                currencyCode,
+                amount,
+                balanceBefore,
+                balanceAfter,
+                REMITTANCE_TRANSACTION_REF_TYPE,
+                refId
+        );
+
+        ledgerEntryRepository.save(entry);
+        mockBankAccountRepository.save(bankAccount);
+
+        return bankAccount.getId();
     }
 }

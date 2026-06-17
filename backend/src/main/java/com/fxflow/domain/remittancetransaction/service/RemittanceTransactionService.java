@@ -1,12 +1,18 @@
 package com.fxflow.domain.remittancetransaction.service;
 
+import com.fxflow.domain.companypool.service.CompanyPoolService;
+import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
 import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionCreateRequest;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceLimitResponse;
+import com.fxflow.domain.remittancetransaction.dto.response.RemittanceMockFundedResponse;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceQuoteSnapshot;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionCreateResponse;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
+import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
+import com.fxflow.domain.remittancetransaction.enums.VirtualAccountStatus;
 import com.fxflow.domain.remittancetransaction.errorcode.RecipientErrorCode;
+import com.fxflow.domain.remittancetransaction.errorcode.RemittanceTransactionErrorCode;
 import com.fxflow.domain.remittancetransaction.repository.RecipientRepository;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.remittancetransaction.repository.VirtualAccountRepository;
@@ -35,6 +41,7 @@ import java.util.concurrent.ThreadLocalRandom;
 @Transactional(readOnly = true)
 public class RemittanceTransactionService {
 
+    private static final String KRW = "KRW";
     private static final String USD = "USD";
     private static final LimitTier STANDARD_TIER = LimitTier.STANDARD;
     private static final String DEFAULT_VIRTUAL_ACCOUNT_BANK_NAME = "하나은행";
@@ -47,6 +54,8 @@ public class RemittanceTransactionService {
     private final VirtualAccountRepository virtualAccountRepository;
     private final RemittanceQuoteProvider remittanceQuoteProvider;
     private final RemittanceValidator remittanceValidator;
+    private final MockBankAccountService mockBankAccountService;
+    private final CompanyPoolService companyPoolService;
 
     /**
      * 유저의 해외송금 잔여 한도를 조회한다.
@@ -119,6 +128,50 @@ public class RemittanceTransactionService {
     }
 
     /**
+     * Mock 입금 확인을 처리하고 송금 주문을 입금 완료 상태로 변경한다.
+     */
+    @Transactional
+    public RemittanceMockFundedResponse mockFundTransfer(Long userId, Long transferId) {
+        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findById(transferId)
+                .orElseThrow(() -> new BusinessException(
+                        RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
+                ));
+
+        validateTransferOwner(userId, remittanceTransaction);
+        validatePendingTransfer(remittanceTransaction);
+
+        VirtualAccount virtualAccount = virtualAccountRepository
+                .findByRemittanceTransactionId(remittanceTransaction.getId())
+                .orElseThrow(() -> new BusinessException(
+                        RemittanceTransactionErrorCode.VIRTUAL_ACCOUNT_NOT_FOUND
+                ));
+
+        validateIssuedVirtualAccount(virtualAccount);
+
+        LocalDateTime paidAt = LocalDateTime.now();
+        validateVirtualAccountNotExpired(virtualAccount, paidAt);
+
+        String journalId = createFundJournalId(remittanceTransaction.getId());
+        String refId = String.valueOf(remittanceTransaction.getId());
+        BigDecimal krwAmount = virtualAccount.getExpectedAmount();
+
+        Long sourceMockAccountId = mockBankAccountService.withdrawForRemittance(
+                userId,
+                journalId,
+                krwAmount,
+                KRW,
+                refId
+        );
+
+        companyPoolService.deposit(journalId, KRW, krwAmount);
+
+        remittanceTransaction.fund(sourceMockAccountId);
+        virtualAccount.pay(paidAt);
+
+        return RemittanceMockFundedResponse.of(remittanceTransaction, virtualAccount);
+    }
+
+    /**
      * 한도 정책에서 특정 한도 타입의 기준 금액을 조회한다.
      */
     private BigDecimal getLimitAmount(LimitType limitType) {
@@ -138,6 +191,42 @@ public class RemittanceTransactionService {
     private void validateRecipient(Long userId, Long recipientId) {
         if (!recipientRepository.existsByIdAndUserIdAndDeletedAtIsNull(recipientId, userId)) {
             throw new BusinessException(RecipientErrorCode.RECIPIENT_NOT_FOUND);
+        }
+    }
+
+    /**
+     * 로그인한 사용자의 송금 거래인지 확인한다.
+     */
+    private void validateTransferOwner(Long userId, RemittanceTransaction remittanceTransaction) {
+        if (!remittanceTransaction.getUserId().equals(userId)) {
+            throw new BusinessException(RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND);
+        }
+    }
+
+    /**
+     * 입금 대기 상태의 송금 주문만 Mock 입금 확인을 허용한다.
+     */
+    private void validatePendingTransfer(RemittanceTransaction remittanceTransaction) {
+        if (remittanceTransaction.getStatus() != TransferStatus.PENDING) {
+            throw new BusinessException(RemittanceTransactionErrorCode.INVALID_REMITTANCE_TRANSACTION_STATUS);
+        }
+    }
+
+    /**
+     * 발급 완료 상태의 가상계좌만 입금 확인을 허용한다.
+     */
+    private void validateIssuedVirtualAccount(VirtualAccount virtualAccount) {
+        if (virtualAccount.getStatus() != VirtualAccountStatus.ISSUED) {
+            throw new BusinessException(RemittanceTransactionErrorCode.INVALID_VIRTUAL_ACCOUNT_STATUS);
+        }
+    }
+
+    /**
+     * 가상계좌 입금 기한이 지나지 않았는지 확인한다.
+     */
+    private void validateVirtualAccountNotExpired(VirtualAccount virtualAccount, LocalDateTime now) {
+        if (!virtualAccount.getExpiredAt().isAfter(now)) {
+            throw new BusinessException(RemittanceTransactionErrorCode.VIRTUAL_ACCOUNT_EXPIRED);
         }
     }
 
@@ -163,6 +252,13 @@ public class RemittanceTransactionService {
                 issuedAt,
                 expiredAt
         );
+    }
+
+    /**
+     * 해외송금 입금 확인 단계의 원장 묶음 ID를 생성한다.
+     */
+    private String createFundJournalId(Long transferId) {
+        return "JRN-TRF-" + transferId + "-FUND";
     }
 
     /**

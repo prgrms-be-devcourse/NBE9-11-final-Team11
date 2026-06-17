@@ -2,6 +2,7 @@ package com.fxflow.domain.remittancetransaction.controller;
 
 import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionCreateRequest;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceLimitResponse;
+import com.fxflow.domain.remittancetransaction.dto.response.RemittanceMockFundedResponse;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionCreateResponse;
 import com.fxflow.domain.remittancetransaction.service.RemittanceTransactionService;
 import jakarta.validation.Valid;
@@ -41,5 +42,19 @@ public class RemittanceTransactionController {
                 remittanceTransactionService.createTransfer(userId, request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Mock 입금 확인을 통해 송금 주문을 FUNDED 상태로 변경한다.
+     */
+    @PostMapping("/transfers/{transferId}/mock-funded")
+    public ResponseEntity<RemittanceMockFundedResponse> mockFundTransfer(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long transferId
+    ) {
+        RemittanceMockFundedResponse response =
+                remittanceTransactionService.mockFundTransfer(userId, transferId);
+
+        return ResponseEntity.ok(response);
     }
 }

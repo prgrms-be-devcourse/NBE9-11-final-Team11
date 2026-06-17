@@ -173,7 +173,8 @@ public class RemittanceTransaction extends BaseEntity {
         );
     }
 
-    public void fund() {
+    public void fund(Long sourceMockAccountId) {
+        this.sourceMockAccountId = sourceMockAccountId;
         this.status = TransferStatus.FUNDED;
     }
 
