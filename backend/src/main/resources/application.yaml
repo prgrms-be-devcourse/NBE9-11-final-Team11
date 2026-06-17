@@ -3,17 +3,14 @@ spring:
     name: fxflow
   config:
     import: "optional:classpath:application-secret.yaml"
-
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/mydb}
     username: ${SPRING_DATASOURCE_USERNAME:myuser}
     password: ${SPRING_DATASOURCE_PASSWORD:mypassword}
-
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -22,7 +19,6 @@ spring:
         format_sql: true
     defer-datasource-initialization: true
     show-sql: true
-
   sql:
     init:
       mode: always
@@ -36,3 +32,11 @@ exchange:
       KRW-USD: 0.001
       USD-KRW: 0.001
   quote-expiration-minutes: 5
+
+jwt:
+  secret: ${JWT_SECRET:}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:1800000}
+cookie:
+  secure: ${COOKIE_SECURE:false}
+  same-site: ${COOKIE_SAME_SITE:Lax}
+  max-age: ${COOKIE_MAX_AGE:1800}
