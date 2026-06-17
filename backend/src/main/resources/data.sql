@@ -21,14 +21,14 @@ VALUES
     ('ANNUAL_REMITTANCE', 'STANDARD', 'USD', 100000.00000000,  true, now(), now()),
 
     --  모의계좌 입출금: 한도 사실상 비활성화 (큰 값). 추후 한도를 적용 하고 싶을 시 교체.
-    ('PER_DEPOSIT',       'STANDARD', 'KRW', 999999999999.00000000, true, now(), now()), -- 원래값 2000000
-    ('PER_DEPOSIT',       'ENHANCED', 'KRW', 999999999999.00000000, true, now(), now()), -- 원래값 3000000
-    ('DAILY_DEPOSIT',     'STANDARD', 'KRW', 999999999999.00000000, true, now(), now()), -- 원래값 2000000
-    ('DAILY_DEPOSIT',     'ENHANCED', 'KRW', 999999999999.00000000, true, now(), now()), -- 원래값 3000000
-    ('PER_WITHDRAWAL',    'STANDARD', 'KRW', 999999999999.00000000, true, now(), now()), -- 원래값 2000000
-    ('PER_WITHDRAWAL',    'ENHANCED', 'KRW', 999999999999.00000000, true, now(), now()), -- 원래값 3000000
-    ('DAILY_WITHDRAWAL',  'STANDARD', 'KRW', 999999999999.00000000, true, now(), now()), -- 원래값 2000000
-    ('DAILY_WITHDRAWAL',  'ENHANCED', 'KRW', 999999999999.00000000, true, now(), now()), -- 원래값 3000000
+    ('PER_DEPOSIT',       'STANDARD', 'KRW', 9999999999.00000000, true, now(), now()), -- 원래값 2000000
+    ('PER_DEPOSIT',       'ENHANCED', 'KRW', 9999999999.00000000, true, now(), now()), -- 원래값 3000000
+    ('DAILY_DEPOSIT',     'STANDARD', 'KRW', 9999999999.00000000, true, now(), now()), -- 원래값 2000000
+    ('DAILY_DEPOSIT',     'ENHANCED', 'KRW', 9999999999.00000000, true, now(), now()), -- 원래값 3000000
+    ('PER_WITHDRAWAL',    'STANDARD', 'KRW', 9999999999.00000000, true, now(), now()), -- 원래값 2000000
+    ('PER_WITHDRAWAL',    'ENHANCED', 'KRW', 9999999999.00000000, true, now(), now()), -- 원래값 3000000
+    ('DAILY_WITHDRAWAL',  'STANDARD', 'KRW', 9999999999.00000000, true, now(), now()), -- 원래값 2000000
+    ('DAILY_WITHDRAWAL',  'ENHANCED', 'KRW', 9999999999.00000000, true, now(), now()), -- 원래값 3000000
 
 
     -- 환전 한도.
