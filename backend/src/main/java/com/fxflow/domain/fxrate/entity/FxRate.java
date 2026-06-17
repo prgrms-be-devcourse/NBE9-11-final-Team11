@@ -27,10 +27,10 @@ public class FxRate extends BaseEntity {
     private BigDecimal midRate; // 기준 환율
 
     @Column(name = "spread", precision = 18, scale = 8, nullable = false)
-    private BigDecimal spread; // 스프레드
+    private BigDecimal spread; // 스프레드 (비율형, 적용 환율은 mid×(1±spread)로 파생)
 
-    @Column(name = "applied_rate", precision = 18, scale = 8, nullable = false)
-    private BigDecimal appliedRate; // 적용 환율
+    // 플랫폼 FX 마진 정책 — 기획 확정 전 임시 1%, 정책 확정 시 이 값 변경
+    private static final BigDecimal DEFAULT_SPREAD = new BigDecimal("0.01");
 
     @Column(name = "source", length = 50, nullable = false)
     private String source; // 출처
@@ -39,19 +39,35 @@ public class FxRate extends BaseEntity {
     private LocalDateTime fetchedAt; // 수집 시각
 
     private FxRate(String baseCurrency, String quoteCurrency, BigDecimal midRate,
-                    BigDecimal spread, BigDecimal appliedRate, String source, LocalDateTime fetchedAt) {
+                    String source, LocalDateTime fetchedAt) {
+        // 잘못된 상태의 객체 생성을 막기 위한 필수값 검증 (금융 도메인 불변식)
+        if (baseCurrency == null || baseCurrency.isBlank()) {
+            throw new IllegalArgumentException("Base currency must not be null or blank");
+        }
+        if (quoteCurrency == null || quoteCurrency.isBlank()) {
+            throw new IllegalArgumentException("Quote currency must not be null or blank");
+        }
+        // 환율은 0 이하일 수 없다 (0이면 KRW↔USD 변환 시 0으로 나누기 발생)
+        if (midRate == null || midRate.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Mid rate must be positive");
+        }
+        if (source == null || source.isBlank()) {
+            throw new IllegalArgumentException("Source must not be null or blank");
+        }
+        if (fetchedAt == null) {
+            throw new IllegalArgumentException("Fetched at must not be null");
+        }
         this.baseCurrency = baseCurrency;
         this.quoteCurrency = quoteCurrency;
         this.midRate = midRate;
-        this.spread = spread;
-        this.appliedRate = appliedRate;
+        this.spread = DEFAULT_SPREAD;
         this.source = source;
         this.fetchedAt = fetchedAt;
     }
 
     // 필수값 누락 및 잘못된 상태의 객체 생성을 막기 위해 빌더 대신 정적 팩토리 메서드 사용
     public static FxRate create(String baseCurrency, String quoteCurrency, BigDecimal midRate,
-                                 BigDecimal spread, BigDecimal appliedRate, String source, LocalDateTime fetchedAt) {
-        return new FxRate(baseCurrency, quoteCurrency, midRate, spread, appliedRate, source, fetchedAt);
+                                 String source, LocalDateTime fetchedAt) {
+        return new FxRate(baseCurrency, quoteCurrency, midRate, source, fetchedAt);
     }
 }
