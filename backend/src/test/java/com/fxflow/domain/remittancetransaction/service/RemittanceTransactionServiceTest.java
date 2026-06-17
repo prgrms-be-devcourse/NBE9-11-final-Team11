@@ -3,9 +3,7 @@ package com.fxflow.domain.remittancetransaction.service;
 import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
 import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionCreateRequest;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceQuoteSnapshot;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceMockFundedResponse;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionCreateResponse;
+import com.fxflow.domain.remittancetransaction.dto.response.*;
 import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
@@ -35,6 +33,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -386,6 +385,90 @@ class RemittanceTransactionServiceTest {
                 RemittanceReason.LIVING_EXPENSES,
                 "생활비 송금"
         );
+    }
+
+    @Test
+    @DisplayName("성공: 송금 내역 목록을 최신순으로 조회한다")
+    void getTransfers_success() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+
+        when(remittanceTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId))
+                .thenReturn(List.of(remittanceTransaction));
+
+        // when
+        List<RemittanceTransactionSummaryResponse> responses =
+                remittanceTransactionService.getTransfers(userId);
+
+        // then
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().transferId()).isEqualTo(transferId);
+        assertThat(responses.getFirst().recipientName()).isEqualTo("John Doe");
+        assertThat(responses.getFirst().recipientCountryCode()).isEqualTo("US");
+        assertThat(responses.getFirst().recipientCurrencyCode()).isEqualTo("USD");
+        assertThat(responses.getFirst().recipientBankName()).isEqualTo("Chase Bank");
+        assertThat(responses.getFirst().sendAmount()).isEqualByComparingTo(new BigDecimal("1000000.00"));
+        assertThat(responses.getFirst().sendCurrency()).isEqualTo("KRW");
+        assertThat(responses.getFirst().receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
+        assertThat(responses.getFirst().receiveCurrency()).isEqualTo("USD");
+        assertThat(responses.getFirst().feeAmount()).isEqualByComparingTo(new BigDecimal("8000.00"));
+        assertThat(responses.getFirst().status()).isEqualTo(TransferStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("성공: 특정 송금 내역을 상세 조회한다")
+    void getTransfer_success() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+
+        when(remittanceTransactionRepository.findByIdAndUserId(transferId, userId))
+                .thenReturn(Optional.of(remittanceTransaction));
+
+        // when
+        RemittanceTransactionDetailResponse response =
+                remittanceTransactionService.getTransfer(userId, transferId);
+
+        // then
+        assertThat(response.transferId()).isEqualTo(transferId);
+        assertThat(response.recipientId()).isEqualTo(1L);
+        assertThat(response.recipientName()).isEqualTo("John Doe");
+        assertThat(response.recipientCountryCode()).isEqualTo("US");
+        assertThat(response.recipientCurrencyCode()).isEqualTo("USD");
+        assertThat(response.recipientBankName()).isEqualTo("Chase Bank");
+        assertThat(response.recipientAccountNumber()).isEqualTo("1234567890");
+        assertThat(response.method()).isEqualTo("BANK_TRANSFER");
+        assertThat(response.sendCurrency()).isEqualTo("KRW");
+        assertThat(response.sendAmount()).isEqualByComparingTo(new BigDecimal("1000000.00"));
+        assertThat(response.receiveCurrency()).isEqualTo("USD");
+        assertThat(response.receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
+        assertThat(response.appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
+        assertThat(response.feeAmount()).isEqualByComparingTo(new BigDecimal("8000.00"));
+        assertThat(response.amountKrw()).isEqualByComparingTo(new BigDecimal("1000000.00"));
+        assertThat(response.amountUsd()).isEqualByComparingTo(new BigDecimal("736.52"));
+        assertThat(response.reason()).isEqualTo(RemittanceReason.LIVING_EXPENSES.name());
+        assertThat(response.reasonDetail()).isEqualTo("생활비 송금");
+        assertThat(response.status()).isEqualTo(TransferStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("실패: 특정 송금 내역을 찾을 수 없으면 예외가 발생한다")
+    void getTransfer_fail_notFound() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+
+        when(remittanceTransactionRepository.findByIdAndUserId(transferId, userId))
+                .thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.getTransfer(userId, transferId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND);
     }
 
     private RemittanceQuoteSnapshot createQuote() {
