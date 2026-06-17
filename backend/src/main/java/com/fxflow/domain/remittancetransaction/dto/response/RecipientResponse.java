@@ -2,16 +2,13 @@ package com.fxflow.domain.remittancetransaction.dto.response;
 
 import com.fxflow.domain.remittancetransaction.entity.Recipient;
 
-import java.time.LocalDateTime;
-
 public record RecipientResponse(
         Long recipientId,
         String name,
         String countryCode,
         String currencyCode,
         String bankName,
-        String accountNumber,
-        LocalDateTime createdAt
+        String accountNumber
 ) {
 
     public static RecipientResponse from(Recipient recipient) {
@@ -21,8 +18,7 @@ public record RecipientResponse(
                 recipient.getCountryCode(),
                 recipient.getCurrencyCode(),
                 recipient.getBankName(),
-                recipient.getAccountNumber(),
-                recipient.getCreatedAt()
+                recipient.getAccountNumber()
         );
     }
 }
