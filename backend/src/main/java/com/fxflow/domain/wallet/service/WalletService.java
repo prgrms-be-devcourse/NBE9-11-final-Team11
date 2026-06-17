@@ -116,10 +116,6 @@ public class WalletService {
         transactionLimitValidator.validateDailyDeposit(user, amount);
         transactionLimitValidator.validateWalletHolding(user, balanceAfter);
 
-        if (balanceAfter.compareTo(WalletPolicy.MAX_KRW_BALANCE) > 0) {
-            throw new BusinessException(WalletErrorCode.WALLET_LIMIT_EXCEEDED);
-        }
-
         String journalId = "JRN_" + UUID.randomUUID();
 
         // mock bank account debit

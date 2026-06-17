@@ -10,6 +10,7 @@ import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
+import com.fxflow.domain.transactionlimit.errorcode.TransactionLimitErrorCode;
 import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.service.UserService;
@@ -50,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -312,36 +314,40 @@ class WalletServiceTest {
     }
 
     @Test
-    @DisplayName("월렛 충전 - 200만원 제한")
+    @DisplayName("월렛 충전 - 보유 한도 초과")
     void charge_fail_walletLimitExceeded() {
 
         // given
         Long userId = 1L;
+        String currency = "KRW";
 
-        Wallet limitWallet =
-                Wallet.create(
-                        null,
-                        "KRW",
-                        WalletPolicy.MAX_KRW_BALANCE
-                );
+        BigDecimal initialBalance = new BigDecimal("1999999");
+        BigDecimal chargeAmount = new BigDecimal("2");
+        BigDecimal walletLimit = new BigDecimal("2000000");
 
-        ChargeRequest request = new ChargeRequest(
-                10L,
-                new BigDecimal("1")
-        );
+        User user = User.create("email", "password", "name");
+        ReflectionTestUtils.setField(user, "id", userId);
+        ReflectionTestUtils.setField(user, "walletLimitKrw", walletLimit);
 
-        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW"))
-                .thenReturn(Optional.of(limitWallet));
+        Wallet wallet = Wallet.create(user, currency, initialBalance);
 
-        User mockUser = mock(User.class);
-        when(userService.getUser(userId)).thenReturn(mockUser);
+        when(userService.getUser(userId)).thenReturn(user);
+
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, currency))
+                .thenReturn(Optional.of(wallet));
+
+        ChargeRequest request = new ChargeRequest(wallet.getId(), chargeAmount);
+
+        willThrow(new BusinessException(TransactionLimitErrorCode.WALLET_HOLDING_LIMIT_EXCEEDED))
+                .given(transactionLimitValidator)
+                .validateWalletHolding(any(User.class), any(BigDecimal.class));
 
         // when & then
         assertThatThrownBy(() ->
                 walletService.charge(userId, request)
         )
                 .isInstanceOf(BusinessException.class)
-                .hasMessage(WalletErrorCode.WALLET_LIMIT_EXCEEDED.getMessage());
+                .hasMessage(TransactionLimitErrorCode.WALLET_HOLDING_LIMIT_EXCEEDED.getMessage());
 
         verify(walletRepository, never()).save(any());
         verify(ledgerEntryRepository, never()).save(any());
