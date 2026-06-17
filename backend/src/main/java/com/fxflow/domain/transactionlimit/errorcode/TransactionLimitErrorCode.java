@@ -32,24 +32,24 @@ public enum TransactionLimitErrorCode implements ErrorCode {
     PER_DEPOSIT_LIMIT_EXCEEDED(
             HttpStatus.CONFLICT,
             "PER_DEPOSIT_LIMIT_EXCEEDED",
-            "1회 입금 한도를 초과했습니다."          // KRW 200만/300만
+            "1회 입금 한도를 초과했습니다."          // 현재 정책상 x
     ),
     DAILY_DEPOSIT_LIMIT_EXCEEDED(
             HttpStatus.CONFLICT,
             "DAILY_DEPOSIT_LIMIT_EXCEEDED",
-            "일일 입금 한도를 초과했습니다."         // KRW 200만/300만
+            "일일 입금 한도를 초과했습니다."         // 현재 정책상 x
     ),
 
     // ── 모의계좌 출금 한도 ──────────────────────────────────────────────────
     PER_WITHDRAWAL_LIMIT_EXCEEDED(
             HttpStatus.CONFLICT,
             "PER_WITHDRAWAL_LIMIT_EXCEEDED",
-            "1회 출금 한도를 초과했습니다."          // KRW 200만/300만
+            "1회 출금 한도를 초과했습니다."          // 현재 정책상 x
     ),
     DAILY_WITHDRAWAL_LIMIT_EXCEEDED(
             HttpStatus.CONFLICT,
             "DAILY_WITHDRAWAL_LIMIT_EXCEEDED",
-            "일일 출금 한도를 초과했습니다."         // KRW 200만/300만
+            "일일 출금 한도를 초과했습니다."         // 현재 정책상 x
     ),
 
     // ── 월렛 보유 한도 ──────────────────────────────────────────────────────
@@ -57,6 +57,21 @@ public enum TransactionLimitErrorCode implements ErrorCode {
             HttpStatus.CONFLICT,
             "WALLET_HOLDING_LIMIT_EXCEEDED",
             "월렛 보유 한도를 초과했습니다."         // KRW 200만/300만
+    ),
+    PER_EXCHANGE_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "PER_EXCHANGE_LIMIT_EXCEEDED",
+            "건당 환전 한도를 초과했습니다."         // KRW 200만
+    ),
+    DAILY_EXCHANGE_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "DAILY_EXCHANGE_LIMIT_EXCEEDED",
+            "일일 환전 한도를 초과했습니다."         // KRW 200만
+    ),
+    ANNUAL_EXCHANGE_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "ANNUAL_EXCHANGE_LIMIT_EXCEEDED",
+            "연간 환전 한도를 초과했습니다."         // USD $100,000
     );
 
     private final HttpStatus status;
