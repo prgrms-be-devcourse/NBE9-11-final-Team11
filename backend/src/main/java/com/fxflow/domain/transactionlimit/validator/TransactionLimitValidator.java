@@ -81,7 +81,6 @@ public class TransactionLimitValidator {
 
     // 3. 월렛 보유 한도 검증
     /**
-     * TODO: 환율 API 구현 후 아래 방식으로 수정 필요
      * - USD 잔액을 현재 환율로 원화 환산
      * - KRW 잔액 + USD 원화 환산액 합산하여 검증
      * - 현재는 KRW 잔액만 검증
