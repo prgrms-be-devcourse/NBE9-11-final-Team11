@@ -7,6 +7,7 @@ import com.fxflow.domain.remittancetransaction.dto.response.RemittanceLimitRespo
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceMockFundedResponse;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceQuoteSnapshot;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionCreateResponse;
+import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
@@ -88,7 +89,7 @@ public class RemittanceTransactionService {
             RemittanceTransactionCreateRequest request
     ) {
         RemittanceQuoteSnapshot quote = remittanceQuoteProvider.getQuote(request.quoteId());
-        validateRecipient(userId, quote.recipientId());
+        Recipient recipient = getRecipient(userId, quote.recipientId());
 
         // 견적의 USD 환산 금액으로 건당/연간 해외송금 한도를 검증한다.
         remittanceValidator.validateLimits(userId, quote.amountUsd());
@@ -99,6 +100,11 @@ public class RemittanceTransactionService {
         RemittanceTransaction remittanceTransaction = RemittanceTransaction.create(
                 userId,
                 quote.recipientId(),
+                recipient.getName(),
+                recipient.getCountryCode(),
+                recipient.getCurrencyCode(),
+                recipient.getBankName(),
+                recipient.getAccountNumber(),
                 null,
                 "BANK_TRANSFER",
                 null,
@@ -186,12 +192,12 @@ public class RemittanceTransactionService {
     }
 
     /**
-     * 요청 사용자가 선택한 수취인을 사용할 수 있는지 확인한다.
+     * 송금 주문 생성 시 사용할 수취인을 조회한다.
+     * 조회한 수취인 정보는 송금 당시 정보 보존을 위해 거래 스냅샷으로 저장한다.
      */
-    private void validateRecipient(Long userId, Long recipientId) {
-        if (!recipientRepository.existsByIdAndUserIdAndDeletedAtIsNull(recipientId, userId)) {
-            throw new BusinessException(RecipientErrorCode.RECIPIENT_NOT_FOUND);
-        }
+    private Recipient getRecipient(Long userId, Long recipientId) {
+        return recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(recipientId, userId)
+                .orElseThrow(() -> new BusinessException(RecipientErrorCode.RECIPIENT_NOT_FOUND));
     }
 
     /**
