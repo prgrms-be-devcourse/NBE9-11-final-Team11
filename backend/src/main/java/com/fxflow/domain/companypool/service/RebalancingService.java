@@ -35,11 +35,12 @@ public class RebalancingService {
 
     private final CompanyPoolRepository companyPoolRepository;
     private final RebalancingRepository rebalancingRepository;
+    private final RebalancingAuditService auditService;
     private final FxRateService fxRateService;
 
     private record TradeAmounts(BigDecimal buyAmount, BigDecimal sellAmount, CappedBy cappedBy) {}
 
-    // 충전·환급·해외송금 거래 커밋 후 자동 리밸런싱 트리거
+    // 거래 커밋 후 자동 리밸런싱 트리거
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onPoolChanged(PoolChangedEvent event) {
@@ -70,54 +71,69 @@ public class RebalancingService {
     }
 
     private RebalancingExecuteRes rebalance(TriggerType triggerType, String reason) {
+        // PESSIMISTIC_WRITE 락: 계산~UPDATE 사이 다른 트랜잭션의 풀 수정 차단
         CompanyPool krwPool = findPool("KRW");
         CompanyPool usdPool = findPool("USD");
 
-        checkBothBelowFloor(krwPool, usdPool);
-
+        checkBothBelowFloor(krwPool, usdPool, triggerType, reason);
         if (!krwPool.isBelowFloor() && !usdPool.isBelowFloor()) {
             log.debug("floor 미만 풀 없음. 리밸런싱 불필요.");
             return RebalancingExecuteRes.withinThreshold();
         }
 
-        boolean buyingKrw = krwPool.isBelowFloor();
+        boolean buyingKrw    = krwPool.isBelowFloor();
         CompanyPool buyPool  = buyingKrw ? krwPool : usdPool;
         CompanyPool sellPool = buyingKrw ? usdPool : krwPool;
 
         BigDecimal midRate     = fetchMidRate(triggerType);
-        BigDecimal appliedRate = midRate.multiply(BigDecimal.ONE.add(SPREAD))
-                .setScale(8, RoundingMode.HALF_UP);
+        BigDecimal appliedRate = applySpread(midRate);
+        TradeAmounts amounts   = calculateTradeAmounts(buyPool, sellPool, appliedRate, buyingKrw);
 
-        TradeAmounts amounts = calculateTradeAmounts(buyPool, sellPool, appliedRate, buyingKrw);
+        return executeAndRecord(buyPool, sellPool, amounts, midRate, appliedRate, triggerType, reason);
+    }
 
+    private RebalancingExecuteRes executeAndRecord(CompanyPool buyPool, CompanyPool sellPool,
+                                                   TradeAmounts amounts, BigDecimal midRate,
+                                                   BigDecimal appliedRate, TriggerType triggerType,
+                                                   String reason) {
         BigDecimal buyBalanceBefore  = buyPool.getBalance();
         BigDecimal sellBalanceBefore = sellPool.getBalance();
+        String idempotencyKey = UUID.randomUUID().toString();
 
-        RebalancingStatus status = applyBalanceChanges(buyPool, sellPool, amounts, triggerType);
+        try {
+            applyBalanceChanges(buyPool, sellPool, amounts);
+        } catch (BusinessException e) {
+            // 잔액 변경 실패 → 메인 트랜잭션 롤백 전에 RETRY_REQUIRED 기록 저장 (별도 트랜잭션)
+            auditService.saveRetryRequired(
+                    buyPool.getId(), sellPool.getId(),
+                    amounts.buyAmount(), amounts.sellAmount(),
+                    buyBalanceBefore, sellBalanceBefore,
+                    midRate, appliedRate, amounts.cappedBy(), triggerType, reason, idempotencyKey);
+            throw e;
+        }
 
         RebalancingOrder order = RebalancingOrder.create(
-                buyPool, sellPool,
-                amounts.buyAmount(), amounts.sellAmount(),
-                buyBalanceBefore, sellBalanceBefore,
-                midRate, appliedRate,
-                status, amounts.cappedBy(),
-                triggerType, reason,
-                UUID.randomUUID().toString()
-        );
+                buyPool, sellPool, amounts.buyAmount(), amounts.sellAmount(),
+                buyBalanceBefore, sellBalanceBefore, midRate, appliedRate,
+                RebalancingStatus.SUCCESS, amounts.cappedBy(), triggerType, reason, idempotencyKey);
         rebalancingRepository.save(order);
-
-        log.info("리밸런싱 완료. status={}, buy={}[{}], sell={}[{}], triggerType={}",
-                status, amounts.buyAmount(), buyPool.getCurrencyCode(),
+        log.info("리밸런싱 완료. buy={}[{}], sell={}[{}], triggerType={}",
+                amounts.buyAmount(), buyPool.getCurrencyCode(),
                 amounts.sellAmount(), sellPool.getCurrencyCode(), triggerType);
-
         return RebalancingExecuteRes.from(order);
     }
 
-    private void checkBothBelowFloor(CompanyPool krwPool, CompanyPool usdPool) {
+    private BigDecimal applySpread(BigDecimal midRate) {
+        return midRate.multiply(BigDecimal.ONE.add(SPREAD)).setScale(8, RoundingMode.HALF_UP);
+    }
+
+    private void checkBothBelowFloor(CompanyPool krwPool, CompanyPool usdPool,
+                                      TriggerType triggerType, String reason) {
         if (krwPool.isBelowFloor() && usdPool.isBelowFloor()) {
             log.error("[ALERT] 양 통화 모두 floor 미만 — 즉시 점검 필요. krwBalance={}, usdBalance={}",
                     krwPool.getBalance(), usdPool.getBalance());
             // TODO: 관리자 알림 발송 (이메일/Slack 등)
+            auditService.saveManualRequired(triggerType, reason, UUID.randomUUID().toString());
             throw new BusinessException(PoolErrorCode.BOTH_BELOW_FLOOR);
         }
     }
@@ -147,25 +163,19 @@ public class RebalancingService {
         return new TradeAmounts(buyAmount, sellAmount, cappedBy);
     }
 
-    private RebalancingStatus applyBalanceChanges(CompanyPool buyPool, CompanyPool sellPool,
-                                                  TradeAmounts amounts, TriggerType triggerType) {
-        try {
-            companyPoolRepository.increaseBalance(buyPool.getCurrencyCode(), amounts.buyAmount());
-            int updated = companyPoolRepository.decreaseBalance(sellPool.getCurrencyCode(), amounts.sellAmount());
-            if (updated == 0) {
-                log.error("매도 풀 잔액 부족으로 감소 실패. sellCurrency={}, sellAmount={}",
-                        sellPool.getCurrencyCode(), amounts.sellAmount());
-                return RebalancingStatus.FAILED;
-            }
-            return RebalancingStatus.SUCCESS;
-        } catch (Exception e) {
-            log.error("리밸런싱 잔액 업데이트 오류. triggerType={}", triggerType, e);
-            return RebalancingStatus.FAILED;
+    private void applyBalanceChanges(CompanyPool buyPool, CompanyPool sellPool, TradeAmounts amounts) {
+        companyPoolRepository.increaseBalance(buyPool.getCurrencyCode(), amounts.buyAmount());
+        int updated = companyPoolRepository.decreaseBalance(sellPool.getCurrencyCode(), amounts.sellAmount());
+        if (updated == 0) {
+            // race condition: 계산 시점과 UPDATE 시점 사이에 매도 풀이 소비됨
+            log.error("매도 풀 잔액 부족으로 감소 실패 (race condition). sellCurrency={}, sellAmount={}",
+                    sellPool.getCurrencyCode(), amounts.sellAmount());
+            throw new BusinessException(PoolErrorCode.POOL_INSUFFICIENT_BALANCE);
         }
     }
 
     private CompanyPool findPool(String currencyCode) {
-        return companyPoolRepository.findByCurrencyCode(currencyCode)
+        return companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
                 .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
     }
 
