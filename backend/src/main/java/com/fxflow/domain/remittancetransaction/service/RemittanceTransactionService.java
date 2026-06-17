@@ -7,6 +7,8 @@ import com.fxflow.domain.remittancetransaction.dto.response.RemittanceLimitRespo
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceMockFundedResponse;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceQuoteSnapshot;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionCreateResponse;
+import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionDetailResponse;
+import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionSummaryResponse;
 import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
@@ -36,6 +38,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -81,6 +84,31 @@ public class RemittanceTransactionService {
                 maxPerYearUsd,
                 currentYearTotalUsd
         );
+    }
+
+    /**
+     * 로그인한 사용자의 해외송금 내역 목록을 최신순으로 조회한다.
+     */
+    public List<RemittanceTransactionSummaryResponse> getTransfers(Long userId) {
+        return remittanceTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(RemittanceTransactionSummaryResponse::from)
+                .toList();
+    }
+
+    /**
+     * 로그인한 사용자의 특정 해외송금 내역을 상세 조회한다.
+     */
+    public RemittanceTransactionDetailResponse getTransfer(Long userId, Long transferId) {
+        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findByIdAndUserId(
+                        transferId,
+                        userId
+                )
+                .orElseThrow(() -> new BusinessException(
+                        RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
+                ));
+
+        return RemittanceTransactionDetailResponse.from(remittanceTransaction);
     }
 
     /**
