@@ -147,7 +147,7 @@ class MockBankAccountLinkTest {
         }
 
         @Test
-        @DisplayName("실패: 계좌번호에 숫자/하이픈 외 문자가 포함됨")
+        @DisplayName("실패: 계좌번호에 숫자외 문자가 포함됨")
         void fail_invalidCharacter() {
             // when & then
             assertThatThrownBy(() -> mockBankAccountService.linkAccount(USER_ID, BANK_NAME, "12345678901a"))
@@ -164,32 +164,6 @@ class MockBankAccountLinkTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(MockBankAccountErrorCode.MOCK_ACCOUNT_INVALID_FORMAT);
-        }
-
-        @Test
-        @DisplayName("성공: 하이픈이 포함되어도 숫자 12자리면 통과")
-        void success_withHyphen() {
-            // given
-            String accountNumberWithHyphen = "123-456-789012"; // 숫자 12자리 + 하이픈
-            when(user.getId()).thenReturn(USER_ID);
-            when(mockBankAccountRepository.existsByUserIdAndCurrencyCode(USER_ID, "KRW"))
-                    .thenReturn(false);
-            when(mockBankAccountRepository.existsByAccountNumber(accountNumberWithHyphen))
-                    .thenReturn(false);
-            when(userRepository.findById(USER_ID))
-                    .thenReturn(Optional.of(user));
-            when(mockBankAccountRepository.save(any(MockBankAccount.class)))
-                    .thenAnswer(invocation -> invocation.getArgument(0));
-            when(walletRepository.findByUserIdAndCurrencyCode(USER_ID, "KRW"))
-                    .thenReturn(Optional.empty());
-            when(walletRepository.findByUserIdAndCurrencyCode(USER_ID, "USD"))
-                    .thenReturn(Optional.empty());
-            when(walletRepository.save(any(Wallet.class)))
-                    .thenAnswer(invocation -> invocation.getArgument(0));
-
-            // when & then
-            assertThatCode(() -> mockBankAccountService.linkAccount(USER_ID, BANK_NAME, accountNumberWithHyphen))
-                    .doesNotThrowAnyException();
         }
     }
 }

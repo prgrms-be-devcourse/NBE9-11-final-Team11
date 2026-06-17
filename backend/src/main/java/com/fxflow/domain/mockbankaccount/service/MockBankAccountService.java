@@ -34,7 +34,7 @@ public class MockBankAccountService {
     private final LedgerEntryRepository ledgerEntryRepository;
     private final UserRepository userRepository;
     private final WalletRepository walletRepository;
-    private static final Pattern ACCOUNT_NUMBER_PATTERN = Pattern.compile("^[0-9-]+$");
+    private static final Pattern ACCOUNT_NUMBER_PATTERN = Pattern.compile("^[0-9]+$");
     private static final int ACCOUNT_NUMBER_DIGIT_LENGTH = 12;
 
     @Transactional
@@ -122,13 +122,15 @@ public class MockBankAccountService {
         List<Wallet> wallets = createWallets(user);
 
         log.info("[모의계좌 연결 완료] userId={}, accountNumber={}", userId, accountNumber);
+
         return MockBankLinkResponse.of(account, wallets);
     }
 
+
     /**
-     * 계좌번호 형식 검증 (공통 규칙)
-     * - 숫자와 하이픈만 허용
-     * - 하이픈 제외 숫자 자릿수: 12자리 고정
+     * 계좌번호 형식 검증
+     * - 숫자만 허용 (하이픈 등 구분자 불가)
+     * - 12자리 고정
      */
     private void validateAccountNumberFormat(String accountNumber) {
         if (accountNumber == null || accountNumber.isBlank()) {
@@ -137,12 +139,11 @@ public class MockBankAccountService {
         }
 
         if (!ACCOUNT_NUMBER_PATTERN.matcher(accountNumber).matches()) {
-            log.warn("[모의계좌 연결 실패] 형식 오류(숫자/하이픈 외 문자) — accountNumber={}", accountNumber);
+            log.warn("[모의계좌 연결 실패] 형식 오류(숫자 외 문자 포함) — accountNumber={}", accountNumber);
             throw new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_INVALID_FORMAT);
         }
 
-        String digitsOnly = accountNumber.replace("-", "");
-        if (digitsOnly.length() != ACCOUNT_NUMBER_DIGIT_LENGTH) {
+        if (accountNumber.length() != ACCOUNT_NUMBER_DIGIT_LENGTH) {
             log.warn("[모의계좌 연결 실패] 자릿수 오류 — accountNumber={}", accountNumber);
             throw new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_INVALID_FORMAT);
         }
