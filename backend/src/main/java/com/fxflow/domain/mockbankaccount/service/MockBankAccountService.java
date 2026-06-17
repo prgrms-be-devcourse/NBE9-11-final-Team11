@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 public class MockBankAccountService {
     private static final String KRW = "KRW";
     private static final String USD = "USD";
+    private static final String REMITTANCE_TRANSACTION_REF_TYPE = "REMITTANCE_TRANSACTION";
 
     private final MockBankAccountRepository mockBankAccountRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
@@ -168,7 +169,6 @@ public class MockBankAccountService {
     }
 
     /**
-     * 해외송금 입금 확인 시 사용자 모의계좌에서 KRW를 차감한다.
      * Wallet 충전/출금이 아니므로 LedgerEntryType.TRANSFER로 기록한다.
      */
     @Transactional
@@ -203,8 +203,8 @@ public class MockBankAccountService {
                 amount,
                 balanceBefore,
                 balanceAfter,
-                refId,
-                null
+                REMITTANCE_TRANSACTION_REF_TYPE,
+                refId
         );
 
         ledgerEntryRepository.save(entry);
