@@ -44,6 +44,7 @@ public class CompanyPoolService {
                 amount,
                 balanceBefore,
                 balanceAfter,
+                null,
                 null
         );
         ledgerEntryRepository.save(poolEntry);
@@ -72,6 +73,7 @@ public class CompanyPoolService {
                 amount,
                 balanceBefore,
                 balanceAfter,
+                null,
                 null
         );
         ledgerEntryRepository.save(poolEntry);
