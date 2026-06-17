@@ -14,6 +14,7 @@ import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.domain.remittancetransaction.enums.VirtualAccountStatus;
 import com.fxflow.domain.remittancetransaction.errorcode.RecipientErrorCode;
 import com.fxflow.domain.remittancetransaction.errorcode.RemittanceTransactionErrorCode;
+import com.fxflow.domain.remittancetransaction.event.RemittanceFundedEvent;
 import com.fxflow.domain.remittancetransaction.repository.RecipientRepository;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.remittancetransaction.repository.VirtualAccountRepository;
@@ -27,6 +28,7 @@ import com.fxflow.domain.userlimitusage.entity.UserAnnualUsage;
 import com.fxflow.domain.userlimitusage.repository.UserAnnualUsageRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,6 +59,7 @@ public class RemittanceTransactionService {
     private final RemittanceValidator remittanceValidator;
     private final MockBankAccountService mockBankAccountService;
     private final CompanyPoolService companyPoolService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 유저의 해외송금 잔여 한도를 조회한다.
@@ -173,6 +176,9 @@ public class RemittanceTransactionService {
 
         remittanceTransaction.fund(sourceMockAccountId);
         virtualAccount.pay(paidAt);
+
+        // 트랜잭션 커밋 이후 TRF-08 등 후속 처리가 이어질 수 있도록 입금 완료 이벤트를 발행한다.
+        eventPublisher.publishEvent(RemittanceFundedEvent.of(remittanceTransaction, virtualAccount));
 
         return RemittanceMockFundedResponse.of(remittanceTransaction, virtualAccount);
     }
