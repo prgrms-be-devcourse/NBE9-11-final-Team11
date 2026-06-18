@@ -41,3 +41,8 @@ cookie:
   secure: ${COOKIE_SECURE:false}
   same-site: ${COOKIE_SAME_SITE:Lax}
   max-age: ${COOKIE_MAX_AGE:1800}
+
+fxrate:
+  scheduler:
+    enabled: true            # 환율 수집 스케줄러 on/off (테스트/CI에서는 false로 비활성화)
+    fixed-delay-ms: 120000   # 수집 주기(ms). 기본 2분
