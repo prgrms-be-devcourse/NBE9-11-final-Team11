@@ -1,10 +1,14 @@
 package com.fxflow.domain.wallet.service;
 
+import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.user.service.UserService;
 import com.fxflow.domain.wallet.config.ExchangeFeeProperties;
 import com.fxflow.domain.wallet.config.ExchangeProperties;
 import com.fxflow.domain.wallet.dto.request.ExchangeQuoteRequest;
 import com.fxflow.domain.wallet.dto.response.ExchangeQuoteResponse;
 import com.fxflow.domain.wallet.errorcode.ExchangeErrorCode;
+import com.fxflow.domain.wallet.repository.ExchangeTransactionRepository;
+import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.ExchangeRateProvider;
 import com.fxflow.global.fx.FxRateSnapshot;
@@ -45,6 +49,16 @@ class ExchangeServiceTest {
     private RedisTemplate<String, Object> redisTemplate;
     @Mock
     private ValueOperations<String, Object> valueOperations;
+    @Mock
+    private WalletRepository walletRepository;
+    @Mock
+    private WalletService walletService;
+    @Mock
+    private UserService userService;
+    @Mock
+    private ExchangeTransactionRepository exchangeTransactionRepository;
+    @Mock
+    private LedgerEntryRepository ledgerEntryRepository;
 
     @InjectMocks
     private ExchangeService exchangeService;
@@ -173,10 +187,11 @@ class ExchangeServiceTest {
         ExchangeQuoteResponse response = exchangeService.getExchangeQuote(userId, request);
 
         // then
-        // toAmount = 1000 * 2 = 2000
-        // feeAmount = 2000 * 0.1 = 200
-        // totalAmount = 2200
-        assertThat(response.fee()).isEqualByComparingTo(BigDecimal.valueOf(200));
-        assertThat(response.totalAmount()).isEqualByComparingTo(BigDecimal.valueOf(2200));
+        // toAmount = 1000 / 2 = 500
+        // feeAmount = 1000 * 0.1 = 100
+        // totalAmount = 1100
+        assertThat(response.toAmount()).isEqualByComparingTo(BigDecimal.valueOf(500));
+        assertThat(response.fee()).isEqualByComparingTo(BigDecimal.valueOf(100));
+        assertThat(response.totalAmount()).isEqualByComparingTo(BigDecimal.valueOf(1100));
     }
 }

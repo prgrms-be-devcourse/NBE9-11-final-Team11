@@ -9,7 +9,9 @@ public record ExchangeQuoteCache(
         String toCurrency,
         BigDecimal fromAmount,
         BigDecimal toAmount,
-        BigDecimal appliedRate,
+        BigDecimal baseRate,
+        BigDecimal spreadRate,
+        BigDecimal finalRate,
         BigDecimal feeAmount,
         BigDecimal totalAmount
 ) implements Serializable {}
