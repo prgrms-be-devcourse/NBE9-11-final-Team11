@@ -34,7 +34,8 @@ exchange:
   quote-expiration-minutes: 5
 
 jwt:
-  secret: ${JWT_SECRET:}
+  #placeholder(가짜 데이터, secret연결 안되있을때 오류나는걸 방지). 운영 환경에서는 반드시 JWT_SECRET 환경 변수로 덮어써야 함.
+  secret: ${JWT_SECRET:dev-only-placeholder-secret-key-32bytes-minimum-do-not-use-in-production}
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:1800000}
 cookie:
   secure: ${COOKIE_SECURE:false}
