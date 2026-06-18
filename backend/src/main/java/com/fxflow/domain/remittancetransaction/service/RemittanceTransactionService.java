@@ -68,7 +68,7 @@ public class RemittanceTransactionService {
 
     private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("3000.00000000");
     private static final BigDecimal PERCENT_FEE_RATE = new BigDecimal("0.005");
-    private static final long QUOTE_EXPIRATION_MINUTES = 10L;
+    private static final long QUOTE_EXPIRATION_MINUTES = 5L;
     private static final String REMITTANCE_QUOTE_KEY_PREFIX = "remittance:quote:";
 
     private final ExchangeRateProvider exchangeRateProvider;

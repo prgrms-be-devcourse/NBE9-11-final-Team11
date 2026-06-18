@@ -129,7 +129,7 @@ class RemittanceTransactionServiceTest {
         verify(valueOperations).set(
                 startsWith("remittance:quote:"),
                 cacheCaptor.capture(),
-                eq(Duration.ofMinutes(10))
+                eq(Duration.ofMinutes(5))
         );
 
         RemittanceQuoteCache cache = cacheCaptor.getValue();
