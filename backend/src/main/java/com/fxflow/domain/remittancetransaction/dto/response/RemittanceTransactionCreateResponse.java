@@ -3,9 +3,9 @@ package com.fxflow.domain.remittancetransaction.dto.response;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
+import com.fxflow.global.util.CurrencyAmountFormatter;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 public record RemittanceTransactionCreateResponse(
@@ -13,6 +13,8 @@ public record RemittanceTransactionCreateResponse(
         TransferStatus status,
         VirtualAccountResponse virtualAccount
 ) {
+
+    private static final String KRW = "KRW";
 
     public static RemittanceTransactionCreateResponse of(
             RemittanceTransaction remittanceTransaction,
@@ -36,7 +38,7 @@ public record RemittanceTransactionCreateResponse(
             return new VirtualAccountResponse(
                     virtualAccount.getBankName(),
                     virtualAccount.getAccountNumber(),
-                    virtualAccount.getExpectedAmount().setScale(0, RoundingMode.DOWN),
+                    CurrencyAmountFormatter.format(virtualAccount.getExpectedAmount(), KRW),
                     virtualAccount.getExpiredAt()
             );
         }
