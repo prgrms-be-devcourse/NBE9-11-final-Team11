@@ -76,9 +76,9 @@ public class ExchangeService {
 
         BigDecimal toAmount = fromCurrency.equals("KRW")
                 ? amount.divide(appliedRate, 2, RoundingMode.HALF_UP)
-                : amount.multiply(appliedRate);
-        BigDecimal feeAmount = toAmount.multiply(feeRate);
-        BigDecimal totalAmount = toAmount.add(feeAmount);
+                : amount.multiply(appliedRate);  // 환율만 적용된 금액
+        BigDecimal feeAmount = toAmount.multiply(feeRate);  // toAmount의 일정 % (수수료)
+        BigDecimal totalAmount = toAmount.add(feeAmount);  // toAmount + 수수료
         LocalDateTime expiredAt =
                 LocalDateTime.now()
                         .plusMinutes(exchangeProperties.getQuoteExpirationMinutes());
@@ -143,7 +143,7 @@ public class ExchangeService {
 
         // wallet 값 정산
         fromWallet.withdraw(cache.fromAmount());
-        toWallet.deposit(cache.toAmount());
+        toWallet.deposit(cache.toAmount().subtract(cache.feeAmount()));  // 수수료 뗀 값 저장
         walletRepository.save(fromWallet);
         walletRepository.save(toWallet);
 

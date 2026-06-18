@@ -59,7 +59,7 @@ class ExchangeServiceExchangeTest {
     private Wallet fromWallet;
     private Wallet toWallet;
     private ExchangeQuoteCache cache;
-    private Long quoteId;
+    private String quoteId;
 
     @BeforeEach
     void setUp() {
@@ -75,7 +75,7 @@ class ExchangeServiceExchangeTest {
         toWallet = Wallet.create(user, "USD", new BigDecimal("0"));
         ReflectionTestUtils.setField(toWallet, "id", 11L);
 
-        quoteId = 123L;
+        quoteId = "123L";
         cache = new ExchangeQuoteCache(
                 userId, "KRW", "USD",
                 new BigDecimal("500000"), new BigDecimal("370.12"),
