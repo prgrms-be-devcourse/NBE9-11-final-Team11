@@ -1,0 +1,8 @@
+# 테스트 전용 설정.
+# 주의: Spring Boot는 이 파일을 main 의 application.yaml 과 '병합'하지 않고 '대체'
+#       지금은 컨텍스트를 띄우는 테스트가 없어(FxflowApplicationTests 는 @Disabled) 스케줄러 비활성 용도로만 쓰임
+#       향후 full @SpringBootTest 를 살리려면, 그 테스트에 필요한 main 설정
+#       (datasource / jpa / profiles.include: secret 등)을 이 파일로 옮기거나 프로파일로 전환해야 함
+fxrate:
+  scheduler:
+    enabled: false   # 테스트/CI 에서 스케줄러 비활성화 → 외부 TwelveData 호출·쿼터 소모 차단
