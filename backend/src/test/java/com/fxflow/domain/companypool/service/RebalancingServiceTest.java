@@ -17,8 +17,9 @@ import com.fxflow.domain.companypool.enums.TriggerType;
 import com.fxflow.domain.companypool.errorcode.PoolErrorCode;
 import com.fxflow.domain.companypool.repository.CompanyPoolRepository;
 import com.fxflow.domain.companypool.repository.RebalancingRepository;
-import com.fxflow.domain.fxrate.service.FxRateService;
 import com.fxflow.global.exception.BusinessException;
+import com.fxflow.global.fx.ExchangeRateProvider;
+import com.fxflow.global.fx.FxRateSnapshot;
 import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +39,7 @@ class RebalancingServiceTest {
     @Mock private CompanyPoolRepository companyPoolRepository;
     @Mock private RebalancingRepository rebalancingRepository;
     @Mock private RebalancingAuditService auditService;
-    @Mock private FxRateService fxRateService;
+    @Mock private ExchangeRateProvider exchangeRateProvider;
 
     @InjectMocks private RebalancingService rebalancingService;
 
@@ -54,7 +55,8 @@ class RebalancingServiceTest {
 
     @BeforeEach
     void setUp() {
-        given(fxRateService.getRate("USD", "KRW")).willReturn(MID_RATE);
+        FxRateSnapshot snapshot = new FxRateSnapshot("USD", "KRW", MID_RATE, new BigDecimal("0.01"), java.time.LocalDateTime.now());
+        given(exchangeRateProvider.getLatestRate("USD", "KRW")).willReturn(Optional.of(snapshot));
         given(companyPoolRepository.decreaseBalance(anyString(), any())).willReturn(1);
     }
 
@@ -167,10 +169,10 @@ class RebalancingServiceTest {
     
 
     @Test
-    @DisplayName("수동 실행 중 환율 조회 실패 → RATE_UNAVAILABLE 예외")
+    @DisplayName("수동 실행 중 환율 데이터 없음(Optional.empty) → RATE_UNAVAILABLE 예외")
     void execute_manual_rateFetchFails_throwsRateUnavailable() {
         givenPools(new BigDecimal("7000000000"), new BigDecimal("6500000")); // KRW floor 미만
-        given(fxRateService.getRate("USD", "KRW")).willThrow(new RuntimeException("외부 API 장애"));
+        given(exchangeRateProvider.getLatestRate("USD", "KRW")).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> rebalancingService.execute(TriggerType.MANUAL, null))
                 .isInstanceOf(BusinessException.class)

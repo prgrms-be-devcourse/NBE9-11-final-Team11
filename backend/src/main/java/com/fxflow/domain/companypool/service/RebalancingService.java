@@ -10,8 +10,13 @@ import com.fxflow.domain.companypool.errorcode.PoolErrorCode;
 import com.fxflow.domain.companypool.event.PoolChangedEvent;
 import com.fxflow.domain.companypool.repository.CompanyPoolRepository;
 import com.fxflow.domain.companypool.repository.RebalancingRepository;
-import com.fxflow.domain.fxrate.service.FxRateService;
 import com.fxflow.global.exception.BusinessException;
+import com.fxflow.global.fx.ExchangeRateProvider;
+import com.fxflow.global.fx.FxRateSnapshot;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,11 +24,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -36,7 +36,7 @@ public class RebalancingService {
     private final CompanyPoolRepository companyPoolRepository;
     private final RebalancingRepository rebalancingRepository;
     private final RebalancingAuditService auditService;
-    private final FxRateService fxRateService;
+    private final ExchangeRateProvider exchangeRateProvider;
 
     private record TradeAmounts(BigDecimal buyAmount, BigDecimal sellAmount, CappedBy cappedBy) {}
 
@@ -181,11 +181,11 @@ public class RebalancingService {
     }
 
     private BigDecimal fetchMidRate(TriggerType triggerType) {
-        try {
-            return fxRateService.getRate("USD", "KRW");
-        } catch (Exception e) {
-            log.warn("환율 조회 실패. triggerType={}", triggerType, e);
-            throw new BusinessException(PoolErrorCode.RATE_UNAVAILABLE, e);
-        }
+        return exchangeRateProvider.getLatestRate("USD", "KRW")
+                .map(FxRateSnapshot::midRate)
+                .orElseThrow(() -> {
+                    log.warn("환율 조회 실패. triggerType={}", triggerType);
+                    return new BusinessException(PoolErrorCode.RATE_UNAVAILABLE);
+                });
     }
 }
