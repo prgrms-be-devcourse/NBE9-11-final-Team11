@@ -23,6 +23,9 @@ import com.fxflow.domain.transactionlimit.enums.LimitTier;
 import com.fxflow.domain.transactionlimit.enums.LimitType;
 import com.fxflow.domain.transactionlimit.errorcode.TransactionLimitErrorCode;
 import com.fxflow.domain.transactionlimit.repository.TransactionLimitRepository;
+import com.fxflow.domain.user.entity.User;
+import com.fxflow.domain.user.errorcode.UserErrorCode;
+import com.fxflow.domain.user.repository.UserRepository;
 import com.fxflow.domain.userlimitusage.entity.UserAnnualUsage;
 import com.fxflow.domain.userlimitusage.repository.UserAnnualUsageRepository;
 import com.fxflow.global.exception.BusinessException;
@@ -57,6 +60,7 @@ public class RemittanceTransactionService {
 
     private final UserAnnualUsageRepository userAnnualUsageRepository;
     private final TransactionLimitRepository transactionLimitRepository;
+    private final UserRepository userRepository;
     private final RecipientRepository recipientRepository;
     private final RemittanceTransactionRepository remittanceTransactionRepository;
     private final VirtualAccountRepository virtualAccountRepository;
@@ -138,6 +142,10 @@ public class RemittanceTransactionService {
 
         // 견적의 USD 환산 금액으로 건당/연간 해외송금 한도를 검증한다.
         remittanceValidator.validateLimits(userId, quote.amountUsd());
+
+        // 송금 주문 생성(PENDING) 시점에 연간 한도를 선점한다.
+        // TRF-09는 조회만 담당하고, 실제 한도 정합성은 주문 생성 트랜잭션에서 보장한다.
+        reserveAnnualRemittanceLimit(userId, quote.amountUsd());
 
         // TODO: 현재는 임시 UUID를 저장한다. 추후 Idempotency-Key 헤더 기반 중복 요청 방지로 교체한다.
         String idempotencyKey = UUID.randomUUID().toString();
@@ -232,6 +240,43 @@ public class RemittanceTransactionService {
                 )
                 .map(TransactionLimit::getLimitAmount)
                 .orElseThrow(() -> new BusinessException(TransactionLimitErrorCode.LIMIT_POLICY_NOT_FOUND));
+    }
+
+    /**
+     * 송금 주문 생성 시점에 연간 송금 한도를 선점한다.
+     *
+     * 정책:
+     * - PENDING 주문 생성 시 annual_used_usd에 송금 USD 금액을 반영한다.
+     * - 같은 유저/연도 사용량 row를 비관적 락으로 잠가 동시 주문의 한도 초과를 막는다.
+     * - 이후 CANCELED / FAILED / EXPIRED 상태가 구현되면 선점한 한도를 복구해야 한다.
+     */
+    private void reserveAnnualRemittanceLimit(Long userId, BigDecimal amountUsd) {
+        int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+        BigDecimal annualLimitUsd = getLimitAmount(LimitType.ANNUAL_REMITTANCE);
+
+        UserAnnualUsage usage = userAnnualUsageRepository
+                .findByUserIdAndYearForUpdate(userId, currentYear)
+                .orElseGet(() -> createAnnualUsage(userId, currentYear));
+
+        BigDecimal nextUsedUsd = usage.getAnnualUsedUsd().add(amountUsd);
+
+        if (nextUsedUsd.compareTo(annualLimitUsd) > 0) {
+            throw new BusinessException(TransactionLimitErrorCode.ANNUAL_REMITTANCE_LIMIT_EXCEEDED);
+        }
+
+        usage.addUsage(amountUsd);
+    }
+
+    /**
+     * 해당 연도의 송금 한도 사용량 데이터가 없으면 새로 생성한다.
+     * 최초 송금 주문 생성 시점에 만들어지며, 이후부터는 비관적 락 조회 대상이 된다.
+     */
+    private UserAnnualUsage createAnnualUsage(Long userId, int year) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        UserAnnualUsage usage = UserAnnualUsage.create(user, year);
+        return userAnnualUsageRepository.save(usage);
     }
 
     /**
