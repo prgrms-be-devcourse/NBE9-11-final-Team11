@@ -1,7 +1,9 @@
 package com.fxflow.domain.remittancetransaction.dto.response;
 
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
+import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
+import com.fxflow.global.util.CurrencyAmountFormatter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -33,30 +35,42 @@ public record RemittanceTransactionDetailResponse(
         LocalDateTime updatedAt
 ) {
 
+    private static final String KRW = "KRW";
+    private static final String USD = "USD";
+
     /**
      * 송금 상세 조회 응답을 생성한다.
-     * 수취인 정보는 주소록 최신값이 아니라 송금 당시 저장된 스냅샷을 사용한다.
+     * 수취인 정보는 recipientId로 연결된 수취인 주소록에서 조회한다.
      */
-    public static RemittanceTransactionDetailResponse from(RemittanceTransaction remittanceTransaction) {
+    public static RemittanceTransactionDetailResponse from(
+            RemittanceTransaction remittanceTransaction,
+            Recipient recipient
+    ) {
         return new RemittanceTransactionDetailResponse(
                 remittanceTransaction.getId(),
                 remittanceTransaction.getRecipientId(),
-                remittanceTransaction.getRecipientName(),
-                remittanceTransaction.getRecipientCountryCode(),
-                remittanceTransaction.getRecipientCurrencyCode(),
-                remittanceTransaction.getRecipientBankName(),
-                remittanceTransaction.getRecipientAccountNumber(),
+                recipient.getName(),
+                recipient.getCountryCode(),
+                recipient.getCurrencyCode(),
+                recipient.getBankName(),
+                recipient.getAccountNumber(),
                 remittanceTransaction.getMethod(),
                 remittanceTransaction.getSourceMockAccountId(),
                 remittanceTransaction.getTargetMockAccountId(),
                 remittanceTransaction.getSendCurrency(),
-                remittanceTransaction.getSendAmount(),
+                CurrencyAmountFormatter.format(
+                        remittanceTransaction.getSendAmount(),
+                        remittanceTransaction.getSendCurrency()
+                ),
                 remittanceTransaction.getReceiveCurrency(),
-                remittanceTransaction.getReceiveAmount(),
+                CurrencyAmountFormatter.format(
+                        remittanceTransaction.getReceiveAmount(),
+                        remittanceTransaction.getReceiveCurrency()
+                ),
                 remittanceTransaction.getAppliedRate(),
-                remittanceTransaction.getFeeAmount(),
-                remittanceTransaction.getAmountKrw(),
-                remittanceTransaction.getAmountUsd(),
+                CurrencyAmountFormatter.format(remittanceTransaction.getFeeAmount(), KRW),
+                CurrencyAmountFormatter.format(remittanceTransaction.getAmountKrw(), KRW),
+                CurrencyAmountFormatter.format(remittanceTransaction.getAmountUsd(), USD),
                 remittanceTransaction.getReason(),
                 remittanceTransaction.getReasonDetail(),
                 remittanceTransaction.getStatus(),
