@@ -5,31 +5,28 @@ import com.fxflow.global.util.CurrencyAmountFormatter;
 import java.math.BigDecimal;
 
 public record RemittanceLimitResponse(
-        Long userId,
-        BigDecimal maxPerTransactionUsd,
-        BigDecimal maxPerYearUsd,
-        BigDecimal currentYearTotalUsd,
-        BigDecimal availableYearUsd
+        BigDecimal annualLimitUsd,
+        BigDecimal usedUsd,
+        BigDecimal remainingUsd,
+        BigDecimal perTransferLimitUsd
 ) {
 
     private static final String USD = "USD";
 
     public static RemittanceLimitResponse of(
-            Long userId,
-            BigDecimal maxPerTransactionUsd,
-            BigDecimal maxPerYearUsd,
-            BigDecimal currentYearTotalUsd
+            BigDecimal perTransferLimitUsd,
+            BigDecimal annualLimitUsd,
+            BigDecimal usedUsd
     ) {
-        BigDecimal availableYearUsd = maxPerYearUsd
-                .subtract(currentYearTotalUsd)
+        BigDecimal remainingUsd = annualLimitUsd
+                .subtract(usedUsd)
                 .max(BigDecimal.ZERO);
 
         return new RemittanceLimitResponse(
-                userId,
-                CurrencyAmountFormatter.format(maxPerTransactionUsd, USD),
-                CurrencyAmountFormatter.format(maxPerYearUsd, USD),
-                CurrencyAmountFormatter.format(currentYearTotalUsd, USD),
-                CurrencyAmountFormatter.format(availableYearUsd, USD)
+                CurrencyAmountFormatter.format(annualLimitUsd, USD),
+                CurrencyAmountFormatter.format(usedUsd, USD),
+                CurrencyAmountFormatter.format(remainingUsd, USD),
+                CurrencyAmountFormatter.format(perTransferLimitUsd, USD)
         );
     }
 }

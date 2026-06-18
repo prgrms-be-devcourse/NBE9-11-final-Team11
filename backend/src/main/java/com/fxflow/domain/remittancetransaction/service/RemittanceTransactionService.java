@@ -89,7 +89,6 @@ public class RemittanceTransactionService {
         BigDecimal maxPerYearUsd = getLimitAmount(LimitType.ANNUAL_REMITTANCE);
 
         return RemittanceLimitResponse.of(
-                userId,
                 maxPerTransactionUsd,
                 maxPerYearUsd,
                 currentYearTotalUsd
