@@ -1,10 +1,14 @@
 package com.fxflow.domain.wallet.service;
 
+import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.user.service.UserService;
 import com.fxflow.domain.wallet.config.ExchangeFeeProperties;
 import com.fxflow.domain.wallet.config.ExchangeProperties;
 import com.fxflow.domain.wallet.dto.request.ExchangeQuoteRequest;
 import com.fxflow.domain.wallet.dto.response.ExchangeQuoteResponse;
 import com.fxflow.domain.wallet.errorcode.ExchangeErrorCode;
+import com.fxflow.domain.wallet.repository.ExchangeTransactionRepository;
+import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.ExchangeRateProvider;
 import com.fxflow.global.fx.FxRateSnapshot;
@@ -45,6 +49,16 @@ class ExchangeServiceTest {
     private RedisTemplate<String, Object> redisTemplate;
     @Mock
     private ValueOperations<String, Object> valueOperations;
+    @Mock
+    private WalletRepository walletRepository;
+    @Mock
+    private WalletService walletService;
+    @Mock
+    private UserService userService;
+    @Mock
+    private ExchangeTransactionRepository exchangeTransactionRepository;
+    @Mock
+    private LedgerEntryRepository ledgerEntryRepository;
 
     @InjectMocks
     private ExchangeService exchangeService;

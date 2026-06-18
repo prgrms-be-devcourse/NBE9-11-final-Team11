@@ -48,7 +48,7 @@ public class WalletService {
     private final UserDailyUsageService userDailyUsageService;
 
 
-    private Wallet getWallet(Long userId, String currencyCode){
+    public Wallet getWallet(Long userId, String currencyCode){
         return walletRepository.findByUserIdAndCurrencyCode(userId, currencyCode).orElseThrow(
                 () -> new BusinessException(WalletErrorCode.WALLET_NOT_FOUND)
         );
