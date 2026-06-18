@@ -10,37 +10,36 @@ import java.time.LocalDateTime;
 
 public record RemittanceTransactionDetailResponse(
         Long transferId,
-        Long recipientId,
-        String recipientName,
-        String recipientCountryCode,
-        String recipientCurrencyCode,
-        String recipientBankName,
-        String recipientAccountNumber,
-        String method,
-        Long sourceMockAccountId,
-        Long targetMockAccountId,
-        String sendCurrency,
-        BigDecimal sendAmount,
-        String receiveCurrency,
-        BigDecimal receiveAmount,
-        BigDecimal appliedRate,
-        BigDecimal feeAmount,
-        BigDecimal amountKrw,
-        BigDecimal amountUsd,
-        String reason,
-        String reasonDetail,
         TransferStatus status,
-        String failureReason,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        RecipientInfo recipient,
+        BigDecimal sendAmountKrw,
+        BigDecimal receiveAmountUsd,
+        BigDecimal appliedRate,
+        BigDecimal totalFee,
+        LocalDateTime createdAt
 ) {
 
     private static final String KRW = "KRW";
     private static final String USD = "USD";
 
+    public record RecipientInfo(
+            String name,
+            String bankName,
+            String accountNumber
+    ) {
+
+        public static RecipientInfo from(Recipient recipient) {
+            return new RecipientInfo(
+                    recipient.getName(),
+                    recipient.getBankName(),
+                    recipient.getAccountNumber()
+            );
+        }
+    }
+
     /**
      * 송금 상세 조회 응답을 생성한다.
-     * 수취인 정보는 recipientId로 연결된 수취인 주소록에서 조회한다.
+     * 사용자 화면에 필요한 상태, 수취인, 금액, 환율, 수수료, 신청일만 반환한다.
      */
     public static RemittanceTransactionDetailResponse from(
             RemittanceTransaction remittanceTransaction,
@@ -48,35 +47,19 @@ public record RemittanceTransactionDetailResponse(
     ) {
         return new RemittanceTransactionDetailResponse(
                 remittanceTransaction.getId(),
-                remittanceTransaction.getRecipientId(),
-                recipient.getName(),
-                recipient.getCountryCode(),
-                recipient.getCurrencyCode(),
-                recipient.getBankName(),
-                recipient.getAccountNumber(),
-                remittanceTransaction.getMethod(),
-                remittanceTransaction.getSourceMockAccountId(),
-                remittanceTransaction.getTargetMockAccountId(),
-                remittanceTransaction.getSendCurrency(),
+                remittanceTransaction.getStatus(),
+                RecipientInfo.from(recipient),
                 CurrencyAmountFormatter.format(
                         remittanceTransaction.getSendAmount(),
-                        remittanceTransaction.getSendCurrency()
+                        KRW
                 ),
-                remittanceTransaction.getReceiveCurrency(),
                 CurrencyAmountFormatter.format(
                         remittanceTransaction.getReceiveAmount(),
-                        remittanceTransaction.getReceiveCurrency()
+                        USD
                 ),
                 remittanceTransaction.getAppliedRate(),
                 CurrencyAmountFormatter.format(remittanceTransaction.getFeeAmount(), KRW),
-                CurrencyAmountFormatter.format(remittanceTransaction.getAmountKrw(), KRW),
-                CurrencyAmountFormatter.format(remittanceTransaction.getAmountUsd(), USD),
-                remittanceTransaction.getReason(),
-                remittanceTransaction.getReasonDetail(),
-                remittanceTransaction.getStatus(),
-                remittanceTransaction.getFailureReason(),
-                remittanceTransaction.getCreatedAt(),
-                remittanceTransaction.getUpdatedAt()
+                remittanceTransaction.getCreatedAt()
         );
     }
 }

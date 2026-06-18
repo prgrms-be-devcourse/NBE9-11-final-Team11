@@ -587,24 +587,15 @@ class RemittanceTransactionServiceTest {
 
         // then
         assertThat(response.transferId()).isEqualTo(transferId);
-        assertThat(response.recipientId()).isEqualTo(1L);
-        assertThat(response.recipientName()).isEqualTo("John Doe");
-        assertThat(response.recipientCountryCode()).isEqualTo("US");
-        assertThat(response.recipientCurrencyCode()).isEqualTo("USD");
-        assertThat(response.recipientBankName()).isEqualTo("Chase Bank");
-        assertThat(response.recipientAccountNumber()).isEqualTo("1234567890");
-        assertThat(response.method()).isEqualTo("BANK_TRANSFER");
-        assertThat(response.sendCurrency()).isEqualTo("KRW");
-        assertThat(response.sendAmount()).isEqualByComparingTo(new BigDecimal("1000000"));
-        assertThat(response.receiveCurrency()).isEqualTo("USD");
-        assertThat(response.receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
-        assertThat(response.appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
-        assertThat(response.feeAmount()).isEqualByComparingTo(new BigDecimal("8000"));
-        assertThat(response.amountKrw()).isEqualByComparingTo(new BigDecimal("1000000"));
-        assertThat(response.amountUsd()).isEqualByComparingTo(new BigDecimal("736.52"));
-        assertThat(response.reason()).isEqualTo(RemittanceReason.LIVING_EXPENSES.name());
-        assertThat(response.reasonDetail()).isEqualTo("생활비 송금");
         assertThat(response.status()).isEqualTo(TransferStatus.PENDING);
+        assertThat(response.recipient().name()).isEqualTo("John Doe");
+        assertThat(response.recipient().bankName()).isEqualTo("Chase Bank");
+        assertThat(response.recipient().accountNumber()).isEqualTo("1234567890");
+        assertThat(response.sendAmountKrw()).isEqualByComparingTo(new BigDecimal("1000000"));
+        assertThat(response.receiveAmountUsd()).isEqualByComparingTo(new BigDecimal("736.52"));
+        assertThat(response.appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
+        assertThat(response.totalFee()).isEqualByComparingTo(new BigDecimal("8000"));
+        assertThat(response.createdAt()).isEqualTo(remittanceTransaction.getCreatedAt());
     }
 
     @Test
