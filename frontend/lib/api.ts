@@ -7,36 +7,9 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const url = `${BASE_URL}${path}`
 
-  // For GET with a body, use XMLHttpRequest because standard browser fetch throws TypeError
+  // HTTP specifications (RFC 7231) recommend against sending bodies in GET requests.
   if (method === "GET" && body) {
-    return new Promise<T>((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
-      xhr.open("GET", url, true)
-      xhr.withCredentials = true
-      xhr.setRequestHeader("Content-Type", "application/json")
-      
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            resolve(JSON.parse(xhr.responseText) as T)
-          } catch (e) {
-            resolve(xhr.responseText as any)
-          }
-        } else {
-          try {
-            reject(JSON.parse(xhr.responseText))
-          } catch (e) {
-            reject(new Error(xhr.statusText || `Request failed with status ${xhr.status}`))
-          }
-        }
-      }
-      
-      xhr.onerror = () => {
-        reject(new Error("Network error"))
-      }
-      
-      xhr.send(JSON.stringify(body))
-    })
+    throw new Error("GET requests should not have a body")
   }
 
   const options: RequestInit = {
