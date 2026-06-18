@@ -1,4 +1,4 @@
 package com.fxflow.global.security.dto;
 
-public record JwtUserInfo(Long userId, String role) {
+public record JwtUserInfo(Long userId, String role, String jti) {
 }
