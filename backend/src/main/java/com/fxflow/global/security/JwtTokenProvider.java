@@ -16,9 +16,11 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -64,6 +66,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .subject(String.valueOf(user.getId()))
+                .id(UUID.randomUUID().toString()) //로그아웃시 블랙리스트 키로 쓸 jti
                 .claim(ROLE_CLAIM, user.getRole().name())
                 .issuedAt(now)
                 .expiration(expiry)
@@ -116,8 +119,9 @@ public class JwtTokenProvider {
 
         Long userId = Long.parseLong(claims.getSubject());
         String role = claims.get(ROLE_CLAIM, String.class);
+        String jti = claims.getId();
 
-        return new JwtUserInfo(userId, role);
+        return new JwtUserInfo(userId, role,jti);
     }
 
     /**
@@ -128,6 +132,15 @@ public class JwtTokenProvider {
                 parseClaims(token).getExpiration().toInstant(),
                 ZoneId.of(TIME_ZONE)
         );
+    }
+    /**
+     * 토큰의 남은 유효시간을 계산한다. 블랙리스트 TTL로 사용 —
+     * 자연 만료 시점에 Redis에서도 같이 사라지게 한다. 이미 만료됐으면 ZERO.
+     */
+    public Duration getRemainingTtl(String token) {
+        Date expiration = parseClaims(token).getExpiration();
+        long remainingMillis = expiration.getTime() - System.currentTimeMillis();
+        return remainingMillis > 0 ? Duration.ofMillis(remainingMillis) : Duration.ZERO;
     }
 
     /**

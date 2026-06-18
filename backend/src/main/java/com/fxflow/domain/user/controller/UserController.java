@@ -37,6 +37,10 @@ public class UserController {
         SignupResponse response = userService.signup(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+    /**
+     * 로그인
+     * POST /api/v1/auth/login
+     */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @RequestBody @Valid LoginRequest loginRequest,
@@ -47,5 +51,11 @@ public class UserController {
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
         return ResponseEntity.ok(LoginResponse.of(user));
     }
+    /**
+     * 로그아웃
+     * Post /api/v1/auth/logout
+     */
+    @PostMapping
+    public ResponseEntity<Void> logO
 
 }
