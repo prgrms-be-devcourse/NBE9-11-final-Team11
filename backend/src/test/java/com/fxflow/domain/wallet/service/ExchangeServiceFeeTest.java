@@ -38,8 +38,7 @@ class ExchangeServiceFeeTest {
     @Mock private WalletService walletService;
     @Mock private WalletRepository walletRepository;
     @Mock private UserService userService;
-    @Mock
-    private TransactionLimitValidator transactionLimitValidator;
+    @Mock private TransactionLimitValidator transactionLimitValidator;
     @Mock private ExchangeTransactionRepository exchangeTransactionRepository;
     @Mock private LedgerEntryRepository ledgerEntryRepository;
 
@@ -85,21 +84,6 @@ class ExchangeServiceFeeTest {
         given(valueOperations.get("quote:" + quoteId)).willReturn(cache);
         given(exchangeTransactionRepository.save(any(ExchangeTransaction.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
-    }
-
-    @Test
-    @DisplayName("체결 시 toWallet에는 수수료가 차감된 금액만 적립되어야 한다")
-    void exchange_deductsFeeFromDepositedAmount() {
-        // given
-        ExchangeRequest request = new ExchangeRequest(quoteId);
-        BigDecimal expectedNetAmount = cache.toAmount().subtract(cache.feeAmount()); // 366.70 - 1.83 = 364.87
-
-        // when
-        exchangeService.exchange(userId, request);
-
-        // then
-        assertThat(toWallet.getBalance())
-                .isEqualByComparingTo(expectedNetAmount);
     }
 
     @Test

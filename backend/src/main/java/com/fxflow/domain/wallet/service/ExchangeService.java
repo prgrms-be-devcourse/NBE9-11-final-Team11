@@ -77,8 +77,8 @@ public class ExchangeService {
         BigDecimal toAmount = fromCurrency.equals("KRW")
                 ? amount.divide(appliedRate, 2, RoundingMode.HALF_UP)
                 : amount.multiply(appliedRate);  // 환율만 적용된 금액
-        BigDecimal feeAmount = toAmount.multiply(feeRate);  // toAmount의 일정 % (수수료)
-        BigDecimal totalAmount = toAmount.add(feeAmount);  // toAmount + 수수료
+        BigDecimal feeAmount = amount.multiply(feeRate);  // 출발 통화 기준 수수료
+        BigDecimal totalAmount = amount.add(feeAmount);  // 출발 통화 기준 총 차감액
         LocalDateTime expiredAt =
                 LocalDateTime.now()
                         .plusMinutes(exchangeProperties.getQuoteExpirationMinutes());
@@ -124,7 +124,7 @@ public class ExchangeService {
         Wallet fromWallet = walletService.getWallet(userId, cache.fromCurrency());
         Wallet toWallet = walletService.getWallet(userId, cache.toCurrency());
 
-        if (fromWallet.getBalance().compareTo(cache.fromAmount()) < 0){
+        if (fromWallet.getBalance().compareTo(cache.totalAmount()) < 0){
             throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
         }
 
@@ -171,7 +171,7 @@ public class ExchangeService {
         LedgerEntry fromEntry = LedgerEntry.create(
                 journalId, LedgerEntryType.EXCHANGE, LedgerDirection.DEBIT,
                 fromWallet.getId(), null, null,
-                cache.fromCurrency(), cache.fromAmount(),
+                cache.fromCurrency(), cache.totalAmount(),
                 fromBalanceBefore, fromWallet.getBalance(),
                 String.valueOf(LedgerRefType.EXCHANGE), exchangeTransaction.getTransactionId()
         );

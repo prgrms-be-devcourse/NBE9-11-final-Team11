@@ -187,10 +187,11 @@ class ExchangeServiceTest {
         ExchangeQuoteResponse response = exchangeService.getExchangeQuote(userId, request);
 
         // then
-        // toAmount = 1000 * 2 = 2000
-        // feeAmount = 2000 * 0.1 = 200
-        // totalAmount = 2200
-        assertThat(response.fee()).isEqualByComparingTo(BigDecimal.valueOf(200));
-        assertThat(response.totalAmount()).isEqualByComparingTo(BigDecimal.valueOf(2200));
+        // toAmount = 1000 / 2 = 500
+        // feeAmount = 1000 * 0.1 = 100
+        // totalAmount = 1100
+        assertThat(response.toAmount()).isEqualByComparingTo(BigDecimal.valueOf(500));
+        assertThat(response.fee()).isEqualByComparingTo(BigDecimal.valueOf(100));
+        assertThat(response.totalAmount()).isEqualByComparingTo(BigDecimal.valueOf(1100));
     }
 }
