@@ -2,7 +2,9 @@ package com.fxflow.domain.remittancetransaction.service;
 
 import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
+import com.fxflow.domain.remittancetransaction.dto.cache.RemittanceQuoteCache;
 import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionCreateRequest;
+import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionQuoteRequest;
 import com.fxflow.domain.remittancetransaction.dto.response.*;
 import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
@@ -21,6 +23,8 @@ import com.fxflow.domain.transactionlimit.errorcode.TransactionLimitErrorCode;
 import com.fxflow.domain.transactionlimit.repository.TransactionLimitRepository;
 import com.fxflow.domain.userlimitusage.repository.UserAnnualUsageRepository;
 import com.fxflow.global.exception.BusinessException;
+import com.fxflow.global.fx.ExchangeRateProvider;
+import com.fxflow.global.fx.FxRateSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,9 +33,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -74,8 +81,135 @@ class RemittanceTransactionServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private ExchangeRateProvider exchangeRateProvider;
+
+    @Mock
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Mock
+    private ValueOperations<String, Object> valueOperations;
+
     @InjectMocks
     private RemittanceTransactionService remittanceTransactionService;
+
+    @Test
+    @DisplayName("성공: 해외송금 견적을 산출하고 Redis에 저장한다")
+    void createQuote_success() {
+        // given
+        Long userId = 1L;
+        RemittanceTransactionQuoteRequest request = createQuoteRequest();
+        Recipient recipient = createRecipient(userId);
+        FxRateSnapshot fxRateSnapshot = createFxRateSnapshot();
+
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
+                .thenReturn(Optional.of(recipient));
+        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+                .thenReturn(Optional.of(fxRateSnapshot));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        // when
+        RemittanceTransactionQuoteResponse response =
+                remittanceTransactionService.createQuote(userId, request);
+
+        // then
+        assertThat(response.sendAmountKrw()).isEqualByComparingTo(new BigDecimal("1000000"));
+        assertThat(response.receiveAmountUsd()).isEqualByComparingTo(new BigDecimal("740.00"));
+        assertThat(response.exchangeRate()).isEqualByComparingTo(new BigDecimal("1351.350"));
+        assertThat(response.fixedFee()).isEqualByComparingTo(new BigDecimal("3000.00"));
+        assertThat(response.percentFee()).isEqualByComparingTo(new BigDecimal("5000"));
+        assertThat(response.totalFee()).isEqualByComparingTo(new BigDecimal("8000.00"));
+        assertThat(response.quoteId()).isNotBlank();
+        assertThat(response.expiredAt()).isNotNull();
+
+        verify(remittanceValidator).validateLimits(userId, new BigDecimal("740.00"));
+
+        ArgumentCaptor<RemittanceQuoteCache> cacheCaptor =
+                ArgumentCaptor.forClass(RemittanceQuoteCache.class);
+        verify(valueOperations).set(
+                startsWith("remittance:quote:"),
+                cacheCaptor.capture(),
+                eq(Duration.ofMinutes(10))
+        );
+
+        RemittanceQuoteCache cache = cacheCaptor.getValue();
+        assertThat(cache.userId()).isEqualTo(userId);
+        assertThat(cache.recipientId()).isEqualTo(request.recipientId());
+        assertThat(cache.sendCurrency()).isEqualTo("KRW");
+        assertThat(cache.sendAmount()).isEqualByComparingTo(new BigDecimal("1000000"));
+        assertThat(cache.receiveCurrency()).isEqualTo("USD");
+        assertThat(cache.receiveAmount()).isEqualByComparingTo(new BigDecimal("740.00"));
+        assertThat(cache.appliedRate()).isEqualByComparingTo(new BigDecimal("1351.350"));
+        assertThat(cache.feeAmount()).isEqualByComparingTo(new BigDecimal("8000.00"));
+        assertThat(cache.amountKrw()).isEqualByComparingTo(new BigDecimal("1000000"));
+        assertThat(cache.amountUsd()).isEqualByComparingTo(new BigDecimal("740.00"));
+    }
+
+    @Test
+    @DisplayName("실패: 해외송금 견적 산출 시 수취인을 찾을 수 없으면 예외가 발생한다")
+    void createQuote_fail_recipientNotFound() {
+        // given
+        Long userId = 1L;
+        RemittanceTransactionQuoteRequest request = createQuoteRequest();
+
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
+                .thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createQuote(userId, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RecipientErrorCode.RECIPIENT_NOT_FOUND);
+
+        verifyNoInteractions(exchangeRateProvider);
+        verifyNoInteractions(redisTemplate);
+    }
+
+    @Test
+    @DisplayName("실패: 해외송금 견적 산출 시 환율 정보가 없으면 예외가 발생한다")
+    void createQuote_fail_exchangeRateNotFound() {
+        // given
+        Long userId = 1L;
+        RemittanceTransactionQuoteRequest request = createQuoteRequest();
+        Recipient recipient = createRecipient(userId);
+
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
+                .thenReturn(Optional.of(recipient));
+        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+                .thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createQuote(userId, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RemittanceTransactionErrorCode.REMITTANCE_EXCHANGE_RATE_NOT_FOUND);
+
+        verifyNoInteractions(redisTemplate);
+    }
+
+    @Test
+    @DisplayName("실패: 해외송금 견적 산출 시 한도를 초과하면 Redis에 저장하지 않는다")
+    void createQuote_fail_limitExceeded() {
+        // given
+        Long userId = 1L;
+        RemittanceTransactionQuoteRequest request = createQuoteRequest();
+        Recipient recipient = createRecipient(userId);
+        FxRateSnapshot fxRateSnapshot = createFxRateSnapshot();
+        BusinessException exception =
+                new BusinessException(TransactionLimitErrorCode.ANNUAL_REMITTANCE_LIMIT_EXCEEDED);
+
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
+                .thenReturn(Optional.of(recipient));
+        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+                .thenReturn(Optional.of(fxRateSnapshot));
+        doThrow(exception).when(remittanceValidator).validateLimits(userId, new BigDecimal("740.00"));
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createQuote(userId, request))
+                .isSameAs(exception);
+
+        verifyNoInteractions(redisTemplate);
+    }
 
     @Test
     @DisplayName("성공: 송금 주문을 생성하고 가상계좌를 발급한다")
@@ -382,6 +516,24 @@ class RemittanceTransactionServiceTest {
         );
     }
 
+    private RemittanceTransactionQuoteRequest createQuoteRequest() {
+        return new RemittanceTransactionQuoteRequest(
+                1L,
+                new BigDecimal("1000000"),
+                RemittanceReason.LIVING_EXPENSES
+        );
+    }
+
+    private FxRateSnapshot createFxRateSnapshot() {
+        return new FxRateSnapshot(
+                "USD",
+                "KRW",
+                new BigDecimal("1350.00000000"),
+                new BigDecimal("0.001"),
+                LocalDateTime.now()
+        );
+    }
+
     @Test
     @DisplayName("성공: 송금 내역 목록을 최신순으로 조회한다")
     void getTransfers_success() {
@@ -488,7 +640,7 @@ class RemittanceTransactionServiceTest {
     }
 
     private Recipient createRecipient(Long userId) {
-        return Recipient.create(
+        Recipient recipient = Recipient.create(
                 userId,
                 "John Doe",
                 "US",
@@ -496,6 +648,9 @@ class RemittanceTransactionServiceTest {
                 "Chase Bank",
                 "1234567890"
         );
+        ReflectionTestUtils.setField(recipient, "id", 1L);
+
+        return recipient;
     }
 
     private RemittanceTransaction createPendingTransaction(Long userId, Long transferId) {
