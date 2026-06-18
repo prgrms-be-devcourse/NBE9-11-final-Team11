@@ -40,7 +40,7 @@ public class MockBankAccountService {
 
     @Transactional
     public void withdraw(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
-        MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndUserId(bankAccountId, userId)
+        MockBankAccount bankAccount = mockBankAccountRepository.findByUserIdAndCurrencyCode(userId, currencyCode)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
         BigDecimal balanceBefore = bankAccount.getBalance();
@@ -54,7 +54,7 @@ public class MockBankAccountService {
                 LedgerEntryType.CHARGE,
                 LedgerDirection.DEBIT,
                 null,
-                bankAccountId,
+                bankAccount.getId(),
                 null,
                 currencyCode,
                 amount,
@@ -69,7 +69,7 @@ public class MockBankAccountService {
 
     @Transactional
     public void deposit(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
-        MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndUserId(bankAccountId, userId)
+        MockBankAccount bankAccount = mockBankAccountRepository.findByUserIdAndCurrencyCode(userId, currencyCode)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
         BigDecimal balanceBefore = bankAccount.getBalance();
@@ -82,7 +82,7 @@ public class MockBankAccountService {
                 LedgerEntryType.WITHDRAW,
                 LedgerDirection.CREDIT,
                 null,
-                bankAccountId,
+                bankAccount.getId(),
                 null,
                 currencyCode,
                 amount,

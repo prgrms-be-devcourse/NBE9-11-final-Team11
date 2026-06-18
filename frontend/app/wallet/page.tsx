@@ -12,38 +12,148 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { TransactionRow } from "@/components/app/transaction-row"
-import { useStore } from "@/lib/store"
+import { useStore, type Transaction, type TxType } from "@/lib/store"
 import { CURRENCY_META, formatKRW, formatCurrency, krwPerUnit, type CurrencyCode } from "@/lib/fx-data"
 import { KOREAN_BANKS } from "@/lib/fx-data"
+import { apiRequest } from "@/lib/api"
+import { useEffect } from "react"
 
 const FX_CODES: CurrencyCode[] = ["USD", "JPY", "EUR", "CNY"]
 
 export default function WalletPage() {
-  const { krwBalance, fxBalances, transactions, deposit, withdraw } = useStore()
+  const [krwBalance, setKrwBalance] = useState<number>(0)
+  const [fxBalances, setFxBalances] = useState<Record<CurrencyCode, number>>({
+    KRW: 0,
+    USD: 0,
+    JPY: 0,
+    EUR: 0,
+    CNY: 0,
+  })
+  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [mode, setMode] = useState<"deposit" | "withdraw">("deposit")
   const [amount, setAmount] = useState("")
   const [bank, setBank] = useState(KOREAN_BANKS[0])
   const [account, setAccount] = useState("")
   const [open, setOpen] = useState(false)
 
+  const fetchData = async () => {
+    try {
+      const balanceRes = await apiRequest<{ totalKrw: number; walletResponseList: { currency: string; balance: number }[] }>(
+        "GET",
+        "/api/v1/wallets"
+      )
+      
+      const newFxBalances: Record<CurrencyCode, number> = {
+        KRW: 0,
+        USD: 0,
+        JPY: 0,
+        EUR: 0,
+        CNY: 0,
+      }
+      
+      let localKrw = 0
+      if (balanceRes.walletResponseList) {
+        balanceRes.walletResponseList.forEach((w) => {
+          if (w.currency === "KRW") {
+            localKrw = w.balance
+          }
+          newFxBalances[w.currency as CurrencyCode] = w.balance
+        })
+      }
+      setKrwBalance(localKrw)
+      setFxBalances(newFxBalances)
+
+      const historyRes = await apiRequest<{ totalCount: number; transactionResponseList: any[] }>(
+        "GET",
+        "/api/v1/wallets/transactions?size=50"
+      )
+
+      if (historyRes.transactionResponseList) {
+        const mappedTxList = historyRes.transactionResponseList.map((tx: any) => {
+          let type: TxType = "deposit"
+          let title = ""
+          let amountKRW = Number(tx.amount)
+
+          if (tx.type === "CHARGE") {
+            type = "deposit"
+            title = "KRW 입금"
+          } else if (tx.type === "WITHDRAW") {
+            type = "withdraw"
+            title = "KRW 출금"
+            amountKRW = -amountKRW
+          } else if (tx.type === "EXCHANGE") {
+            type = "exchange"
+            if (tx.currency === "KRW") {
+              title = "KRW → USD 환전"
+              amountKRW = -amountKRW
+            } else {
+              title = "KRW → USD 환전"
+            }
+          } else if (tx.type === "TRANSFER") {
+            type = "remittance"
+            title = "해외송금"
+            amountKRW = -amountKRW
+          }
+
+          return {
+            id: String(tx.transactionId),
+            type,
+            title,
+            amountKRW,
+            status: "completed",
+            createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : new Date().toISOString(),
+          } as Transaction
+        })
+        setTransactions(mappedTxList)
+      } else {
+        setTransactions([])
+      }
+    } catch (err) {
+      console.error("Failed to load wallet data", err)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
   const fxValueKRW = FX_CODES.reduce((sum, c) => sum + (fxBalances[c] ?? 0) * krwPerUnit(c), 0)
   const totalKRW = krwBalance + fxValueKRW
 
-  function submit() {
+  async function submit() {
     const value = Number(amount.replace(/,/g, ""))
     if (!value || value <= 0) return toast.error("올바른 금액을 입력하세요.")
     if (!account.trim()) return toast.error("계좌번호를 입력하세요.")
     if (mode === "withdraw" && value > krwBalance) return toast.error("출금 가능 잔액을 초과했습니다.")
-    if (mode === "deposit") {
-      deposit(value, bank, account)
-      toast.success(`${formatKRW(value)} 입금이 완료되었습니다.`)
-    } else {
-      withdraw(value, bank, account)
-      toast.success(`${formatKRW(value)} 출금이 완료되었습니다.`)
+
+    const cleanAccount = account.replace(/[^\d]/g, "").padEnd(12, "0").slice(0, 12)
+
+    try {
+      const userIdStr = typeof window !== "undefined" ? localStorage.getItem("fxflow-userId") : null
+      const bankAccountId = userIdStr ? Number(userIdStr) : 1
+
+      if (mode === "deposit") {
+        await apiRequest("POST", "/api/v1/wallets/charge", {
+          bankAccountId: bankAccountId,
+          amount: value,
+        })
+        toast.success(`${formatKRW(value)} 입금이 완료되었습니다.`)
+      } else {
+        await apiRequest("POST", "/api/v1/wallets/withdraw", {
+          bankAccountId: bankAccountId,
+          amount: value,
+        })
+        toast.success(`${formatKRW(value)} 출금이 완료되었습니다.`)
+      }
+
+      setAmount("")
+      setAccount("")
+      setOpen(false)
+      fetchData()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "거래 처리에 실패했습니다.")
     }
-    setAmount("")
-    setAccount("")
-    setOpen(false)
   }
 
   const walletTx = transactions.filter((t) => t.type === "deposit" || t.type === "withdraw")

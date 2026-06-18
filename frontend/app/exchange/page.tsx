@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { ArrowDownUp, Info } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
@@ -20,33 +20,85 @@ import {
   krwPerUnit,
   type CurrencyCode,
 } from "@/lib/fx-data"
+import { apiRequest } from "@/lib/api"
 
 const FX_CODES: Exclude<CurrencyCode, "KRW">[] = ["USD", "JPY", "EUR", "CNY"]
 
 export default function ExchangePage() {
-  const { krwBalance, exchange } = useStore()
+  const [krwBalance, setKrwBalance] = useState<number>(0)
   const [target, setTarget] = useState<Exclude<CurrencyCode, "KRW">>("USD")
   const [krwInput, setKrwInput] = useState("500000")
+  const [quote, setQuote] = useState<any>(null)
+  const [loadingQuote, setLoadingQuote] = useState(false)
+  const [quoteError, setQuoteError] = useState<string>("")
 
   const krwAmount = Number(krwInput.replace(/[^\d]/g, "")) || 0
-  const rate = RATES[target]
-  const perUnit = krwPerUnit(target)
 
-  const { fee, netKRW, received } = useMemo(() => {
-    const fee = exchangeFee(krwAmount)
-    const netKRW = Math.max(0, krwAmount)
-    const received = netKRW / perUnit
-    return { fee, netKRW, received }
-  }, [krwAmount, perUnit])
+  const fetchBalance = async () => {
+    try {
+      const data = await apiRequest<{ totalKrw: number }>("GET", "/api/v1/wallets")
+      setKrwBalance(data.totalKrw || 0)
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
-  const totalDeduct = krwAmount + fee
+  useEffect(() => {
+    fetchBalance()
+  }, [])
 
-  function submit() {
+  useEffect(() => {
+    if (krwAmount <= 0) {
+      setQuote(null)
+      setQuoteError("")
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setLoadingQuote(true)
+      setQuoteError("")
+      try {
+        const data = await apiRequest<any>(
+          "GET",
+          `/api/v1/wallets/exchange/quote?fromCurrency=KRW&toCurrency=${target}&amount=${krwAmount}`
+        )
+        setQuote(data)
+      } catch (err: any) {
+        console.error(err)
+        setQuoteError(err.message || "해당 통화의 환전 정보를 가져올 수 없습니다.")
+        setQuote(null)
+      } finally {
+        setLoadingQuote(false)
+      }
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [krwAmount, target])
+
+  const appliedRate = quote ? quote.exchangeRate : 0
+  const netKRW = quote ? quote.fromAmount : krwAmount
+  const fee = quote ? quote.fee : 0
+  const totalDeduct = quote ? quote.totalAmount : krwAmount
+  const received = quote ? quote.toAmount : 0
+
+  async function submit() {
     if (krwAmount <= 0) return toast.error("환전할 금액을 입력하세요.")
+    if (quoteError) return toast.error(quoteError)
+    if (!quote || !quote.quoteId) return toast.error("견적을 불러오는 중이거나 실패했습니다.")
     if (totalDeduct > krwBalance) return toast.error("KRW 잔액이 부족합니다.")
-    exchange("KRW", target, krwAmount, received, rate.rate, fee)
-    toast.success(`${formatCurrency(received, target)} 환전이 완료되었습니다.`)
-    setKrwInput("")
+
+    try {
+      const res = await apiRequest<any>("POST", "/api/v1/wallets/exchange", {
+        quoteId: quote.quoteId,
+      })
+      toast.success(`${formatCurrency(res.toAmount, res.toCurrency)} 환전이 완료되었습니다.`)
+      setKrwInput("")
+      setQuote(null)
+      fetchBalance()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "환전에 실패했습니다.")
+    }
   }
 
   return (
@@ -137,8 +189,15 @@ export default function ExchangePage() {
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">적용 환율</dt>
                 <dd className="font-medium tabular-nums">
-                  ₩{rate.rate.toLocaleString("ko-KR")} / {rate.unit > 1 ? `${rate.unit} ` : ""}
-                  {target}
+                  {loadingQuote ? (
+                    "계산 중..."
+                  ) : quoteError ? (
+                    <span className="text-destructive text-xs">{quoteError}</span>
+                  ) : appliedRate > 0 ? (
+                    `₩${appliedRate.toLocaleString("ko-KR", { maximumFractionDigits: 2 })} / ${target}`
+                  ) : (
+                    `₩${(RATES[target]?.rate || 0).toLocaleString("ko-KR")} / ${target}`
+                  )}
                 </dd>
               </div>
               <div className="flex justify-between">
@@ -146,7 +205,7 @@ export default function ExchangePage() {
                 <dd className="font-medium tabular-nums">{formatKRW(netKRW)}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-muted-foreground">수수료 (0.4%)</dt>
+                <dt className="text-muted-foreground">수수료</dt>
                 <dd className="font-medium tabular-nums">{formatKRW(fee)}</dd>
               </div>
               <Separator />
