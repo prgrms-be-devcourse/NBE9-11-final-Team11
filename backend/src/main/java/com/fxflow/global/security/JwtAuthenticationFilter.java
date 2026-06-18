@@ -36,7 +36,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // 검증 + 파싱 1번만 발생
                 JwtUserInfo jwtUserInfo = jwtTokenProvider.getJwtUserInfo(token);
                 if (tokenBlacklistService.isBlacklisted(jwtUserInfo.jti())) {
-                    log.debug("[JWT] 로그아웃 처리된 토큰 — uri={}", request.getRequestURI());
+                    log.warn("[JWT] 로그아웃 처리된 토큰 — uri={}", request.getRequestURI());
                     SecurityContextHolder.clearContext();
                 } else {
                     log.debug("[JWT] 인증 성공 — userId={}, role={}",
