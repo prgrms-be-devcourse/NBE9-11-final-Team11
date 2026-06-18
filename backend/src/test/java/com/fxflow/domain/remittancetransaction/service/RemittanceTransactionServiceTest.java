@@ -19,8 +19,14 @@ import com.fxflow.domain.remittancetransaction.repository.RecipientRepository;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.remittancetransaction.repository.VirtualAccountRepository;
 import com.fxflow.domain.remittancetransaction.validator.RemittanceValidator;
+import com.fxflow.domain.transactionlimit.entity.TransactionLimit;
+import com.fxflow.domain.transactionlimit.enums.LimitTier;
+import com.fxflow.domain.transactionlimit.enums.LimitType;
 import com.fxflow.domain.transactionlimit.errorcode.TransactionLimitErrorCode;
 import com.fxflow.domain.transactionlimit.repository.TransactionLimitRepository;
+import com.fxflow.domain.user.entity.User;
+import com.fxflow.domain.user.repository.UserRepository;
+import com.fxflow.domain.userlimitusage.entity.UserAnnualUsage;
 import com.fxflow.domain.userlimitusage.repository.UserAnnualUsageRepository;
 import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.ExchangeRateProvider;
@@ -39,7 +45,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,6 +64,9 @@ class RemittanceTransactionServiceTest {
 
     @Mock
     private TransactionLimitRepository transactionLimitRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Mock
     private RecipientRepository recipientRepository;
@@ -218,13 +229,26 @@ class RemittanceTransactionServiceTest {
         Long userId = 1L;
         Long transferId = 10L;
         Long virtualAccountId = 20L;
+        int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+
         RemittanceTransactionCreateRequest request = createRequest();
         RemittanceQuoteSnapshot quote = createQuote();
         Recipient recipient = createRecipient(userId);
+        UserAnnualUsage annualUsage = createAnnualUsage(userId, currentYear, BigDecimal.ZERO);
 
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
                 .thenReturn(Optional.of(recipient));
+        when(transactionLimitRepository.findByLimitTypeAndTierAndCurrencyCodeAndIsActiveTrue(
+                LimitType.ANNUAL_REMITTANCE,
+                LimitTier.STANDARD,
+                "USD"
+        )).thenReturn(Optional.of(createLimit(
+                LimitType.ANNUAL_REMITTANCE,
+                new BigDecimal("100000.00000000")
+        )));
+        when(userAnnualUsageRepository.findByUserIdAndYearForUpdate(userId, currentYear))
+                .thenReturn(Optional.of(annualUsage));
         when(remittanceTransactionRepository.save(any(RemittanceTransaction.class)))
                 .thenAnswer(invocation -> {
                     RemittanceTransaction remittanceTransaction = invocation.getArgument(0);
@@ -260,6 +284,8 @@ class RemittanceTransactionServiceTest {
         assertThat(savedTransaction.getReasonDetail()).isEqualTo("생활비 송금");
         assertThat(savedTransaction.getStatus()).isEqualTo(TransferStatus.PENDING);
         verify(remittanceValidator).validateLimits(userId, quote.amountUsd());
+        verify(userAnnualUsageRepository).findByUserIdAndYearForUpdate(userId, currentYear);
+        assertThat(annualUsage.getAnnualUsedUsd()).isEqualByComparingTo(quote.amountUsd());
 
         ArgumentCaptor<VirtualAccount> virtualAccountCaptor =
                 ArgumentCaptor.forClass(VirtualAccount.class);
@@ -563,6 +589,7 @@ class RemittanceTransactionServiceTest {
         assertThat(responses.getFirst().sendCurrency()).isEqualTo("KRW");
         assertThat(responses.getFirst().receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
         assertThat(responses.getFirst().receiveCurrency()).isEqualTo("USD");
+        assertThat(responses.getFirst().appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
         assertThat(responses.getFirst().feeAmount()).isEqualByComparingTo(new BigDecimal("8000"));
         assertThat(responses.getFirst().status()).isEqualTo(TransferStatus.PENDING);
     }
@@ -642,6 +669,29 @@ class RemittanceTransactionServiceTest {
         ReflectionTestUtils.setField(recipient, "id", 1L);
 
         return recipient;
+    }
+
+    private UserAnnualUsage createAnnualUsage(Long userId, int year, BigDecimal usedUsd) {
+        User user = User.create(
+                "remittance-user@example.com",
+                "encoded-password",
+                "송금사용자"
+        );
+        ReflectionTestUtils.setField(user, "id", userId);
+
+        UserAnnualUsage usage = UserAnnualUsage.create(user, year);
+        usage.addUsage(usedUsd);
+
+        return usage;
+    }
+
+    private TransactionLimit createLimit(LimitType limitType, BigDecimal limitAmount) {
+        return TransactionLimit.create(
+                limitType,
+                LimitTier.STANDARD,
+                "USD",
+                limitAmount
+        );
     }
 
     private RemittanceTransaction createPendingTransaction(Long userId, Long transferId) {
