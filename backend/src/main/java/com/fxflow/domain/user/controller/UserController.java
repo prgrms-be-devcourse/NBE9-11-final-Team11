@@ -6,7 +6,10 @@ import com.fxflow.domain.user.dto.response.LoginResponse;
 import com.fxflow.domain.user.dto.response.SignupResponse;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.service.UserService;
+import com.fxflow.global.security.CookieTokenExtractor;
 import com.fxflow.global.security.JwtTokenProvider;
+import com.fxflow.global.security.TokenBlacklistService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
     private final UserService userService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final TokenBlacklistService tokenBlacklistService;
 
     /**
      * 회원가입
@@ -53,9 +57,21 @@ public class UserController {
     }
     /**
      * 로그아웃
-     * Post /api/v1/auth/logout
+     * POST /api/v1/auth/logout
+     * 토큰을 블랙리스트에 등록해 즉시 무효화하고, 쿠키를 삭제한다.
      */
-    @PostMapping
-    public ResponseEntity<Void> logO
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        String token = CookieTokenExtractor.extract(request);
+        tokenBlacklistService.invalidate(token);
+
+        ResponseCookie cookie = jwtTokenProvider.deleteAccessTokenCookie();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
+        return ResponseEntity.ok().build();
+    }
 
 }
