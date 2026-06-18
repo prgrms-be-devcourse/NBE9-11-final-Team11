@@ -7,12 +7,16 @@ import com.fxflow.domain.remittancetransaction.dto.response.RemittanceLimitRespo
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceMockFundedResponse;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceQuoteSnapshot;
 import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionCreateResponse;
+import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionDetailResponse;
+import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionSummaryResponse;
+import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.domain.remittancetransaction.enums.VirtualAccountStatus;
 import com.fxflow.domain.remittancetransaction.errorcode.RecipientErrorCode;
 import com.fxflow.domain.remittancetransaction.errorcode.RemittanceTransactionErrorCode;
+import com.fxflow.domain.remittancetransaction.event.RemittanceFundedEvent;
 import com.fxflow.domain.remittancetransaction.repository.RecipientRepository;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.remittancetransaction.repository.VirtualAccountRepository;
@@ -26,6 +30,7 @@ import com.fxflow.domain.userlimitusage.entity.UserAnnualUsage;
 import com.fxflow.domain.userlimitusage.repository.UserAnnualUsageRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +38,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -56,6 +62,7 @@ public class RemittanceTransactionService {
     private final RemittanceValidator remittanceValidator;
     private final MockBankAccountService mockBankAccountService;
     private final CompanyPoolService companyPoolService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 유저의 해외송금 잔여 한도를 조회한다.
@@ -80,6 +87,31 @@ public class RemittanceTransactionService {
     }
 
     /**
+     * 로그인한 사용자의 해외송금 내역 목록을 최신순으로 조회한다.
+     */
+    public List<RemittanceTransactionSummaryResponse> getTransfers(Long userId) {
+        return remittanceTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(RemittanceTransactionSummaryResponse::from)
+                .toList();
+    }
+
+    /**
+     * 로그인한 사용자의 특정 해외송금 내역을 상세 조회한다.
+     */
+    public RemittanceTransactionDetailResponse getTransfer(Long userId, Long transferId) {
+        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findByIdAndUserId(
+                        transferId,
+                        userId
+                )
+                .orElseThrow(() -> new BusinessException(
+                        RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
+                ));
+
+        return RemittanceTransactionDetailResponse.from(remittanceTransaction);
+    }
+
+    /**
      * 송금 사유를 검증하고 송금 주문 생성 후 입금용 가상계좌를 발급한다.
      */
     @Transactional
@@ -88,7 +120,7 @@ public class RemittanceTransactionService {
             RemittanceTransactionCreateRequest request
     ) {
         RemittanceQuoteSnapshot quote = remittanceQuoteProvider.getQuote(request.quoteId());
-        validateRecipient(userId, quote.recipientId());
+        Recipient recipient = getRecipient(userId, quote.recipientId());
 
         // 견적의 USD 환산 금액으로 건당/연간 해외송금 한도를 검증한다.
         remittanceValidator.validateLimits(userId, quote.amountUsd());
@@ -99,6 +131,11 @@ public class RemittanceTransactionService {
         RemittanceTransaction remittanceTransaction = RemittanceTransaction.create(
                 userId,
                 quote.recipientId(),
+                recipient.getName(),
+                recipient.getCountryCode(),
+                recipient.getCurrencyCode(),
+                recipient.getBankName(),
+                recipient.getAccountNumber(),
                 null,
                 "BANK_TRANSFER",
                 null,
@@ -168,6 +205,9 @@ public class RemittanceTransactionService {
         remittanceTransaction.fund(sourceMockAccountId);
         virtualAccount.pay(paidAt);
 
+        // 트랜잭션 커밋 이후 TRF-08 등 후속 처리가 이어질 수 있도록 입금 완료 이벤트를 발행한다.
+        eventPublisher.publishEvent(RemittanceFundedEvent.of(remittanceTransaction, virtualAccount));
+
         return RemittanceMockFundedResponse.of(remittanceTransaction, virtualAccount);
     }
 
@@ -186,12 +226,12 @@ public class RemittanceTransactionService {
     }
 
     /**
-     * 요청 사용자가 선택한 수취인을 사용할 수 있는지 확인한다.
+     * 송금 주문 생성 시 사용할 수취인을 조회한다.
+     * 조회한 수취인 정보는 송금 당시 정보 보존을 위해 거래 스냅샷으로 저장한다.
      */
-    private void validateRecipient(Long userId, Long recipientId) {
-        if (!recipientRepository.existsByIdAndUserIdAndDeletedAtIsNull(recipientId, userId)) {
-            throw new BusinessException(RecipientErrorCode.RECIPIENT_NOT_FOUND);
-        }
+    private Recipient getRecipient(Long userId, Long recipientId) {
+        return recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(recipientId, userId)
+                .orElseThrow(() -> new BusinessException(RecipientErrorCode.RECIPIENT_NOT_FOUND));
     }
 
     /**

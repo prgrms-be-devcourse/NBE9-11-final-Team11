@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -100,6 +101,41 @@ class RecipientServiceTest {
         assertThat(responses.getFirst().currencyCode()).isEqualTo("USD");
         assertThat(responses.getFirst().bankName()).isEqualTo("Chase Bank");
         assertThat(responses.getFirst().accountNumber()).isEqualTo("1234567890");
+    }
+
+    @Test
+    @DisplayName("성공: 수취인을 소프트 삭제한다")
+    void deleteRecipient_success() {
+        // given
+        Long userId = 1L;
+        Long recipientId = 1L;
+        Recipient recipient = createRecipient(userId);
+
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(recipientId, userId))
+                .thenReturn(Optional.of(recipient));
+
+        // when
+        recipientService.deleteRecipient(userId, recipientId);
+
+        // then
+        assertThat(recipient.getDeletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("실패: 삭제할 수취인을 찾을 수 없으면 예외가 발생한다")
+    void deleteRecipient_fail_recipientNotFound() {
+        // given
+        Long userId = 1L;
+        Long recipientId = 1L;
+
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(recipientId, userId))
+                .thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> recipientService.deleteRecipient(userId, recipientId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RecipientErrorCode.RECIPIENT_NOT_FOUND);
     }
 
     private RecipientCreateRequest createRequest() {

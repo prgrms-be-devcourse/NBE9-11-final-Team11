@@ -80,4 +80,12 @@ public class Recipient extends BaseEntity {
                 accountNumber
         );
     }
+
+    /**
+     * 수취인 주소록에서 더 이상 사용하지 않도록 Soft Delete 처리한다.
+     * 과거 송금 내역은 RemittanceTransaction의 수취인 스냅샷으로 보존한다.
+     */
+    public void delete(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
 }
