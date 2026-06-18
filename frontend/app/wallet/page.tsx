@@ -123,10 +123,10 @@ export default function WalletPage() {
   async function submit() {
     const value = Number(amount.replace(/,/g, ""))
     if (!value || value <= 0) return toast.error("올바른 금액을 입력하세요.")
-    if (!account.trim()) return toast.error("계좌번호를 입력하세요.")
+    // if (!account.trim()) return toast.error("계좌번호를 입력하세요.")
     if (mode === "withdraw" && value > krwBalance) return toast.error("출금 가능 잔액을 초과했습니다.")
 
-    const cleanAccount = account.replace(/[^\d]/g, "").padEnd(12, "0").slice(0, 12)
+    // const cleanAccount = account.replace(/[^\d]/g, "").padEnd(12, "0").slice(0, 12)
 
     try {
       const userIdStr = typeof window !== "undefined" ? localStorage.getItem("fxflow-userId") : null
@@ -188,6 +188,7 @@ export default function WalletPage() {
                   <DialogTitle>{mode === "deposit" ? "KRW 입금" : "KRW 출금"}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
+                  {/*
                   <div className="space-y-2">
                     <Label htmlFor="bank">은행</Label>
                     <Select value={bank} onValueChange={(v) => setBank(v ?? KOREAN_BANKS[0])}>
@@ -212,6 +213,7 @@ export default function WalletPage() {
                       onChange={(e) => setAccount(e.target.value)}
                     />
                   </div>
+                  */}
                   <div className="space-y-2">
                     <Label htmlFor="amount">금액 (KRW)</Label>
                     <Input
