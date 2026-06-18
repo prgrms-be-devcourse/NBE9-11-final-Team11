@@ -167,8 +167,9 @@ public class RebalancingService {
         companyPoolRepository.increaseBalance(buyPool.getCurrencyCode(), amounts.buyAmount());
         int updated = companyPoolRepository.decreaseBalance(sellPool.getCurrencyCode(), amounts.sellAmount());
         if (updated == 0) {
-            // race condition: 계산 시점과 UPDATE 시점 사이에 매도 풀이 소비됨
-            log.error("매도 풀 잔액 부족으로 감소 실패 (race condition). sellCurrency={}, sellAmount={}",
+            // PESSIMISTIC_WRITE 락 보유 중이므로 정상적으로는 발생하지 않음
+            // TODO: 락 없이 WHERE balance - sellAmount >= floorBalance 조건부 원자적 UPDATE로 개선 검토
+            log.error("매도 풀 잔액 부족으로 감소 실패. sellCurrency={}, sellAmount={}",
                     sellPool.getCurrencyCode(), amounts.sellAmount());
             throw new BusinessException(PoolErrorCode.POOL_INSUFFICIENT_BALANCE);
         }
