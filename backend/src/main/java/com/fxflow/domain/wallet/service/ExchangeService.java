@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -73,7 +74,9 @@ public class ExchangeService {
             throw new BusinessException(ExchangeErrorCode.FEE_RATE_NOT_FOUND);
         }
 
-        BigDecimal toAmount = amount.multiply(appliedRate);
+        BigDecimal toAmount = fromCurrency.equals("KRW")
+                ? amount.divide(appliedRate, 2, RoundingMode.HALF_UP)
+                : amount.multiply(appliedRate);
         BigDecimal feeAmount = toAmount.multiply(feeRate);
         BigDecimal totalAmount = toAmount.add(feeAmount);
         LocalDateTime expiredAt =
@@ -106,7 +109,7 @@ public class ExchangeService {
 
     @Transactional
     public ExchangeResponse exchange(Long userId, ExchangeRequest request) {
-        Long quoteId = request.quoteId();
+        String quoteId = request.quoteId();
 
         // check quote (redis)
         ExchangeQuoteCache cache = (ExchangeQuoteCache) redisTemplate.opsForValue().get("quote:" + quoteId);
@@ -159,7 +162,8 @@ public class ExchangeService {
                 cache.spreadRate(),
                 cache.finalRate(),
                 ExchangeStatus.COMPLETED,
-                idempotencyKey
+                idempotencyKey,
+                cache.feeAmount()
         );
         exchangeTransactionRepository.save(exchangeTransaction);
 
