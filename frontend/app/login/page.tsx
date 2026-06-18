@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { useStore } from "@/lib/store"
+import { apiRequest } from "@/lib/api"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -18,15 +19,23 @@ export default function LoginPage() {
   const [password, setPassword] = useState("demo1234")
   const [error, setError] = useState("")
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
-    // Mock auth: accept the demo credentials, reject others.
-    if (email === "demo@fxflow.app" && password === "demo1234") {
-      login(email, "김민준")
+    try {
+      const data = await apiRequest<{ userId: number; name: string; email: string }>(
+        "POST",
+        "/api/v1/auth/login",
+        { email, password }
+      )
+      login(data.email, data.name)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("fxflow-userId", String(data.userId))
+      }
       router.push("/dashboard")
-    } else {
-      setError("이메일 또는 비밀번호가 올바르지 않습니다.")
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || "이메일 또는 비밀번호가 올바르지 않습니다.")
     }
   }
 
