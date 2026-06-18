@@ -10,7 +10,7 @@ public interface RebalancingRepository extends JpaRepository<RebalancingOrder, L
     // 내역 조회 — 최신순 전체
     List<RebalancingOrder> findAllByOrderByCreatedAtDesc();
 
-    // 스케줄러 재시도 대상 조회 - FAILED 상태만
+    // 스케줄러 재시도 대상 조회 - RETRY_REQUIRED 상태만
     List<RebalancingOrder> findAllByStatus(RebalancingStatus status);
 
     // 멱등성 체크 — 동일 키로 중복 실행 방지

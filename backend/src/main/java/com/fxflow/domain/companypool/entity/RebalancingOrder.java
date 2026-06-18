@@ -17,30 +17,31 @@ import java.math.BigDecimal;
 @Table(name = "rebalancing_orders")
 public class RebalancingOrder extends BaseEntity {
 
+    // MANUAL_REQUIRED(양 통화 모두 floor 미만) 케이스는 nullable
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "buy_pool_id", nullable = false)
+    @JoinColumn(name = "buy_pool_id")
     private CompanyPool buyPool;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sell_pool_id", nullable = false)
+    @JoinColumn(name = "sell_pool_id")
     private CompanyPool sellPool;
 
-    @Column(nullable = false, precision = 18, scale = 2)
+    @Column(precision = 18, scale = 2)
     private BigDecimal buyAmount;
 
-    @Column(nullable = false, precision = 18, scale = 2)
+    @Column(precision = 18, scale = 2)
     private BigDecimal sellAmount;
 
-    @Column(nullable = false, precision = 18, scale = 2)
+    @Column(precision = 18, scale = 2)
     private BigDecimal buyBalanceBefore;
 
-    @Column(nullable = false, precision = 18, scale = 2)
+    @Column(precision = 18, scale = 2)
     private BigDecimal sellBalanceBefore;
 
-    @Column(nullable = false, precision = 18, scale = 8)
+    @Column(precision = 18, scale = 8)
     private BigDecimal midRate;
 
-    @Column(nullable = false, precision = 18, scale = 8)
+    @Column(precision = 18, scale = 8)
     private BigDecimal appliedRate;
 
     @Enumerated(EnumType.STRING)
@@ -60,4 +61,45 @@ public class RebalancingOrder extends BaseEntity {
 
     @Column(nullable = false, unique = true, length = 100)
     private String idempotencyKey;
+
+    private RebalancingOrder(CompanyPool buyPool, CompanyPool sellPool,
+                             BigDecimal buyAmount, BigDecimal sellAmount,
+                             BigDecimal buyBalanceBefore, BigDecimal sellBalanceBefore,
+                             BigDecimal midRate, BigDecimal appliedRate,
+                             RebalancingStatus status, CappedBy cappedBy,
+                             TriggerType triggerType, String reason,
+                             String idempotencyKey) {
+        this.buyPool = buyPool;
+        this.sellPool = sellPool;
+        this.buyAmount = buyAmount;
+        this.sellAmount = sellAmount;
+        this.buyBalanceBefore = buyBalanceBefore;
+        this.sellBalanceBefore = sellBalanceBefore;
+        this.midRate = midRate;
+        this.appliedRate = appliedRate;
+        this.status = status;
+        this.cappedBy = cappedBy;
+        this.triggerType = triggerType;
+        this.reason = reason;
+        this.idempotencyKey = idempotencyKey;
+    }
+
+    public static RebalancingOrder create(CompanyPool buyPool, CompanyPool sellPool,
+                                          BigDecimal buyAmount, BigDecimal sellAmount,
+                                          BigDecimal buyBalanceBefore, BigDecimal sellBalanceBefore,
+                                          BigDecimal midRate, BigDecimal appliedRate,
+                                          RebalancingStatus status, CappedBy cappedBy,
+                                          TriggerType triggerType, String reason,
+                                          String idempotencyKey) {
+        return new RebalancingOrder(buyPool, sellPool, buyAmount, sellAmount,
+                buyBalanceBefore, sellBalanceBefore, midRate, appliedRate,
+                status, cappedBy, triggerType, reason, idempotencyKey);
+    }
+
+    // 양 통화 모두 floor 미만 — 거래 없이 알람 기록용
+    public static RebalancingOrder createAlert(TriggerType triggerType, String reason,
+                                               String idempotencyKey) {
+        return new RebalancingOrder(null, null, null, null, null, null, null, null,
+                RebalancingStatus.MANUAL_REQUIRED, null, triggerType, reason, idempotencyKey);
+    }
 }
