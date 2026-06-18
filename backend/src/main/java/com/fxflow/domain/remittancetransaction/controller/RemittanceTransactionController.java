@@ -1,11 +1,8 @@
 package com.fxflow.domain.remittancetransaction.controller;
 
 import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionCreateRequest;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceLimitResponse;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceMockFundedResponse;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionCreateResponse;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionDetailResponse;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionSummaryResponse;
+import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionQuoteRequest;
+import com.fxflow.domain.remittancetransaction.dto.response.*;
 import com.fxflow.domain.remittancetransaction.service.RemittanceTransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -85,6 +82,20 @@ public class RemittanceTransactionController {
     ) {
         RemittanceMockFundedResponse response =
                 remittanceTransactionService.mockFundTransfer(userId, transferId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 수취인과 송금 금액을 기준으로 해외송금 견적을 산출한다.
+     */
+    @PostMapping("/transfers/quote")
+    public ResponseEntity<RemittanceTransactionQuoteResponse> createQuote(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody RemittanceTransactionQuoteRequest request
+    ) {
+        RemittanceTransactionQuoteResponse response =
+                remittanceTransactionService.createQuote(userId, request);
 
         return ResponseEntity.ok(response);
     }

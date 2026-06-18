@@ -2,13 +2,10 @@ package com.fxflow.domain.remittancetransaction.service;
 
 import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
+import com.fxflow.domain.remittancetransaction.dto.cache.RemittanceQuoteCache;
 import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionCreateRequest;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceLimitResponse;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceMockFundedResponse;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceQuoteSnapshot;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionCreateResponse;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionDetailResponse;
-import com.fxflow.domain.remittancetransaction.dto.response.RemittanceTransactionSummaryResponse;
+import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionQuoteRequest;
+import com.fxflow.domain.remittancetransaction.dto.response.*;
 import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
@@ -29,12 +26,17 @@ import com.fxflow.domain.transactionlimit.repository.TransactionLimitRepository;
 import com.fxflow.domain.userlimitusage.entity.UserAnnualUsage;
 import com.fxflow.domain.userlimitusage.repository.UserAnnualUsageRepository;
 import com.fxflow.global.exception.BusinessException;
+import com.fxflow.global.fx.ExchangeRateProvider;
+import com.fxflow.global.fx.FxRateSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -63,6 +65,14 @@ public class RemittanceTransactionService {
     private final MockBankAccountService mockBankAccountService;
     private final CompanyPoolService companyPoolService;
     private final ApplicationEventPublisher eventPublisher;
+
+    private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("3000.00");
+    private static final BigDecimal PERCENT_FEE_RATE = new BigDecimal("0.005");
+    private static final long QUOTE_EXPIRATION_MINUTES = 10L;
+    private static final String REMITTANCE_QUOTE_KEY_PREFIX = "remittance:quote:";
+
+    private final ExchangeRateProvider exchangeRateProvider;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     /**
      * 유저의 해외송금 잔여 한도를 조회한다.
@@ -319,5 +329,69 @@ public class RemittanceTransactionService {
         int third = ThreadLocalRandom.current().nextInt(100000, 1000000);
 
         return first + "-" + second + "-" + third;
+    }
+
+    /**
+     * 수취인, 송금 금액, 송금 사유를 기준으로 해외송금 견적을 산출하고 Redis에 저장한다.
+     */
+    public RemittanceTransactionQuoteResponse createQuote(
+            Long userId,
+            RemittanceTransactionQuoteRequest request
+    ) {
+        Recipient recipient = getRecipient(userId, request.recipientId());
+
+        FxRateSnapshot fxRateSnapshot = exchangeRateProvider.getLatestRate(USD, KRW)
+                .orElseThrow(() -> new BusinessException(
+                        RemittanceTransactionErrorCode.REMITTANCE_EXCHANGE_RATE_NOT_FOUND
+                ));
+
+        BigDecimal exchangeRate = fxRateSnapshot.buyRate();
+        BigDecimal sendAmountKrw = request.sendAmountKrw();
+        BigDecimal receiveAmountUsd = sendAmountKrw.divide(exchangeRate, 2, RoundingMode.DOWN);
+        BigDecimal percentFee = sendAmountKrw.multiply(PERCENT_FEE_RATE).setScale(0, RoundingMode.DOWN);
+        BigDecimal totalFee = FIXED_FEE_KRW.add(percentFee);
+
+        // 견적의 USD 환산 금액으로 건당/연간 해외송금 한도를 검증한다.
+        remittanceValidator.validateLimits(userId, receiveAmountUsd);
+
+        String quoteId = UUID.randomUUID().toString();
+        LocalDateTime expiredAt = LocalDateTime.now().plusMinutes(QUOTE_EXPIRATION_MINUTES);
+
+        RemittanceQuoteCache cache = new RemittanceQuoteCache(
+                userId,
+                recipient.getId(),
+                KRW,
+                sendAmountKrw,
+                USD,
+                receiveAmountUsd,
+                exchangeRate,
+                totalFee,
+                sendAmountKrw,
+                receiveAmountUsd
+        );
+
+        redisTemplate.opsForValue().set(
+                createQuoteKey(quoteId),
+                cache,
+                Duration.ofMinutes(QUOTE_EXPIRATION_MINUTES)
+        );
+
+        return new RemittanceTransactionQuoteResponse(
+                sendAmountKrw,
+                receiveAmountUsd,
+                exchangeRate,
+                FIXED_FEE_KRW,
+                percentFee,
+                totalFee,
+                quoteId,
+                expiredAt
+        );
+    }
+
+    /**
+     * 해외송금 견적 Redis key를 생성한다.
+     */
+    private String createQuoteKey(String quoteId) {
+        return REMITTANCE_QUOTE_KEY_PREFIX + quoteId;
     }
 }
