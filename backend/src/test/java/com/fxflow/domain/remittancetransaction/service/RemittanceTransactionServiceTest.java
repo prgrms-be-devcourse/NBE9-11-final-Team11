@@ -122,7 +122,7 @@ class RemittanceTransactionServiceTest {
         assertThat(response.quoteId()).isNotBlank();
         assertThat(response.expiredAt()).isNotNull();
 
-        verify(remittanceValidator).validateLimits(userId, new BigDecimal("740.00"));
+        verify(remittanceValidator).validateLimits(userId, new BigDecimal("740.00074000"));
 
         ArgumentCaptor<RemittanceQuoteCache> cacheCaptor =
                 ArgumentCaptor.forClass(RemittanceQuoteCache.class);
@@ -136,13 +136,13 @@ class RemittanceTransactionServiceTest {
         assertThat(cache.userId()).isEqualTo(userId);
         assertThat(cache.recipientId()).isEqualTo(request.recipientId());
         assertThat(cache.sendCurrency()).isEqualTo("KRW");
-        assertThat(cache.sendAmount()).isEqualByComparingTo(new BigDecimal("1000000"));
+        assertThat(cache.sendAmount()).isEqualByComparingTo(new BigDecimal("1000000.00000000"));
         assertThat(cache.receiveCurrency()).isEqualTo("USD");
-        assertThat(cache.receiveAmount()).isEqualByComparingTo(new BigDecimal("740.00"));
+        assertThat(cache.receiveAmount()).isEqualByComparingTo(new BigDecimal("740.00074000"));
         assertThat(cache.appliedRate()).isEqualByComparingTo(new BigDecimal("1351.350"));
-        assertThat(cache.feeAmount()).isEqualByComparingTo(new BigDecimal("8000.00"));
-        assertThat(cache.amountKrw()).isEqualByComparingTo(new BigDecimal("1000000"));
-        assertThat(cache.amountUsd()).isEqualByComparingTo(new BigDecimal("740.00"));
+        assertThat(cache.feeAmount()).isEqualByComparingTo(new BigDecimal("8000.00000000"));
+        assertThat(cache.amountKrw()).isEqualByComparingTo(new BigDecimal("1000000.00000000"));
+        assertThat(cache.amountUsd()).isEqualByComparingTo(new BigDecimal("740.00074000"));
     }
 
     @Test
@@ -202,7 +202,7 @@ class RemittanceTransactionServiceTest {
                 .thenReturn(Optional.of(recipient));
         when(exchangeRateProvider.getLatestRate("USD", "KRW"))
                 .thenReturn(Optional.of(fxRateSnapshot));
-        doThrow(exception).when(remittanceValidator).validateLimits(userId, new BigDecimal("740.00"));
+        doThrow(exception).when(remittanceValidator).validateLimits(userId, new BigDecimal("740.00074000"));
 
         // when & then
         assertThatThrownBy(() -> remittanceTransactionService.createQuote(userId, request))
@@ -559,11 +559,11 @@ class RemittanceTransactionServiceTest {
         assertThat(responses.getFirst().recipientCountryCode()).isEqualTo("US");
         assertThat(responses.getFirst().recipientCurrencyCode()).isEqualTo("USD");
         assertThat(responses.getFirst().recipientBankName()).isEqualTo("Chase Bank");
-        assertThat(responses.getFirst().sendAmount()).isEqualByComparingTo(new BigDecimal("1000000.00"));
+        assertThat(responses.getFirst().sendAmount()).isEqualByComparingTo(new BigDecimal("1000000"));
         assertThat(responses.getFirst().sendCurrency()).isEqualTo("KRW");
         assertThat(responses.getFirst().receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
         assertThat(responses.getFirst().receiveCurrency()).isEqualTo("USD");
-        assertThat(responses.getFirst().feeAmount()).isEqualByComparingTo(new BigDecimal("8000.00"));
+        assertThat(responses.getFirst().feeAmount()).isEqualByComparingTo(new BigDecimal("8000"));
         assertThat(responses.getFirst().status()).isEqualTo(TransferStatus.PENDING);
     }
 
@@ -595,12 +595,12 @@ class RemittanceTransactionServiceTest {
         assertThat(response.recipientAccountNumber()).isEqualTo("1234567890");
         assertThat(response.method()).isEqualTo("BANK_TRANSFER");
         assertThat(response.sendCurrency()).isEqualTo("KRW");
-        assertThat(response.sendAmount()).isEqualByComparingTo(new BigDecimal("1000000.00"));
+        assertThat(response.sendAmount()).isEqualByComparingTo(new BigDecimal("1000000"));
         assertThat(response.receiveCurrency()).isEqualTo("USD");
         assertThat(response.receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
         assertThat(response.appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
-        assertThat(response.feeAmount()).isEqualByComparingTo(new BigDecimal("8000.00"));
-        assertThat(response.amountKrw()).isEqualByComparingTo(new BigDecimal("1000000.00"));
+        assertThat(response.feeAmount()).isEqualByComparingTo(new BigDecimal("8000"));
+        assertThat(response.amountKrw()).isEqualByComparingTo(new BigDecimal("1000000"));
         assertThat(response.amountUsd()).isEqualByComparingTo(new BigDecimal("736.52"));
         assertThat(response.reason()).isEqualTo(RemittanceReason.LIVING_EXPENSES.name());
         assertThat(response.reasonDetail()).isEqualTo("생활비 송금");

@@ -3,6 +3,7 @@ package com.fxflow.domain.remittancetransaction.dto.response;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
+import com.fxflow.global.util.CurrencyAmountFormatter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -22,6 +23,8 @@ public record RemittanceTransactionSummaryResponse(
         LocalDateTime createdAt
 ) {
 
+    private static final String KRW = "KRW";
+
     /**
      * 송금 내역 목록에 필요한 요약 정보를 생성한다.
      * 수취인 정보는 recipientId로 연결된 수취인 주소록에서 조회한다.
@@ -36,11 +39,17 @@ public record RemittanceTransactionSummaryResponse(
                 recipient.getCountryCode(),
                 recipient.getCurrencyCode(),
                 recipient.getBankName(),
-                remittanceTransaction.getSendAmount(),
+                CurrencyAmountFormatter.format(
+                        remittanceTransaction.getSendAmount(),
+                        remittanceTransaction.getSendCurrency()
+                ),
                 remittanceTransaction.getSendCurrency(),
-                remittanceTransaction.getReceiveAmount(),
+                CurrencyAmountFormatter.format(
+                        remittanceTransaction.getReceiveAmount(),
+                        remittanceTransaction.getReceiveCurrency()
+                ),
                 remittanceTransaction.getReceiveCurrency(),
-                remittanceTransaction.getFeeAmount(),
+                CurrencyAmountFormatter.format(remittanceTransaction.getFeeAmount(), KRW),
                 remittanceTransaction.getStatus(),
                 remittanceTransaction.getCreatedAt()
         );

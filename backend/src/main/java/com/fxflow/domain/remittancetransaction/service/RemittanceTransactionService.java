@@ -66,7 +66,7 @@ public class RemittanceTransactionService {
     private final CompanyPoolService companyPoolService;
     private final ApplicationEventPublisher eventPublisher;
 
-    private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("3000.00");
+    private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("3000.00000000");
     private static final BigDecimal PERCENT_FEE_RATE = new BigDecimal("0.005");
     private static final long QUOTE_EXPIRATION_MINUTES = 10L;
     private static final String REMITTANCE_QUOTE_KEY_PREFIX = "remittance:quote:";
@@ -346,10 +346,10 @@ public class RemittanceTransactionService {
                 ));
 
         BigDecimal exchangeRate = fxRateSnapshot.buyRate();
-        BigDecimal sendAmountKrw = request.sendAmountKrw();
-        BigDecimal receiveAmountUsd = sendAmountKrw.divide(exchangeRate, 2, RoundingMode.DOWN);
-        BigDecimal percentFee = sendAmountKrw.multiply(PERCENT_FEE_RATE).setScale(0, RoundingMode.DOWN);
-        BigDecimal totalFee = FIXED_FEE_KRW.add(percentFee);
+        BigDecimal sendAmountKrw = request.sendAmountKrw().setScale(8, RoundingMode.DOWN);
+        BigDecimal receiveAmountUsd = sendAmountKrw.divide(exchangeRate, 8, RoundingMode.DOWN);
+        BigDecimal percentFee = sendAmountKrw.multiply(PERCENT_FEE_RATE).setScale(8, RoundingMode.DOWN);
+        BigDecimal totalFee = FIXED_FEE_KRW.add(percentFee).setScale(8, RoundingMode.DOWN);
 
         // 견적의 USD 환산 금액으로 건당/연간 해외송금 한도를 검증한다.
         remittanceValidator.validateLimits(userId, receiveAmountUsd);
@@ -376,7 +376,7 @@ public class RemittanceTransactionService {
                 Duration.ofMinutes(QUOTE_EXPIRATION_MINUTES)
         );
 
-        return new RemittanceTransactionQuoteResponse(
+        return RemittanceTransactionQuoteResponse.of(
                 sendAmountKrw,
                 receiveAmountUsd,
                 exchangeRate,

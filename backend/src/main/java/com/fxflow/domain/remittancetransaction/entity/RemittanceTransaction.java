@@ -45,25 +45,25 @@ public class RemittanceTransaction extends BaseEntity {
     @Column(name = "send_currency", length = 10, nullable = false)
     private String sendCurrency;
 
-    @Column(name = "send_amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "send_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal sendAmount;
 
     @Column(name = "receive_currency", length = 10, nullable = false)
     private String receiveCurrency;
 
-    @Column(name = "receive_amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "receive_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal receiveAmount;
 
     @Column(name = "applied_rate", precision = 18, scale = 8, nullable = false)
     private BigDecimal appliedRate;
 
-    @Column(name = "fee_amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "fee_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal feeAmount;
 
-    @Column(name = "amount_krw", precision = 18, scale = 2, nullable = false)
+    @Column(name = "amount_krw", precision = 18, scale = 8, nullable = false)
     private BigDecimal amountKrw;
 
-    @Column(name = "amount_usd", precision = 18, scale = 2, nullable = false)
+    @Column(name = "amount_usd", precision = 18, scale = 8, nullable = false)
     private BigDecimal amountUsd;
 
     @Column(name = "reason", length = 50, nullable = false)
