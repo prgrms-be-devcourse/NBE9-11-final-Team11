@@ -21,21 +21,6 @@ public class RemittanceTransaction extends BaseEntity {
     @Column(name = "recipient_id", nullable = false)
     private Long recipientId;
 
-    @Column(name = "recipient_name", length = 100, nullable = false)
-    private String recipientName;
-
-    @Column(name = "recipient_country_code", length = 10, nullable = false)
-    private String recipientCountryCode;
-
-    @Column(name = "recipient_currency_code", length = 10, nullable = false)
-    private String recipientCurrencyCode;
-
-    @Column(name = "recipient_bank_name", length = 100, nullable = false)
-    private String recipientBankName;
-
-    @Column(name = "recipient_account_number", length = 50, nullable = false)
-    private String recipientAccountNumber;
-
     @Column(name = "target_user_id")
     private Long targetUserId;
 
@@ -60,25 +45,25 @@ public class RemittanceTransaction extends BaseEntity {
     @Column(name = "send_currency", length = 10, nullable = false)
     private String sendCurrency;
 
-    @Column(name = "send_amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "send_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal sendAmount;
 
     @Column(name = "receive_currency", length = 10, nullable = false)
     private String receiveCurrency;
 
-    @Column(name = "receive_amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "receive_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal receiveAmount;
 
     @Column(name = "applied_rate", precision = 18, scale = 8, nullable = false)
     private BigDecimal appliedRate;
 
-    @Column(name = "fee_amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "fee_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal feeAmount;
 
-    @Column(name = "amount_krw", precision = 18, scale = 2, nullable = false)
+    @Column(name = "amount_krw", precision = 18, scale = 8, nullable = false)
     private BigDecimal amountKrw;
 
-    @Column(name = "amount_usd", precision = 18, scale = 2, nullable = false)
+    @Column(name = "amount_usd", precision = 18, scale = 8, nullable = false)
     private BigDecimal amountUsd;
 
     @Column(name = "reason", length = 50, nullable = false)
@@ -100,11 +85,6 @@ public class RemittanceTransaction extends BaseEntity {
     private RemittanceTransaction(
             Long userId,
             Long recipientId,
-            String recipientName,
-            String recipientCountryCode,
-            String recipientCurrencyCode,
-            String recipientBankName,
-            String recipientAccountNumber,
             Long targetUserId,
             String method,
             Long sourceWalletId,
@@ -126,11 +106,6 @@ public class RemittanceTransaction extends BaseEntity {
     ) {
         this.userId = userId;
         this.recipientId = recipientId;
-        this.recipientName = recipientName;
-        this.recipientCountryCode = recipientCountryCode;
-        this.recipientCurrencyCode = recipientCurrencyCode;
-        this.recipientBankName = recipientBankName;
-        this.recipientAccountNumber = recipientAccountNumber;
         this.targetUserId = targetUserId;
         this.method = method;
         this.sourceWalletId = sourceWalletId;
@@ -155,11 +130,6 @@ public class RemittanceTransaction extends BaseEntity {
     public static RemittanceTransaction create(
             Long userId,
             Long recipientId,
-            String recipientName,
-            String recipientCountryCode,
-            String recipientCurrencyCode,
-            String recipientBankName,
-            String recipientAccountNumber,
             Long targetUserId,
             String method,
             Long sourceWalletId,
@@ -182,11 +152,6 @@ public class RemittanceTransaction extends BaseEntity {
         return new RemittanceTransaction(
                 userId,
                 recipientId,
-                recipientName,
-                recipientCountryCode,
-                recipientCurrencyCode,
-                recipientBankName,
-                recipientAccountNumber,
                 targetUserId,
                 method,
                 sourceWalletId,
