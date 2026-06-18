@@ -66,7 +66,7 @@ public class ExchangeTransaction extends BaseEntity {
     private BigDecimal feeAmount;
 
 
-    private ExchangeTransaction(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, ExchangeStatus status, String idempotencyKey) {
+    private ExchangeTransaction(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, ExchangeStatus status, String idempotencyKey, BigDecimal feeAmount) {
         this.transactionId = "EX_" + java.util.UUID.randomUUID().toString().replace("-", "");
         this.user = user;
         this.fromWallet = fromWallet;
@@ -80,10 +80,10 @@ public class ExchangeTransaction extends BaseEntity {
         this.finalRate = finalRate;
         this.status = status;
         this.idempotencyKey = idempotencyKey;
-        this.feeAmount = BigDecimal.ZERO;
+        this.feeAmount = feeAmount;
     }
 
-    public static ExchangeTransaction create(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, ExchangeStatus status, String idempotencyKey) {
-        return new ExchangeTransaction(user, fromWallet, toWallet, fromCurrencyCode, toCurrencyCode, fromAmount, toAmount, baseRate, spreadRate, finalRate, status, idempotencyKey);
+    public static ExchangeTransaction create(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, ExchangeStatus status, String idempotencyKey, BigDecimal feeAmount) {
+        return new ExchangeTransaction(user, fromWallet, toWallet, fromCurrencyCode, toCurrencyCode, fromAmount, toAmount, baseRate, spreadRate, finalRate, status, idempotencyKey, feeAmount);
     }
 }

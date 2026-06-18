@@ -42,18 +42,21 @@ public class Wallet extends BaseEntity {
         return new Wallet(user, currencyCode, balance);
     }
 
-    public void deposit(BigDecimal amount) {
+    public BigDecimal deposit(BigDecimal amount) {
         this.balance = this.balance.add(amount);
+        return balance;
     }
 
-    public void withdraw(BigDecimal amount) {
+    public BigDecimal withdraw(BigDecimal amount) {
         this.balance = this.balance.subtract(amount);
+        return balance;
     }
 
-    public void deposit(BigDecimal amount, String currencyCode) {
+    public BigDecimal deposit(BigDecimal amount, String currencyCode) {
         if (this.currencyCode.equals(currencyCode)) {
             this.deposit(amount);
         }
+        return balance;
     }
 
     public void delete() {
