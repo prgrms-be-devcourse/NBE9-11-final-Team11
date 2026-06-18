@@ -106,7 +106,7 @@ class ExchangeServiceExchangeTest {
         // then
         assertThat(response).isNotNull();
         assertThat(response.transactionId()).isEqualTo("EX_27a10642b4a34fa4a4207cf8b9a65963");
-        assertThat(fromWallet.getBalance()).isEqualByComparingTo(new BigDecimal("500000"));
+        assertThat(fromWallet.getBalance()).isEqualByComparingTo(new BigDecimal("497500"));
         assertThat(toWallet.getBalance()).isEqualByComparingTo(new BigDecimal("370.12"));
 
         verify(walletRepository).save(fromWallet);

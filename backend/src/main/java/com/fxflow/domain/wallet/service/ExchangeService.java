@@ -142,8 +142,8 @@ public class ExchangeService {
         BigDecimal toBalanceBefore = toWallet.getBalance();
 
         // wallet 값 정산
-        fromWallet.withdraw(cache.fromAmount());
-        toWallet.deposit(cache.toAmount().subtract(cache.feeAmount()));  // 수수료 뗀 값 저장
+        fromWallet.withdraw(cache.totalAmount());  // 수수료 값이랑 환전하려는 돈
+        toWallet.deposit(cache.toAmount());
         walletRepository.save(fromWallet);
         walletRepository.save(toWallet);
 
