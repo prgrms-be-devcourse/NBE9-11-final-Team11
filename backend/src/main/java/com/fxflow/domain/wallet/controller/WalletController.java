@@ -39,7 +39,7 @@ public class WalletController {
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to
     ){
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by("createdAt").descending());
         TransactionHistoryResponse res = walletService.getTransactionHistory(userId, currency, from, to, pageable);
         return ResponseEntity.ok(res);
     }
