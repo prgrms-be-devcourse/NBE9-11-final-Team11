@@ -1,14 +1,16 @@
 spring:
   application:
     name: fxflow
-  profiles:
-    include: secret
-
+  config:
+    import: "optional:classpath:application-secret.yaml"
   datasource:
-    url: jdbc:postgresql://localhost:5432/mydb
-    username: myuser
-    password: mypassword
-
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/mydb}
+    username: ${SPRING_DATASOURCE_USERNAME:myuser}
+    password: ${SPRING_DATASOURCE_PASSWORD:mypassword}
+  data:
+    host: ${SPRING_DATA_REDIS_HOST:localhost}
+    redis:
+      port: ${SPRING_DATA_REDIS_PORT:6379}
   jpa:
     hibernate:
       ddl-auto: update
@@ -17,10 +19,12 @@ spring:
         format_sql: true
     defer-datasource-initialization: true
     show-sql: true
-
   sql:
     init:
       mode: always
+
+twelvedata:
+  api-key: ${TWELVEDATA_API_KEY:}
 
 exchange:
   fee:
@@ -28,3 +32,12 @@ exchange:
       KRW-USD: 0.001
       USD-KRW: 0.001
   quote-expiration-minutes: 5
+
+jwt:
+  #placeholder(가짜 데이터, secret연결 안되있을때 오류나는걸 방지). 운영 환경에서는 반드시 JWT_SECRET 환경 변수로 덮어써야 함.
+  secret: ${JWT_SECRET:dev-only-placeholder-secret-key-32bytes-minimum-do-not-use-in-production}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:1800000}
+cookie:
+  secure: ${COOKIE_SECURE:false}
+  same-site: ${COOKIE_SAME_SITE:Lax}
+  max-age: ${COOKIE_MAX_AGE:1800}
