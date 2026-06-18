@@ -589,6 +589,7 @@ class RemittanceTransactionServiceTest {
         assertThat(responses.getFirst().sendCurrency()).isEqualTo("KRW");
         assertThat(responses.getFirst().receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
         assertThat(responses.getFirst().receiveCurrency()).isEqualTo("USD");
+        assertThat(responses.getFirst().appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
         assertThat(responses.getFirst().feeAmount()).isEqualByComparingTo(new BigDecimal("8000"));
         assertThat(responses.getFirst().status()).isEqualTo(TransferStatus.PENDING);
     }
