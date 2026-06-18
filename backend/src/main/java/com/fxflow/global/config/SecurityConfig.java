@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fxflow.global.exception.ErrorResponse;
 import com.fxflow.global.security.JwtAuthenticationFilter;
 import com.fxflow.global.security.JwtTokenProvider;
+import com.fxflow.global.security.TokenBlacklistService;
 import com.fxflow.global.security.errorcode.AuthErrorCode;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -77,7 +79,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider),
+                        new JwtAuthenticationFilter(jwtTokenProvider,tokenBlacklistService),
                         UsernamePasswordAuthenticationFilter.class
                 );
 

@@ -28,7 +28,7 @@ public class VirtualAccount extends BaseEntity {
     @Column(name = "account_number", length = 50, nullable = false, unique = true)
     private String accountNumber;
 
-    @Column(name = "expected_amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "expected_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal expectedAmount;
 
     @Enumerated(EnumType.STRING)
