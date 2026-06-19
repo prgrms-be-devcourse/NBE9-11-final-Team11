@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Minus, Wallet as WalletIcon } from "lucide-react"
+import { Plus, Minus, ArrowLeftRight, Wallet as WalletIcon } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -30,11 +30,16 @@ export default function WalletPage() {
     CNY: 0,
   })
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [mode, setMode] = useState<"deposit" | "withdraw">("deposit")
+  const [mode, setMode] = useState<"deposit" | "withdraw" | "transfer">("deposit")
   const [amount, setAmount] = useState("")
   const [bank, setBank] = useState(KOREAN_BANKS[0])
   const [account, setAccount] = useState("")
+  const [recipientEmail, setRecipientEmail] = useState("")
+  const [transferCurrency, setTransferCurrency] = useState<CurrencyCode>("KRW")
+  const [memo, setMemo] = useState("")
   const [open, setOpen] = useState(false)
+  const [recipientName, setRecipientName] = useState("")
+  const [checkingEmail, setCheckingEmail] = useState(false)
 
   const fetchData = async () => {
     try {
@@ -91,9 +96,10 @@ export default function WalletPage() {
               amountKRW = amountKRW * 1530 // Convert to KRW for UI list display
             }
           } else if (tx.type === "TRANSFER") {
-            type = "remittance"
-            title = "해외송금"
-            amountKRW = -amountKRW
+            type = "transfer"
+            const isCredit = tx.direction === "CREDIT"
+            title = `이체 (${isCredit ? "받음" : "보냄"})`
+            amountKRW = isCredit ? amountKRW : -amountKRW
           }
 
           return {
@@ -118,16 +124,40 @@ export default function WalletPage() {
     fetchData()
   }, [])
 
+  async function checkRecipient() {
+    if (!recipientEmail || !recipientEmail.includes("@")) {
+      setRecipientName("")
+      return
+    }
+    setCheckingEmail(true)
+    try {
+      const res = await apiRequest<{ name: string; email: string }>(
+        "GET",
+        `/api/v1/users/check?email=${recipientEmail.trim()}`
+      )
+      setRecipientName(res.name)
+    } catch (err: any) {
+      setRecipientName("")
+      toast.error(err.message || "존재하지 않는 회원입니다.")
+    } finally {
+      setCheckingEmail(false)
+    }
+  }
+
   const fxValueKRW = FX_CODES.reduce((sum, c) => sum + (fxBalances[c] ?? 0) * krwPerUnit(c), 0)
   const totalKRW = krwBalance + fxValueKRW
 
   async function submit() {
     const value = Number(amount.replace(/,/g, ""))
     if (!value || value <= 0) return toast.error("올바른 금액을 입력하세요.")
-    // if (!account.trim()) return toast.error("계좌번호를 입력하세요.")
     if (mode === "withdraw" && value > krwBalance) return toast.error("출금 가능 잔액을 초과했습니다.")
-
-    // const cleanAccount = account.replace(/[^\d]/g, "").padEnd(12, "0").slice(0, 12)
+    
+    if (mode === "transfer") {
+      if (!recipientEmail.trim()) return toast.error("수취인 이메일을 입력하세요.")
+      if (!recipientName) return toast.error("올바른 수취인 이메일을 입력하고 확인을 받으세요.")
+      const selectedBalance = transferCurrency === "KRW" ? krwBalance : (fxBalances[transferCurrency] ?? 0)
+      if (value > selectedBalance) return toast.error(`${transferCurrency} 잔액을 초과했습니다.`)
+    }
 
     try {
       const userIdStr = typeof window !== "undefined" ? localStorage.getItem("fxflow-userId") : null
@@ -139,16 +169,27 @@ export default function WalletPage() {
           amount: value,
         })
         toast.success(`${formatKRW(value)} 입금이 완료되었습니다.`)
-      } else {
+      } else if (mode === "withdraw") {
         await apiRequest("POST", "/api/v1/wallets/withdraw", {
           bankAccountId: bankAccountId,
           amount: value,
         })
         toast.success(`${formatKRW(value)} 출금이 완료되었습니다.`)
+      } else if (mode === "transfer") {
+        await apiRequest("POST", "/api/v1/wallets/transfer", {
+          recipientEmail: recipientEmail.trim(),
+          currency: transferCurrency,
+          amount: value,
+          memo: memo.trim(),
+        })
+        toast.success(`${recipientEmail}님께 ${formatCurrency(value, transferCurrency)} 이체가 완료되었습니다.`)
       }
 
       setAmount("")
       setAccount("")
+      setRecipientEmail("")
+      setRecipientName("")
+      setMemo("")
       setOpen(false)
       fetchData()
     } catch (err: any) {
@@ -159,6 +200,7 @@ export default function WalletPage() {
 
   const walletTx = transactions.filter((t) => t.type === "deposit" || t.type === "withdraw")
   const exchangeTx = transactions.filter((t) => t.type === "exchange")
+  const transferTx = transactions.filter((t) => t.type === "transfer")
 
   return (
     <AppShell title="내 지갑">
@@ -185,49 +227,92 @@ export default function WalletPage() {
                   </Button>
                 }
               />
+              <DialogTrigger
+                render={
+                  <Button variant="secondary" size="sm" onClick={() => setMode("transfer")}>
+                    <ArrowLeftRight className="size-4" /> 이체
+                  </Button>
+                }
+              />
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>{mode === "deposit" ? "KRW 입금" : "KRW 출금"}</DialogTitle>
+                  <DialogTitle>
+                    {mode === "deposit" ? "KRW 입금" : mode === "withdraw" ? "KRW 출금" : "P2P 지갑 이체"}
+                  </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  {/*
+                  {mode === "transfer" && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="recipientEmail">수취인 이메일</Label>
+                        <Input
+                          id="recipientEmail"
+                          type="email"
+                          placeholder="recipient@example.com"
+                          value={recipientEmail}
+                          onChange={(e) => {
+                            setRecipientEmail(e.target.value)
+                            setRecipientName("")
+                          }}
+                          onBlur={checkRecipient}
+                        />
+                        {checkingEmail && <p className="text-xs text-muted-foreground animate-pulse">이메일 확인 중...</p>}
+                        {recipientName && (
+                          <p className="text-xs text-emerald-600 font-medium">
+                            수취인 확인: {recipientName}님
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="transferCurrency">통화 선택</Label>
+                        <Select
+                          value={transferCurrency}
+                          onValueChange={(v) => setTransferCurrency((v as CurrencyCode) ?? "KRW")}
+                        >
+                          <SelectTrigger id="transferCurrency">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {["KRW", ...FX_CODES].map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c} ({CURRENCY_META[c as CurrencyCode]?.name || "원"})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
                   <div className="space-y-2">
-                    <Label htmlFor="bank">은행</Label>
-                    <Select value={bank} onValueChange={(v) => setBank(v ?? KOREAN_BANKS[0])}>
-                      <SelectTrigger id="bank">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {KOREAN_BANKS.map((b) => (
-                          <SelectItem key={b} value={b}>
-                            {b}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="account">계좌번호</Label>
-                    <Input
-                      id="account"
-                      placeholder="계좌번호 입력"
-                      value={account}
-                      onChange={(e) => setAccount(e.target.value)}
-                    />
-                  </div>
-                  */}
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">금액 (KRW)</Label>
+                    <Label htmlFor="amount">금액 {mode === "transfer" ? `(${transferCurrency})` : "(KRW)"}</Label>
                     <Input
                       id="amount"
-                      inputMode="numeric"
+                      inputMode="decimal"
                       placeholder="0"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        if (mode === "transfer" && transferCurrency !== "KRW") {
+                          setAmount(val.replace(/[^\d.]/g, ""))
+                        } else {
+                          setAmount(val.replace(/[^\d]/g, ""))
+                        }
+                      }}
                     />
                   </div>
+                  {mode === "transfer" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="memo">메모</Label>
+                      <Input
+                        id="memo"
+                        placeholder="이체 메모 입력"
+                        value={memo}
+                        onChange={(e) => setMemo(e.target.value)}
+                      />
+                    </div>
+                  )}
                   <Button className="w-full" onClick={submit}>
-                    {mode === "deposit" ? "입금하기" : "출금하기"}
+                    {mode === "deposit" ? "입금하기" : mode === "withdraw" ? "출금하기" : "이체하기"}
                   </Button>
                 </div>
               </DialogContent>
@@ -287,6 +372,7 @@ export default function WalletPage() {
                 <TabsTrigger value="deposit">입금</TabsTrigger>
                 <TabsTrigger value="withdraw">출금</TabsTrigger>
                 <TabsTrigger value="exchange">환전</TabsTrigger>
+                <TabsTrigger value="transfer">이체</TabsTrigger>
               </TabsList>
             </div>
             <TabsContent value="all" className="mt-2 divide-y divide-border">
@@ -310,6 +396,11 @@ export default function WalletPage() {
             </TabsContent>
             <TabsContent value="exchange" className="mt-2 divide-y divide-border">
               {exchangeTx.map((t) => (
+                <TransactionRow key={t.id} tx={t} />
+              ))}
+            </TabsContent>
+            <TabsContent value="transfer" className="mt-2 divide-y divide-border">
+              {transferTx.map((t) => (
                 <TransactionRow key={t.id} tx={t} />
               ))}
             </TabsContent>

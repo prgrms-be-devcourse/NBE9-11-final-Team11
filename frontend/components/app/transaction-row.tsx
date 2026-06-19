@@ -10,6 +10,7 @@ const iconMap: Record<TxType, typeof ArrowDownLeft> = {
   withdraw: ArrowUpRight,
   exchange: ArrowLeftRight,
   remittance: Send,
+  transfer: ArrowLeftRight,
 }
 
 function timeAgo(iso: string) {

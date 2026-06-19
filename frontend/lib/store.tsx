@@ -4,7 +4,7 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import type { CurrencyCode } from "./fx-data"
 
-export type TxType = "deposit" | "withdraw" | "exchange" | "remittance"
+export type TxType = "deposit" | "withdraw" | "exchange" | "remittance" | "transfer"
 export type TxStatus = "completed" | "processing" | "failed" | "refunded"
 
 export interface Transaction {

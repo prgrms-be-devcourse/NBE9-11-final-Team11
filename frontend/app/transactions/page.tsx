@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Send, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { AppShell } from "@/components/app/app-shell"
@@ -14,12 +14,14 @@ import { TxStatusBadge } from "@/components/app/status-badges"
 import { timeAgo } from "@/components/app/transaction-row"
 import { useStore, type Transaction, type TxType, type TxStatus } from "@/lib/store"
 import { formatKRW, formatCurrency } from "@/lib/fx-data"
+import { apiRequest } from "@/lib/api"
 
 const typeMeta: Record<TxType, { label: string; icon: typeof ArrowDownLeft }> = {
   deposit: { label: "입금", icon: ArrowDownLeft },
   withdraw: { label: "출금", icon: ArrowUpRight },
   exchange: { label: "환전", icon: ArrowLeftRight },
-  remittance: { label: "송금", icon: Send },
+  remittance: { label: "해외송금", icon: Send },
+  transfer: { label: "이체", icon: ArrowLeftRight },
 }
 
 const periodOptions = [
@@ -43,24 +45,139 @@ function formatDateTime(iso: string) {
 }
 
 export default function TransactionsPage() {
-  const { transactions } = useStore()
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState("all")
   const [type, setType] = useState<TxType | "all">("all")
   const [status, setStatus] = useState<TxStatus | "all">("all")
   const [detail, setDetail] = useState<Transaction | null>(null)
 
-  const filtered = useMemo(() => {
-    const now = Date.now()
-    return transactions.filter((t) => {
-      if (type !== "all" && t.type !== type) return false
-      if (status !== "all" && t.status !== status) return false
-      if (period !== "all") {
-        const days = Number(period)
-        if (now - new Date(t.createdAt).getTime() > days * 86400000) return false
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      try {
+        let fetchWallets = true
+        let fetchRemittances = false
+
+        if (type === "remittance") {
+          fetchWallets = false
+          fetchRemittances = true
+        } else if (type === "all") {
+          fetchWallets = true
+          fetchRemittances = true
+        } else {
+          fetchWallets = true
+          fetchRemittances = false
+        }
+
+        let walletList: Transaction[] = []
+        let remittanceList: Transaction[] = []
+
+        if (fetchWallets) {
+          let url = "/api/v1/wallets/transactions?size=100"
+          if (type !== "all" && type !== "remittance") {
+            const typeMapping: Record<string, string> = {
+              deposit: "CHARGE",
+              withdraw: "WITHDRAW",
+              exchange: "EXCHANGE",
+              transfer: "TRANSFER",
+            }
+            url += `&type=${typeMapping[type]}`
+          }
+
+          if (period !== "all") {
+            const days = Number(period)
+            const d = new Date()
+            const toStr = d.toISOString().split("T")[0]
+            d.setDate(d.getDate() - days)
+            const fromStr = d.toISOString().split("T")[0]
+            url += `&from=${fromStr}&to=${toStr}`
+          }
+
+          const res = await apiRequest<{ transactionResponseList: any[] }>("GET", url)
+          walletList = (res.transactionResponseList || []).map((tx) => {
+            const isCredit = tx.direction === "CREDIT"
+            const txType: TxType = 
+              tx.type === "CHARGE" ? "deposit" :
+              tx.type === "WITHDRAW" ? "withdraw" :
+              tx.type === "EXCHANGE" ? "exchange" :
+              "transfer"
+              
+            const amountSign = isCredit ? 1 : -1
+            
+            return {
+              id: `w-${tx.transactionId}`,
+              type: txType,
+              title: tx.type === "CHARGE" ? "KRW 입금" :
+                     tx.type === "WITHDRAW" ? "KRW 출금" :
+                     tx.type === "EXCHANGE" ? `${tx.currency} 환전` :
+                     `이체 (${isCredit ? "받음" : "보냄"})`,
+              amountKRW: Number(tx.amount) * amountSign,
+              fromCurrency: tx.type === "EXCHANGE" && !isCredit ? "KRW" : undefined,
+              toCurrency: tx.currency,
+              rate: tx.type === "EXCHANGE" ? 1380 : undefined,
+              fee: 0,
+              status: "completed" as TxStatus,
+              createdAt: tx.createdAt,
+              detail: tx.type === "CHARGE" ? "모의계좌 입금" :
+                      tx.type === "WITHDRAW" ? "모의계좌 출금" : undefined
+            }
+          })
+        }
+
+        if (fetchRemittances) {
+          const res = await apiRequest<any[]>("GET", "/api/v1/transfers")
+          remittanceList = (res || []).map((tx) => {
+            let status: TxStatus = "completed"
+            if (tx.status === "PENDING" || tx.status === "PROCESSING" || tx.status === "SETTLED" || tx.status === "PAYOUT_INITIATED") {
+              status = "processing"
+            } else if (tx.status === "FAILED") {
+              status = "failed"
+            } else if (tx.status === "REFUNDED" || tx.status === "REFUND_INITIATED") {
+              status = "refunded"
+            }
+
+            return {
+              id: `r-${tx.transferId}`,
+              type: "remittance",
+              title: `해외송금 · ${tx.recipientName}`,
+              amountKRW: -Number(tx.sendAmount),
+              fromCurrency: tx.sendCurrency,
+              toCurrency: tx.receiveCurrency,
+              rate: tx.appliedRate,
+              fee: Number(tx.feeAmount),
+              status,
+              createdAt: tx.createdAt,
+              detail: `${tx.recipientBankName} · ${tx.recipientName}`
+            }
+          })
+
+          if (period !== "all") {
+            const days = Number(period)
+            const cutoff = Date.now() - days * 86400000
+            remittanceList = remittanceList.filter((tx) => new Date(tx.createdAt).getTime() >= cutoff)
+          }
+        }
+
+        const merged = [...walletList, ...remittanceList].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+        setTransactions(merged)
+      } catch (err) {
+        console.error("Failed to load transactions:", err)
+      } finally {
+        setLoading(false)
       }
+    }
+    load()
+  }, [type, period])
+
+  const filtered = useMemo(() => {
+    return transactions.filter((t) => {
+      if (status !== "all" && t.status !== status) return false
       return true
     })
-  }, [transactions, period, type, status])
+  }, [transactions, status])
 
   const received = (tx: Transaction) =>
     tx.rate ? Math.abs(tx.amountKRW) / (tx.rate / (tx.toCurrency === "JPY" ? 100 : 1)) : 0
@@ -97,7 +214,8 @@ export default function TransactionsPage() {
                   <SelectItem value="deposit">입금</SelectItem>
                   <SelectItem value="withdraw">출금</SelectItem>
                   <SelectItem value="exchange">환전</SelectItem>
-                  <SelectItem value="remittance">송금</SelectItem>
+                  <SelectItem value="remittance">해외송금</SelectItem>
+                  <SelectItem value="transfer">이체</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -126,7 +244,9 @@ export default function TransactionsPage() {
             <span className="text-sm text-muted-foreground">{filtered.length}건</span>
           </div>
           <Separator />
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="px-5 py-16 text-center text-sm text-muted-foreground">거래 내역을 불러오는 중입니다...</div>
+          ) : filtered.length === 0 ? (
             <div className="px-5 py-16 text-center text-sm text-muted-foreground">조건에 맞는 거래가 없습니다.</div>
           ) : (
             <div className="overflow-x-auto">
