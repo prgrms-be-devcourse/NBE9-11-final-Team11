@@ -144,9 +144,10 @@ public class CompanyPoolService {
      * 지갑 출금이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
      */
     @Transactional
+    @Transactional
     public CompanyPool withdrawForRemittance(String journalId, String currencyCode, BigDecimal amount, Long remittanceTransactionId) {
-        CompanyPool pool = getPoolByCurrency(currencyCode);
-        BigDecimal balanceBefore = pool.getBalance();
+        CompanyPool pool = companyPoolRepository.findByCurrencyCodeForUpdate(currencyCode)
+                .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
         BigDecimal balanceAfter = balanceBefore.subtract(amount);
 
         if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
