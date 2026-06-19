@@ -9,6 +9,7 @@ import com.fxflow.domain.remittancetransaction.dto.response.*;
 import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
+import com.fxflow.domain.remittancetransaction.enums.RemittanceMethod;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.domain.remittancetransaction.enums.VirtualAccountStatus;
 import com.fxflow.domain.remittancetransaction.errorcode.RecipientErrorCode;
@@ -154,7 +155,7 @@ public class RemittanceTransactionService {
                 userId,
                 quote.recipientId(),
                 null,
-                "BANK_TRANSFER",
+                RemittanceMethod.BANK_TRANSFER.name(),
                 null,
                 null,
                 null,

@@ -8,6 +8,7 @@ import com.fxflow.domain.companypool.errorcode.PoolErrorCode;
 import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
+import com.fxflow.domain.remittancetransaction.enums.RemittanceMethod;
 import com.fxflow.domain.remittancetransaction.enums.RemittanceReason;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
@@ -95,7 +96,7 @@ class RemittanceRefundServiceTest {
                 1L,
                 1L,
                 null,
-                "BANK_TRANSFER",
+                RemittanceMethod.BANK_TRANSFER.name(),
                 null,
                 null,
                 null,
