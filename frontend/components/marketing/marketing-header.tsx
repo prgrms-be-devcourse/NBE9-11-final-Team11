@@ -1,8 +1,13 @@
+"use client"
+
 import Link from "next/link"
 import { ArrowRight, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useStore } from "@/lib/store"
 
 export function MarketingHeader() {
+  const { user } = useStore()
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
@@ -27,13 +32,22 @@ export function MarketingHeader() {
           </a>
         </nav>
         <div className="flex items-center gap-2">
-          <Button render={<Link href="/login" />} variant="ghost" size="sm">
-            로그인
-          </Button>
-          <Button render={<Link href="/signup" />} size="sm">
-            시작하기
-            <ArrowRight className="size-4" />
-          </Button>
+          {user ? (
+            <Button render={<Link href="/dashboard" />} size="sm">
+              대시보드로 이동
+              <ArrowRight className="size-4" />
+            </Button>
+          ) : (
+            <>
+              <Button render={<Link href="/login" />} variant="ghost" size="sm">
+                로그인
+              </Button>
+              <Button render={<Link href="/signup" />} size="sm">
+                시작하기
+                <ArrowRight className="size-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </header>

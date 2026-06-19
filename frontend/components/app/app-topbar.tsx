@@ -16,6 +16,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { AppSidebar } from "./app-sidebar"
 import { useStore } from "@/lib/store"
+import { apiRequest } from "@/lib/api"
 import Link from "next/link"
 
 export function AppTopbar({ title }: { title: string }) {
@@ -25,9 +26,18 @@ export function AppTopbar({ title }: { title: string }) {
   const unread = notifications.filter((n) => !n.read).length
   const initial = user?.name?.charAt(0) ?? "U"
 
-  function handleLogout() {
-    logout()
-    router.push("/login")
+  async function handleLogout() {
+    try {
+      await apiRequest("POST", "/api/v1/auth/logout")
+    } catch (err) {
+      console.error("로그아웃 API 호출 실패", err)
+    } finally {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("fxflow-userId")
+      }
+      logout()
+      router.push("/login")
+    }
   }
 
   return (
