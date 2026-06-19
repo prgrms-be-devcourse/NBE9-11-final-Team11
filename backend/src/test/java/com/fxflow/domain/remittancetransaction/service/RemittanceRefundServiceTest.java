@@ -8,6 +8,7 @@ import com.fxflow.domain.companypool.errorcode.PoolErrorCode;
 import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
+import com.fxflow.domain.remittancetransaction.enums.RemittanceMethod;
 import com.fxflow.domain.remittancetransaction.enums.RemittanceReason;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
@@ -71,12 +72,31 @@ class RemittanceRefundServiceTest {
                 .isEqualTo(PoolErrorCode.POOL_INSUFFICIENT_BALANCE.getMessage());
     }
 
+    @Test
+    @DisplayName("환불 실패: 운영자 확인이 필요한 환불 실패 상태로 기록한다")
+    void markRefundFailed_marksRefundFailed() {
+        // given
+        Long transferId = 10L;
+        RemittanceTransaction remittanceTransaction = createFundedTransaction(transferId);
+        RuntimeException exception = new RuntimeException("환불 처리 실패");
+
+        when(remittanceTransactionRepository.findById(transferId))
+                .thenReturn(Optional.of(remittanceTransaction));
+
+        // when
+        remittanceRefundService.markRefundFailed(transferId, exception);
+
+        // then
+        assertThat(remittanceTransaction.getStatus()).isEqualTo(TransferStatus.REFUND_FAILED);
+        assertThat(remittanceTransaction.getFailureReason()).isEqualTo("환불 처리 실패");
+    }
+
     private RemittanceTransaction createFundedTransaction(Long transferId) {
         RemittanceTransaction remittanceTransaction = RemittanceTransaction.create(
                 1L,
                 1L,
                 null,
-                "BANK_TRANSFER",
+                RemittanceMethod.BANK_TRANSFER.name(),
                 null,
                 null,
                 null,

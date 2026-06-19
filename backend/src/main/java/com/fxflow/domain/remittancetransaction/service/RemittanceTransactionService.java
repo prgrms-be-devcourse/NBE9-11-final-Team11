@@ -9,6 +9,7 @@ import com.fxflow.domain.remittancetransaction.dto.response.*;
 import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
+import com.fxflow.domain.remittancetransaction.enums.RemittanceMethod;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.domain.remittancetransaction.enums.VirtualAccountStatus;
 import com.fxflow.domain.remittancetransaction.errorcode.RecipientErrorCode;
@@ -135,8 +136,17 @@ public class RemittanceTransactionService {
     @Transactional
     public RemittanceTransactionCreateResponse createTransfer(
             Long userId,
-            RemittanceTransactionCreateRequest request
+            RemittanceTransactionCreateRequest request,
+            String idempotencyKey
     ) {
+        RemittanceTransaction existingTransaction = remittanceTransactionRepository
+                .findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+                .orElse(null);
+        if (existingTransaction != null) {
+            VirtualAccount existingVirtualAccount = getVirtualAccount(existingTransaction.getId());
+            return RemittanceTransactionCreateResponse.of(existingTransaction, existingVirtualAccount);
+        }
+
         RemittanceQuoteSnapshot quote = remittanceQuoteProvider.getQuote(request.quoteId());
         Recipient recipient = getRecipient(userId, quote.recipientId());
 
@@ -147,14 +157,11 @@ public class RemittanceTransactionService {
         // TRF-09는 조회만 담당하고, 실제 한도 정합성은 주문 생성 트랜잭션에서 보장한다.
         reserveAnnualRemittanceLimit(userId, quote.amountUsd());
 
-        // TODO: 현재는 임시 UUID를 저장한다. 추후 Idempotency-Key 헤더 기반 중복 요청 방지로 교체한다.
-        String idempotencyKey = UUID.randomUUID().toString();
-
         RemittanceTransaction remittanceTransaction = RemittanceTransaction.create(
                 userId,
                 quote.recipientId(),
                 null,
-                "BANK_TRANSFER",
+                RemittanceMethod.BANK_TRANSFER.name(),
                 null,
                 null,
                 null,
@@ -295,6 +302,17 @@ public class RemittanceTransactionService {
     private Recipient getRecipientForHistory(Long recipientId) {
         return recipientRepository.findById(recipientId)
                 .orElseThrow(() -> new BusinessException(RecipientErrorCode.RECIPIENT_NOT_FOUND));
+    }
+
+    /**
+     * 송금 주문에 발급된 가상계좌를 조회한다.
+     */
+    private VirtualAccount getVirtualAccount(Long remittanceTransactionId) {
+        return virtualAccountRepository
+                .findByRemittanceTransactionId(remittanceTransactionId)
+                .orElseThrow(() -> new BusinessException(
+                        RemittanceTransactionErrorCode.VIRTUAL_ACCOUNT_NOT_FOUND
+                ));
     }
 
     /**

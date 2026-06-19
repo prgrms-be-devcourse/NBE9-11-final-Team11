@@ -63,6 +63,25 @@ public class RemittanceRefundService {
         );
     }
 
+    /**
+     * 환불 처리 자체가 실패한 경우 별도 트랜잭션에서 운영자 확인 필요 상태로 기록한다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markRefundFailed(Long transferId, RuntimeException cause) {
+        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findById(transferId)
+                .orElseThrow(() -> new BusinessException(
+                        RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
+                ));
+
+        remittanceTransaction.refundFailed(cause.getMessage());
+
+        log.error(
+                "해외송금 환불 실패 상태 기록 완료. transferId={}, reason={}",
+                transferId,
+                cause.getMessage()
+        );
+    }
+
     private String createRefundJournalId(Long transferId) {
         return "JRN-TRF-" + transferId + "-REFUND";
     }
