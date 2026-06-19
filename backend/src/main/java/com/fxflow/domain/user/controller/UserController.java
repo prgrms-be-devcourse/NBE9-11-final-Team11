@@ -87,7 +87,9 @@ public class UserController {
     ) {
         WithdrawUserResponse withdrawUserResponse = userService.withDrawn(id, withdrawRequest.password());
         String token = CookieTokenExtractor.extract(httpRequest);
-        tokenBlacklistService.invalidate(token);
+        if (token != null) {
+            tokenBlacklistService.invalidate(token);
+        }
         ResponseCookie cookie = jwtTokenProvider.deleteAccessTokenCookie();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
