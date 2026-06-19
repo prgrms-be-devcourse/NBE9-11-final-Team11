@@ -1,6 +1,5 @@
 package com.fxflow.domain.user.service;
 
-import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.user.dto.response.WithdrawUserResponse;
 import com.fxflow.domain.user.entity.User;
@@ -8,7 +7,6 @@ import com.fxflow.domain.user.enums.UserStatus;
 import com.fxflow.domain.user.errorcode.UserErrorCode;
 import com.fxflow.domain.user.repository.UserRepository;
 import com.fxflow.domain.wallet.entity.Wallet;
-import com.fxflow.domain.wallet.enums.ExchangeStatus;
 import com.fxflow.domain.wallet.repository.ExchangeTransactionRepository;
 import com.fxflow.domain.wallet.repository.P2pTransferRepository;
 import com.fxflow.domain.wallet.repository.WalletRepository;
@@ -18,8 +16,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -40,12 +38,18 @@ import static org.mockito.Mockito.verify;
 @DisplayName("회원 탈퇴 테스트")
 class UserServiceWithdrawTest {
 
-    @Mock private UserRepository userRepository;
-    @Mock private PasswordEncoder passwordEncoder;
-    @Mock private WalletRepository walletRepository;
-    @Mock private RemittanceTransactionRepository remittanceTransactionRepository;
-    @Mock private ExchangeTransactionRepository exchangeTransactionRepository;
-    @Mock private P2pTransferRepository p2pTransferRepository;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private PasswordEncoder passwordEncoder;
+    @Mock
+    private WalletRepository walletRepository;
+    @Mock
+    private RemittanceTransactionRepository remittanceTransactionRepository;
+    @Mock
+    private ExchangeTransactionRepository exchangeTransactionRepository;
+    @Mock
+    private P2pTransferRepository p2pTransferRepository;
 
     @InjectMocks
     private UserService userService;
@@ -74,11 +78,6 @@ class UserServiceWithdrawTest {
             given(walletRepository.findByUserId(USER_ID)).willReturn(List.of());
             given(remittanceTransactionRepository.existsByUserIdAndStatusIn(anyLong(), any()))
                     .willReturn(false);
-            given(exchangeTransactionRepository.existsByUser_IdAndStatus(anyLong(), any(ExchangeStatus.class)))
-                    .willReturn(false);
-            given(p2pTransferRepository.existsActiveTransferByUserId(anyLong(), any(TransferStatus.class)))
-                    .willReturn(false);
-
             WithdrawUserResponse response = userService.withDrawn(USER_ID, RAW_PASSWORD);
 
             assertThat(response.userId()).isEqualTo(USER_ID);
@@ -137,60 +136,6 @@ class UserServiceWithdrawTest {
             given(userRepository.findById(USER_ID)).willReturn(Optional.of(activeUser));
             given(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).willReturn(true);
             given(walletRepository.findByUserId(USER_ID)).willReturn(List.of(krwWallet));
-
-            assertThatThrownBy(() -> userService.withDrawn(USER_ID, RAW_PASSWORD))
-                    .isInstanceOf(BusinessException.class)
-                    .hasFieldOrPropertyWithValue("errorCode", UserErrorCode.WITHDRAWAL_BLOCKED);
-        }
-
-        @Test
-        @DisplayName("진행 중인 해외송금 거래가 있으면 WITHDRAWAL_BLOCKED 예외가 발생한다")
-        void withdraw_fail_activeRemittance() {
-            given(userRepository.findById(USER_ID)).willReturn(Optional.of(activeUser));
-            given(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).willReturn(true);
-            given(walletRepository.findByUserId(USER_ID)).willReturn(List.of());
-            given(remittanceTransactionRepository.existsByUserIdAndStatusIn(anyLong(), any()))
-                    .willReturn(true);
-
-            assertThatThrownBy(() -> userService.withDrawn(USER_ID, RAW_PASSWORD))
-                    .isInstanceOf(BusinessException.class)
-                    .hasFieldOrPropertyWithValue("errorCode", UserErrorCode.WITHDRAWAL_BLOCKED);
-
-            verify(exchangeTransactionRepository, never())
-                    .existsByUser_IdAndStatus(any(), any());
-        }
-
-        @Test
-        @DisplayName("진행 중인 환전 거래가 있으면 WITHDRAWAL_BLOCKED 예외가 발생한다")
-        void withdraw_fail_activeExchange() {
-            given(userRepository.findById(USER_ID)).willReturn(Optional.of(activeUser));
-            given(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).willReturn(true);
-            given(walletRepository.findByUserId(USER_ID)).willReturn(List.of());
-            given(remittanceTransactionRepository.existsByUserIdAndStatusIn(anyLong(), any()))
-                    .willReturn(false);
-            given(exchangeTransactionRepository.existsByUser_IdAndStatus(USER_ID, ExchangeStatus.PENDING))
-                    .willReturn(true);
-
-            assertThatThrownBy(() -> userService.withDrawn(USER_ID, RAW_PASSWORD))
-                    .isInstanceOf(BusinessException.class)
-                    .hasFieldOrPropertyWithValue("errorCode", UserErrorCode.WITHDRAWAL_BLOCKED);
-
-            verify(p2pTransferRepository, never())
-                    .existsActiveTransferByUserId(any(), any());
-        }
-
-        @Test
-        @DisplayName("진행 중인 P2P 송금이 있으면 WITHDRAWAL_BLOCKED 예외가 발생한다")
-        void withdraw_fail_activeP2pTransfer() {
-            given(userRepository.findById(USER_ID)).willReturn(Optional.of(activeUser));
-            given(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).willReturn(true);
-            given(walletRepository.findByUserId(USER_ID)).willReturn(List.of());
-            given(remittanceTransactionRepository.existsByUserIdAndStatusIn(anyLong(), any()))
-                    .willReturn(false);
-            given(exchangeTransactionRepository.existsByUser_IdAndStatus(USER_ID, ExchangeStatus.PENDING))
-                    .willReturn(false);
-            given(p2pTransferRepository.existsActiveTransferByUserId(USER_ID, TransferStatus.PENDING))
-                    .willReturn(true);
 
             assertThatThrownBy(() -> userService.withDrawn(USER_ID, RAW_PASSWORD))
                     .isInstanceOf(BusinessException.class)

@@ -11,9 +11,6 @@ import com.fxflow.domain.user.enums.UserStatus;
 import com.fxflow.domain.user.errorcode.UserErrorCode;
 import com.fxflow.domain.user.repository.UserRepository;
 import com.fxflow.domain.wallet.entity.Wallet;
-import com.fxflow.domain.wallet.enums.ExchangeStatus;
-import com.fxflow.domain.wallet.repository.ExchangeTransactionRepository;
-import com.fxflow.domain.wallet.repository.P2pTransferRepository;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -35,8 +32,6 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final WalletRepository walletRepository;
     private final RemittanceTransactionRepository remittanceTransactionRepository;
-    private final P2pTransferRepository p2pTransferRepository;
-    private final ExchangeTransactionRepository exchangeTransactionRepository;
     /**
      * 회원가입
      * 이메일 중복 확인 후 유저 생성
@@ -95,7 +90,7 @@ public class UserService {
     /**
      * 회원 탈퇴
      * 비밀번호를 재확인하고, 사용자의 지갑 잔액들이 비어있고,
-     * 진행 중인 거래(해외송금/환전/P2P 송금)가 없다면 회원 탈퇴를 진행한다.
+     *  진행 중인 해외송금 거래가 없다면 회원 탈퇴를 진행한다.
      */
     @Transactional
     public WithdrawUserResponse withDrawn(Long userId, String password) {
@@ -140,7 +135,7 @@ public class UserService {
 
     /**
      * 진행 중(PENDING/FUNDED/PROCESSING)인 거래가 있는지 확인한다.
-     * 해외송금, 환전, P2P 송금 세 가지를 모두 체크한다.
+     * 진행 중(PENDING/FUNDED/PROCESSING)인 해외송금 거래가 있는지 확인한다.
      */
     private void validateNoActiveTransfer(Long userId) {
         boolean hasActiveTransfer = remittanceTransactionRepository.existsByUserIdAndStatusIn(
@@ -149,22 +144,6 @@ public class UserService {
         );
         if (hasActiveTransfer) {
             log.warn("[회원 탈퇴 실패] 진행 중 해외송금 거래 존재 — userId={}", userId);
-            throw new BusinessException(UserErrorCode.WITHDRAWAL_BLOCKED);
-        }
-
-        boolean hasActiveExchange = exchangeTransactionRepository.existsByUser_IdAndStatus(
-                userId, ExchangeStatus.PENDING
-        );
-        if (hasActiveExchange) {
-            log.warn("[회원 탈퇴 실패] 진행 중 환전 거래 존재 — userId={}", userId);
-            throw new BusinessException(UserErrorCode.WITHDRAWAL_BLOCKED);
-        }
-
-        boolean hasActiveP2pTransfer = p2pTransferRepository.existsActiveTransferByUserId(
-                userId, TransferStatus.PENDING
-        );
-        if (hasActiveP2pTransfer) {
-            log.warn("[회원 탈퇴 실패] 진행 중 P2P 송금 존재 — userId={}", userId);
             throw new BusinessException(UserErrorCode.WITHDRAWAL_BLOCKED);
         }
     }
