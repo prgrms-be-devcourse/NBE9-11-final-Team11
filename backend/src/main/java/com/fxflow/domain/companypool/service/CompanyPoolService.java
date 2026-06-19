@@ -168,7 +168,7 @@ public class CompanyPoolService {
                 amount,
                 balanceBefore,
                 balanceAfter,
-                LedgerRefType.REMITTANCE.name(),
+                LedgerRefType.REMITTANCE,
                 String.valueOf(remittanceTransactionId)
         );
         ledgerEntryRepository.save(poolEntry);
@@ -206,7 +206,7 @@ public class CompanyPoolService {
                 amount,
                 balanceBefore,
                 balanceAfter,
-                LedgerRefType.REMITTANCE.name(),
+                LedgerRefType.REMITTANCE,
                 String.valueOf(remittanceTransactionId)
         );
         ledgerEntryRepository.save(poolEntry);
