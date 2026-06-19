@@ -380,6 +380,31 @@ class RemittanceTransactionServiceTest {
     }
 
     @Test
+    @DisplayName("실패: 삭제된 수취인으로는 송금 주문을 생성할 수 없다")
+    void createTransfer_fail_deletedRecipient() {
+        // given
+        Long userId = 1L;
+        RemittanceTransactionCreateRequest request = createRequest();
+        RemittanceQuoteSnapshot quote = createQuote();
+        String idempotencyKey = "idempotency-key";
+
+        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+                .thenReturn(Optional.empty());
+        when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
+                .thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request, idempotencyKey))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RecipientErrorCode.RECIPIENT_NOT_FOUND);
+
+        verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
+        verifyNoInteractions(virtualAccountRepository);
+    }
+
+    @Test
     @DisplayName("성공: 동일 Idempotency-Key 주문이 이미 있으면 기존 주문과 가상계좌를 반환한다")
     void createTransfer_duplicateIdempotencyKey_returnsExistingTransfer() {
         // given
