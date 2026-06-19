@@ -273,6 +273,7 @@ public class MockBankAccountService {
      * TRF-08 지급 실패 시 TRF-07에서 차감했던 송금자 모의계좌로 원화를 환불한다.
      */
     @Transactional
+    @Transactional
     public Long refundForRemittance(
             String journalId,
             Long bankAccountId,
@@ -280,7 +281,7 @@ public class MockBankAccountService {
             String currencyCode,
             String refId
     ) {
-        MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndDeletedAtIsNullForUpdate(bankAccountId)
+        MockBankAccount bankAccount = mockBankAccountRepository.findByIdForUpdate(bankAccountId)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
         return depositToMockAccount(journalId, bankAccount, amount, currencyCode, refId);
