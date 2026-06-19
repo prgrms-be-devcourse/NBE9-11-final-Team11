@@ -20,7 +20,7 @@ public class ExchangeController {
     @GetMapping("/exchange/quote")
     public ResponseEntity<ExchangeQuoteResponse> getExchangeQuote(
             @AuthenticationPrincipal Long userId,
-            @RequestBody ExchangeQuoteRequest request
+            @ModelAttribute ExchangeQuoteRequest request
     ){
         ExchangeQuoteResponse res = exchangeService.getExchangeQuote(userId, request);
         return ResponseEntity.ok(res);

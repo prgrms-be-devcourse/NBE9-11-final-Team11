@@ -9,7 +9,6 @@ import com.fxflow.domain.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -40,7 +39,7 @@ public class WalletController {
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to
     ){
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Pageable pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by("createdAt").descending());
         TransactionHistoryResponse res = walletService.getTransactionHistory(userId, currency, from, to, pageable);
         return ResponseEntity.ok(res);
     }
