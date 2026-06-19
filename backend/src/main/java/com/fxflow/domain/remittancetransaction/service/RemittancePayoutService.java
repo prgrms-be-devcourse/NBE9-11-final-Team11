@@ -38,14 +38,26 @@ public class RemittancePayoutService {
                     transferId,
                     refundException
             );
-            remittanceRefundService.markRefundFailed(transferId, refundException);
+            markRefundFailed(transferId, refundException);
         } catch (RuntimeException refundException) {
             log.error(
                     "해외송금 환불 처리 중 시스템 예외가 발생했습니다. REFUND_FAILED 상태로 기록합니다. transferId={}",
                     transferId,
                     refundException
             );
+            markRefundFailed(transferId, refundException);
+        }
+    }
+
+    private void markRefundFailed(Long transferId, RuntimeException refundException) {
+        try {
             remittanceRefundService.markRefundFailed(transferId, refundException);
+        } catch (RuntimeException markException) {
+            log.error(
+                    "해외송금 환불 실패 상태 기록까지 실패했습니다. 긴급 확인이 필요합니다. transferId={}",
+                    transferId,
+                    markException
+            );
         }
     }
 }
