@@ -4,6 +4,7 @@ import com.fxflow.domain.ledger.entity.LedgerEntry;
 import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.mockbankaccount.dto.response.MockBankAccountCheckResponse;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankLinkResponse;
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
@@ -14,10 +15,10 @@ import com.fxflow.domain.user.repository.UserRepository;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -130,6 +131,32 @@ public class MockBankAccountService {
         return MockBankLinkResponse.of(account, wallets);
     }
 
+    /**
+     * 계좌번호 가용성(형식 + 전역 중복) 사전 확인
+     * - 인증 전(회원가입 KYC 단계)에서도 호출 가능해야 하므로 userId를 받지 않는다.
+     * - 실제 연결(linkAccount) 시점에 동일한 계좌번호가 다른 요청에 의해 선점될 수 있으므로,
+     *   이 메서드는 "사전 확인"용일 뿐 최종 검증은 linkAccount에서 다시 수행된다.
+     */
+    @Transactional(readOnly = true)
+    public MockBankAccountCheckResponse checkAccountNumber(String accountNumber) {
+        if (!isValidAccountNumberFormat(accountNumber)) {
+            log.info("[계좌번호 확인] 형식 오류 — accountNumber={}", accountNumber);
+            return MockBankAccountCheckResponse.unavailable(
+                    MockBankAccountErrorCode.MOCK_ACCOUNT_INVALID_FORMAT.getMessage()
+            );
+        }
+
+        if (mockBankAccountRepository.existsByAccountNumber(accountNumber)) {
+            log.info("[계좌번호 확인] 중복 — accountNumber={}", accountNumber);
+            return MockBankAccountCheckResponse.unavailable(
+                    MockBankAccountErrorCode.MOCK_ACCOUNT_NUMBER_DUPLICATED.getMessage()
+            );
+        }
+
+        log.info("[계좌번호 확인] 사용 가능 — accountNumber={}", accountNumber);
+        return MockBankAccountCheckResponse.success();
+    }
+
 
     /**
      * 계좌번호 형식 검증
@@ -151,6 +178,17 @@ public class MockBankAccountService {
             log.warn("[모의계좌 연결 실패] 자릿수 오류 — accountNumber={}", accountNumber);
             throw new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_INVALID_FORMAT);
         }
+    }
+
+    private boolean isValidAccountNumberFormat(String accountNumber) {
+        if (accountNumber == null || accountNumber.isBlank()) {
+            return false;   //  null이거나 빈 문자열이면 → 무효
+        }
+        if (!ACCOUNT_NUMBER_PATTERN.matcher(accountNumber).matches()) {
+            return false;   // 숫자가 아닌 문자가 섞여 있으면 → 무효
+        }
+        return accountNumber.length() == ACCOUNT_NUMBER_DIGIT_LENGTH;
+        // 길이가 정확히 12자리인지 (12자리면 true, 아니면 false)
     }
 
     /**
