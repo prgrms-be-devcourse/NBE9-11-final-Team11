@@ -126,7 +126,7 @@ public class UserService {
     private void validateNoBalance(Long userId) {
         List<Wallet> wallets = walletRepository.findByUserId(userId);
         boolean hasBalance = wallets.stream()
-                .anyMatch(w -> w.getBalance().compareTo(BigDecimal.ZERO) > 0);
+                .anyMatch(w -> w.getBalance() != null && w.getBalance().compareTo(BigDecimal.ZERO) != 0);
         if (hasBalance) {
             log.warn("[회원 탈퇴 실패] 잔액 존재 — userId={}", userId);
             throw new BusinessException(UserErrorCode.WITHDRAWAL_BLOCKED);
