@@ -153,6 +153,7 @@ export default function WalletPage() {
     if (mode === "withdraw" && value > krwBalance) return toast.error("출금 가능 잔액을 초과했습니다.")
     
     if (mode === "transfer") {
+      if (checkingEmail) return toast.error("이메일 검증이 완료될 때까지 기다려 주세요.")
       if (!recipientEmail.trim()) return toast.error("수취인 이메일을 입력하세요.")
       if (!recipientName) return toast.error("올바른 수취인 이메일을 입력하고 확인을 받으세요.")
       const selectedBalance = transferCurrency === "KRW" ? krwBalance : (fxBalances[transferCurrency] ?? 0)
@@ -311,8 +312,12 @@ export default function WalletPage() {
                       />
                     </div>
                   )}
-                  <Button className="w-full" onClick={submit}>
-                    {mode === "deposit" ? "입금하기" : mode === "withdraw" ? "출금하기" : "이체하기"}
+                  <Button 
+                    className="w-full" 
+                    onClick={submit}
+                    disabled={mode === "transfer" && checkingEmail}
+                  >
+                    {mode === "deposit" ? "입금하기" : mode === "withdraw" ? "출금하기" : checkingEmail ? "이메일 확인 중..." : "이체하기"}
                   </Button>
                 </div>
               </DialogContent>
