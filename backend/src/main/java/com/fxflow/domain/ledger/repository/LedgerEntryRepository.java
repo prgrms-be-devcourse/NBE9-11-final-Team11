@@ -14,9 +14,9 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
     Page<LedgerEntry> findByWalletId(Long id, Pageable pageable);
 
     @Query("SELECT l FROM LedgerEntry l WHERE l.walletId IN :walletIds " +
-            "AND (:currency IS NULL OR l.currencyCode = :currency) " +
-            "AND (:from IS NULL OR l.createdAt >= :from) " +
-            "AND (:to IS NULL OR l.createdAt <= :to) ")
+            "AND (cast(:currency as string) IS NULL OR l.currencyCode = :currency) " +
+            "AND (cast(:from as localdatetime) IS NULL OR l.createdAt >= :from) " +
+            "AND (cast(:to as localdatetime) IS NULL OR l.createdAt <= :to)")
     Page<LedgerEntry> findByWalletIdInAndFilters(
             @Param("walletIds") List<Long> walletId,
             @Param("currency") String currency,
