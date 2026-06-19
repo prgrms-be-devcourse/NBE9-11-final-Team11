@@ -2,6 +2,7 @@ package com.fxflow.domain.user.controller;
 
 import com.fxflow.domain.user.dto.request.LoginRequest;
 import com.fxflow.domain.user.dto.request.SignupRequest;
+import com.fxflow.domain.user.dto.request.WithdrawRequest;
 import com.fxflow.domain.user.dto.response.LoginResponse;
 import com.fxflow.domain.user.dto.response.SignupResponse;
 import com.fxflow.domain.user.dto.response.WithdrawUserResponse;
@@ -80,17 +81,17 @@ public class UserController {
     @DeleteMapping("/me")
     public ResponseEntity<WithdrawUserResponse> withdraw(
             @AuthenticationPrincipal Long id,
-            HttpServletRequest request,
+            @Valid @RequestBody WithdrawRequest withdrawRequest,
+            HttpServletRequest httpRequest,
             HttpServletResponse response
-    ){
-        WithdrawUserResponse withdrawUserResponse = userService.withDrawn(id);
-        String token =CookieTokenExtractor.extract(request);
+    ) {
+        WithdrawUserResponse withdrawUserResponse = userService.withDrawn(id, withdrawRequest.password());
+        String token = CookieTokenExtractor.extract(httpRequest);
         tokenBlacklistService.invalidate(token);
         ResponseCookie cookie = jwtTokenProvider.deleteAccessTokenCookie();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
         return ResponseEntity.ok(withdrawUserResponse);
-
     }
 
 
