@@ -238,7 +238,7 @@ class RemittanceTransactionServiceTest {
         UserAnnualUsage annualUsage = createAnnualUsage(userId, currentYear, BigDecimal.ZERO);
         String idempotencyKey = "idempotency-key";
 
-        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+        when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.empty());
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
@@ -311,7 +311,7 @@ class RemittanceTransactionServiceTest {
         RemittanceTransactionCreateRequest request = createRequest();
         String idempotencyKey = "idempotency-key";
 
-        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+        when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.empty());
         when(remittanceQuoteProvider.getQuote(request.quoteId()))
                 .thenThrow(new BusinessException(RemittanceTransactionErrorCode.QUOTE_NOT_FOUND));
@@ -339,7 +339,7 @@ class RemittanceTransactionServiceTest {
                 new BusinessException(TransactionLimitErrorCode.ANNUAL_REMITTANCE_LIMIT_EXCEEDED);
         String idempotencyKey = "idempotency-key";
 
-        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+        when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.empty());
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
@@ -363,7 +363,7 @@ class RemittanceTransactionServiceTest {
         RemittanceQuoteSnapshot quote = createQuote();
         String idempotencyKey = "idempotency-key";
 
-        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+        when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.empty());
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
@@ -388,7 +388,7 @@ class RemittanceTransactionServiceTest {
         RemittanceQuoteSnapshot quote = createQuote();
         String idempotencyKey = "idempotency-key";
 
-        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+        when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.empty());
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
@@ -416,7 +416,7 @@ class RemittanceTransactionServiceTest {
         VirtualAccount existingVirtualAccount =
                 createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
 
-        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+        when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.of(existingTransaction));
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
                 .thenReturn(Optional.of(existingVirtualAccount));
@@ -433,6 +433,32 @@ class RemittanceTransactionServiceTest {
         verifyNoInteractions(remittanceValidator);
         verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
         verify(virtualAccountRepository, never()).save(any(VirtualAccount.class));
+    }
+
+    @Test
+    @DisplayName("실패: 다른 사용자가 이미 사용한 Idempotency-Key이면 충돌 예외가 발생한다")
+    void createTransfer_fail_idempotencyKeyConflict() {
+        // given
+        Long userId = 1L;
+        Long otherUserId = 2L;
+        Long transferId = 10L;
+        String idempotencyKey = "idempotency-key";
+        RemittanceTransactionCreateRequest request = createRequest();
+        RemittanceTransaction existingTransaction = createPendingTransaction(otherUserId, transferId);
+
+        when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
+                .thenReturn(Optional.of(existingTransaction));
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request, idempotencyKey))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RemittanceTransactionErrorCode.IDEMPOTENCY_KEY_CONFLICT);
+
+        verifyNoInteractions(remittanceQuoteProvider);
+        verifyNoInteractions(recipientRepository);
+        verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
+        verifyNoInteractions(virtualAccountRepository);
     }
 
     @Test
