@@ -11,6 +11,9 @@ import com.fxflow.domain.user.enums.UserStatus;
 import com.fxflow.domain.user.errorcode.UserErrorCode;
 import com.fxflow.domain.user.repository.UserRepository;
 import com.fxflow.domain.wallet.entity.Wallet;
+import com.fxflow.domain.wallet.enums.ExchangeStatus;
+import com.fxflow.domain.wallet.repository.ExchangeTransactionRepository;
+import com.fxflow.domain.wallet.repository.P2pTransferRepository;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +35,8 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final WalletRepository walletRepository;
     private final RemittanceTransactionRepository remittanceTransactionRepository;
-
+    private final P2pTransferRepository p2pTransferRepository;
+    private final ExchangeTransactionRepository exchangeTransactionRepository;
     /**
      * 회원가입
      * 이메일 중복 확인 후 유저 생성
@@ -88,23 +92,27 @@ public class UserService {
     }
 
 
-    /*
-     *회원 탈퇴
-     * 사용자의 지갑 잔액들이 비어있고, 송금이 진행중이 아니라면, 회원탈퇴를 진행한다.
+    /**
+     * 회원 탈퇴
+     * 비밀번호를 재확인하고, 사용자의 지갑 잔액들이 비어있고,
+     * 진행 중인 거래(해외송금/환전/P2P 송금)가 없다면 회원 탈퇴를 진행한다.
      */
     @Transactional
-    public WithdrawUserResponse withDrawn(Long userId) {
+    public WithdrawUserResponse withDrawn(Long userId, String password) {
         log.info("[회원 탈퇴 시작]: userId={}", userId);
         User user = getUser(userId);
+
+        validateNotAlreadyWithdrawn(user);
+        validatePassword(user, password);
         validateNoBalance(userId);
         validateNoActiveTransfer(userId);
+
         String maskedEmail = "del_" + userId + "@delect.com";
         String maskedName = "탈퇴한 회원_" + userId;
         LocalDateTime withdrawAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
-        user.withdraw(maskedEmail,maskedName);
+        user.withdraw(maskedEmail, maskedName);
         log.info("[회원 탈퇴 완료] userId={}", userId);
         return WithdrawUserResponse.of(user, withdrawAt);
-
     }
 
     public User getUser(Long userId) {
@@ -126,7 +134,8 @@ public class UserService {
     }
 
     /**
-     * 진행 중(PENDING/FUNDED/PROCESSING)인 해외송금 거래가 있는지 확인한다.
+     * 진행 중(PENDING/FUNDED/PROCESSING)인 거래가 있는지 확인한다.
+     * 해외송금, 환전, P2P 송금 세 가지를 모두 체크한다.
      */
     private void validateNoActiveTransfer(Long userId) {
         boolean hasActiveTransfer = remittanceTransactionRepository.existsByUserIdAndStatusIn(
@@ -134,9 +143,47 @@ public class UserService {
                 List.of(TransferStatus.PENDING, TransferStatus.FUNDED, TransferStatus.PROCESSING)
         );
         if (hasActiveTransfer) {
-            log.warn("[회원 탈퇴 실패] 진행 중 거래 존재 — userId={}", userId);
+            log.warn("[회원 탈퇴 실패] 진행 중 해외송금 거래 존재 — userId={}", userId);
+            throw new BusinessException(UserErrorCode.WITHDRAWAL_BLOCKED);
+        }
+
+        boolean hasActiveExchange = exchangeTransactionRepository.existsByUser_IdAndStatus(
+                userId, ExchangeStatus.PENDING
+        );
+        if (hasActiveExchange) {
+            log.warn("[회원 탈퇴 실패] 진행 중 환전 거래 존재 — userId={}", userId);
+            throw new BusinessException(UserErrorCode.WITHDRAWAL_BLOCKED);
+        }
+
+        boolean hasActiveP2pTransfer = p2pTransferRepository.existsActiveTransferByUserId(
+                userId, TransferStatus.PENDING
+        );
+        if (hasActiveP2pTransfer) {
+            log.warn("[회원 탈퇴 실패] 진행 중 P2P 송금 존재 — userId={}", userId);
             throw new BusinessException(UserErrorCode.WITHDRAWAL_BLOCKED);
         }
     }
+
+    /**
+     * 이미 탈퇴 처리된 회원인지 확인한다. 토큰 재사용 등으로 인한 중복 탈퇴를 막는다.
+     */
+    private void validateNotAlreadyWithdrawn(User user) {
+        if (user.getStatus() == UserStatus.WITHDRAWN) {
+            log.warn("[회원 탈퇴 실패] 이미 탈퇴한 회원 — userId={}", user.getId());
+            throw new BusinessException(UserErrorCode.ALREADY_WITHDRAWN);
+        }
+    }
+
+    /**
+     * 탈퇴는 비밀번호 재확인을 거친다. 세션 탈취 등으로 인한 임의 탈퇴를 막는다.
+     */
+    private void validatePassword(User user, String password) {
+        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+            log.warn("[회원 탈퇴 실패] 비밀번호 불일치 — userId={}", user.getId());
+            throw new BusinessException(UserErrorCode.INVALID_CREDENTIALS);
+        }
+    }
+
+
 
 }
