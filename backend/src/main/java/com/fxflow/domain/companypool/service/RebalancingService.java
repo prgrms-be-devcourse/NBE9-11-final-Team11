@@ -10,6 +10,7 @@ import com.fxflow.domain.companypool.errorcode.PoolErrorCode;
 import com.fxflow.domain.companypool.event.PoolChangedEvent;
 import com.fxflow.domain.companypool.repository.CompanyPoolRepository;
 import com.fxflow.domain.companypool.repository.RebalancingRepository;
+import com.fxflow.global.alert.AdminAlertService;
 import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.ExchangeRateProvider;
 import com.fxflow.global.fx.FxRateSnapshot;
@@ -37,6 +38,7 @@ public class RebalancingService {
     private final RebalancingRepository rebalancingRepository;
     private final RebalancingAuditService auditService;
     private final ExchangeRateProvider exchangeRateProvider;
+    private final AdminAlertService adminAlertService;
 
     private record TradeAmounts(BigDecimal buyAmount, BigDecimal sellAmount, CappedBy cappedBy) {}
 
@@ -75,7 +77,9 @@ public class RebalancingService {
         CompanyPool krwPool = findPool("KRW");
         CompanyPool usdPool = findPool("USD");
 
-        checkBothBelowFloor(krwPool, usdPool, triggerType, reason);
+        if (isBothBelowFloor(krwPool, usdPool, triggerType, reason)) {
+            return RebalancingExecuteRes.bothBelowFloor();
+        }
         if (!krwPool.isBelowFloor() && !usdPool.isBelowFloor()) {
             log.debug("floor 미만 풀 없음. 리밸런싱 불필요.");
             return RebalancingExecuteRes.withinThreshold();
@@ -127,15 +131,15 @@ public class RebalancingService {
         return midRate.multiply(BigDecimal.ONE.add(SPREAD)).setScale(8, RoundingMode.HALF_UP);
     }
 
-    private void checkBothBelowFloor(CompanyPool krwPool, CompanyPool usdPool,
+    // 케이스 4: 양쪽 모두 floor 미만 → 환전으로 조정 불가, 관리자 알림 + 미실행 반환
+    private boolean isBothBelowFloor(CompanyPool krwPool, CompanyPool usdPool,
                                       TriggerType triggerType, String reason) {
         if (krwPool.isBelowFloor() && usdPool.isBelowFloor()) {
-            log.error("[ALERT] 양 통화 모두 floor 미만 — 즉시 점검 필요. krwBalance={}, usdBalance={}",
-                    krwPool.getBalance(), usdPool.getBalance());
-            // TODO: 관리자 알림 발송 (이메일/Slack 등)
+            adminAlertService.sendBothBelowFloorAlert(krwPool.getBalance(), usdPool.getBalance());
             auditService.saveManualRequired(triggerType, reason, UUID.randomUUID().toString());
-            throw new BusinessException(PoolErrorCode.BOTH_BELOW_FLOOR);
+            return true;
         }
+        return false;
     }
 
     // 매입량 = min(target 대비 부족분량, 반대 통화 floor까지 여유분량)
