@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Locale;
+
 @RestController
 @RequestMapping("/api/v1/fxrates")
 @RequiredArgsConstructor
@@ -24,7 +26,10 @@ public class FxRateController {
             @RequestParam(defaultValue = "USD") String base,
             @RequestParam(defaultValue = "KRW") String quote
     ) {
-        FxRateResponse response = fxRateQueryService.getLatestRate(base, quote)
+        // 통화코드는 항상 대문자로 저장되므로 입력을 대문자로 정규화
+        // (Locale.ROOT: 터키어 등 로케일 의존 대문자 변환 i→İ 회피)
+        FxRateResponse response = fxRateQueryService
+                .getLatestRate(base.toUpperCase(Locale.ROOT), quote.toUpperCase(Locale.ROOT))
                 .map(FxRateResponse::from)
                 .orElseThrow(() -> new BusinessException(FxRateErrorCode.FX_RATE_NOT_FOUND));
         return ResponseEntity.ok(response);

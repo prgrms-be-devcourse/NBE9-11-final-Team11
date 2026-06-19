@@ -47,9 +47,9 @@ class FxRateControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.baseCurrency").value("USD"))
                 .andExpect(jsonPath("$.quoteCurrency").value("KRW"))
-                .andExpect(jsonPath("$.midRate").value(1350))
-                .andExpect(jsonPath("$.buyRate").exists())
-                .andExpect(jsonPath("$.sellRate").exists())
+                .andExpect(jsonPath("$.midRate").value(1350.0))
+                .andExpect(jsonPath("$.buyRate").value(1363.5))
+                .andExpect(jsonPath("$.sellRate").value(1336.5))
                 .andExpect(jsonPath("$.fetchedAt").exists());
     }
 
@@ -61,5 +61,23 @@ class FxRateControllerTest {
         mockMvc.perform(get("/api/v1/fxrates/latest"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("F-002"));
+    }
+
+    @Test
+    @DisplayName("소문자 통화코드 요청도 대문자로 정규화되어 조회된다")
+    void getLatestRate_normalizesLowerCase() throws Exception {
+        FxRateSnapshot snapshot = new FxRateSnapshot(
+                "USD", "KRW",
+                new BigDecimal("1350"),
+                new BigDecimal("0.01"),
+                LocalDateTime.of(2026, 6, 18, 12, 0, 0)
+        );
+        // 컨트롤러가 대문자로 정규화해야 서비스가 "USD"/"KRW"로 호출된다 (정규화 없으면 stub 미스 → 404)
+        when(fxRateQueryService.getLatestRate("USD", "KRW")).thenReturn(Optional.of(snapshot));
+
+        mockMvc.perform(get("/api/v1/fxrates/latest").param("base", "usd").param("quote", "krw"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.baseCurrency").value("USD"))
+                .andExpect(jsonPath("$.quoteCurrency").value("KRW"));
     }
 }
