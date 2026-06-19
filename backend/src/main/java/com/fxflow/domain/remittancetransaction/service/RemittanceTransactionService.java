@@ -217,7 +217,7 @@ public class RemittanceTransactionService {
                 refId
         );
 
-        companyPoolService.deposit(journalId, KRW, krwAmount);
+        companyPoolService.depositForRemittance(journalId, KRW, krwAmount, remittanceTransaction.getId());
 
         remittanceTransaction.fund(sourceMockAccountId);
         virtualAccount.pay(paidAt);
