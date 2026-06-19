@@ -61,8 +61,13 @@ export default function ExchangePage() {
         const from = direction === "KRW_TO_USD" ? "KRW" : "USD"
         const to = direction === "KRW_TO_USD" ? "USD" : "KRW"
         const data = await apiRequest<any>(
-          "GET",
-          `/api/v1/wallets/exchange/quote?fromCurrency=${from}&toCurrency=${to}&amount=${parsedAmount}`
+          "POST",
+          "/api/v1/wallets/exchange/quote",
+          {
+            fromCurrency: from,
+            toCurrency: to,
+            amount: parsedAmount,
+          }
         )
         setQuote(data)
       } catch (err: any) {
