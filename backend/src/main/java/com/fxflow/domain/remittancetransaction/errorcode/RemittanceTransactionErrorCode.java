@@ -18,6 +18,7 @@ public enum RemittanceTransactionErrorCode implements ErrorCode {
     INVALID_REMITTANCE_REASON(HttpStatus.BAD_REQUEST, "INVALID_REMITTANCE_REASON", "송금 사유가 올바르지 않습니다."),
     REMITTANCE_TRANSACTION_NOT_FOUND(HttpStatus.NOT_FOUND, "REMITTANCE_TRANSACTION_NOT_FOUND", "송금 거래를 찾을 수 없습니다."),
     INVALID_REMITTANCE_TRANSACTION_STATUS(HttpStatus.CONFLICT, "INVALID_REMITTANCE_TRANSACTION_STATUS", "현재 상태에서는 입금 확인 처리를 할 수 없습니다."),
+    IDEMPOTENCY_KEY_REQUIRED(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key 헤더가 필요합니다."),
 
     // 가상계좌
     VIRTUAL_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "VIRTUAL_ACCOUNT_NOT_FOUND", "가상계좌를 찾을 수 없습니다."),

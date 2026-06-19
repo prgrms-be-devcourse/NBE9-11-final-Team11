@@ -139,6 +139,8 @@ public class RemittanceTransactionService {
             RemittanceTransactionCreateRequest request,
             String idempotencyKey
     ) {
+        validateIdempotencyKey(idempotencyKey);
+
         RemittanceTransaction existingTransaction = remittanceTransactionRepository
                 .findByUserIdAndIdempotencyKey(userId, idempotencyKey)
                 .orElse(null);
@@ -233,6 +235,12 @@ public class RemittanceTransactionService {
         eventPublisher.publishEvent(RemittanceFundedEvent.of(remittanceTransaction, virtualAccount));
 
         return RemittanceMockFundedResponse.of(remittanceTransaction, virtualAccount);
+    }
+
+    private void validateIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new BusinessException(RemittanceTransactionErrorCode.IDEMPOTENCY_KEY_REQUIRED);
+        }
     }
 
     /**
