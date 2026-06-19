@@ -22,9 +22,7 @@ import com.fxflow.global.exception.BusinessException;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -189,7 +187,6 @@ class CompanyPoolServiceTest {
         given(pool.getCeilingBalance()).willReturn(ceiling);
         given(pool.isBelowFloor()).willReturn(balance.compareTo(floor) < 0);
         given(pool.isAboveCeiling()).willReturn(balance.compareTo(ceiling) > 0);
-        // shortageToTarget은 BELOW_FLOOR일 때만 호출됨
         BigDecimal shortage = target.subtract(balance);
         given(pool.shortageToTarget()).willReturn(
                 shortage.compareTo(BigDecimal.ZERO) > 0 ? shortage : BigDecimal.ZERO);

@@ -163,11 +163,10 @@ class RebalancingServiceTest {
         givenPools(new BigDecimal("7000000000"), new BigDecimal("8000000"));
 
         RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
-        
+
         assertThat(result.action().buyCurrency()).isEqualTo("KRW");
         assertThat(result.action().sellCurrency()).isEqualTo("USD");
     }
-    
 
     @Test
     @DisplayName("수동 실행 중 환율 데이터 없음(Optional.empty) → RATE_UNAVAILABLE 예외")
