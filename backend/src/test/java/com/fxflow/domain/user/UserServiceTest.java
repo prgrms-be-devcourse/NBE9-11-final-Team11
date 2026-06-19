@@ -140,8 +140,7 @@ class UserServiceTest {
             LoginRequest request = new LoginRequest("hong@example.com", "Abcd1234!");
 
             User user = User.create("hong@example.com", "encodedPassword", "홍길동");
-            user.withdraw();  // 탈퇴 처리
-
+            user.withdraw("del_1@delect.com", "탈퇴한 회원_1");
             when(userRepository.findByEmail(request.email())).thenReturn(Optional.of(user));
 
             // when & then
