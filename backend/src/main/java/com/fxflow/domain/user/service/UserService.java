@@ -101,6 +101,7 @@ public class UserService {
         String maskedEmail = "del_" + userId + "@delect.com";
         String maskedName = "탈퇴한 회원_" + userId;
         LocalDateTime withdrawAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        user.withdraw(maskedEmail,maskedName);
         log.info("[회원 탈퇴 완료] userId={}", userId);
         return WithdrawUserResponse.of(user, withdrawAt);
 

@@ -73,7 +73,7 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
     /**
-     * 회우너 탈퇴
+     * 회원 탈퇴
      * DELETE /api/v1/auth/me
      * 탈퇴 처리후 현재 jwt도 무효화
      */
