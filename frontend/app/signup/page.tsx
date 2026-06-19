@@ -16,6 +16,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { KOREAN_BANKS } from "@/lib/fx-data"
 
 type KycState = "idle" | "waiting" | "verified" | "failed"
+type KycFailKind = "code" | "api" | null
+type AccountCheckStatus = "idle" | "checking" | "available" | "unavailable"
+type AccountCheckState = {
+  status: AccountCheckStatus
+  message?: string
+}
 
 export default function SignupPage() {
   const router = useRouter()
@@ -68,56 +74,99 @@ export default function SignupPage() {
 
   // --- KYC step ---
   const [kyc, setKyc] = useState<KycState>("idle")
+  const [kycFailKind, setKycFailKind] = useState<KycFailKind>(null)
   const [code, setCode] = useState("")
   const correctCode = "1234"
 
+  // --- 계좌번호 사전 확인 (중복 체크) ---
+  const [accountCheck, setAccountCheck] = useState<AccountCheckState>({ status: "idle" })
+
+  function handleAccountNumberChange(value: string) {
+    setAccountNumber(value.replace(/[^\d]/g, ""))
+    // 번호가 바뀌면 이전 확인 결과는 더 이상 유효하지 않으므로 초기화
+    setAccountCheck({ status: "idle" })
+  }
+
+  async function handleCheckAccount() {
+    const cleanAccount = accountNumber.replace(/[^\d]/g, "")
+    if (cleanAccount.length !== 12) {
+      setAccountCheck({ status: "unavailable", message: "계좌번호는 정확히 12자리 숫자여야 합니다." })
+      return
+    }
+
+    setAccountCheck({ status: "checking" })
+    try {
+      const result = await apiRequest<{ available: boolean; message: string }>(
+        "POST",
+        "/api/v1/mockbank/check",
+        { accountNumber: cleanAccount }
+      )
+      setAccountCheck({
+        status: result.available ? "available" : "unavailable",
+        message: result.message,
+      })
+    } catch (err: any) {
+      console.error(err)
+      setAccountCheck({ status: "unavailable", message: err.message || "계좌번호 확인에 실패했습니다." })
+    }
+  }
+
   function startKyc() {
+    if (accountCheck.status !== "available") return
     setKyc("waiting")
+    setKycFailKind(null)
   }
 
   async function verifyKyc(ev: React.FormEvent) {
     ev.preventDefault()
     setError("")
-    
+
     const cleanAccount = accountNumber.replace(/[^\d]/g, "")
     if (cleanAccount.length !== 12) {
       setError("계좌번호는 정확히 12자리 숫자여야 합니다.")
       return
     }
 
-    if (code === correctCode) {
-      setKyc("waiting")
-      try {
-        const loginData = await apiRequest<{ userId: number; name: string; email: string }>(
-          "POST",
-          "/api/v1/auth/login",
-          { email, password }
-        )
-        if (typeof window !== "undefined") {
-          localStorage.setItem("fxflow-userId", String(loginData.userId))
-        }
-        login(loginData.email, loginData.name)
-        
-        try {
-          await apiRequest("POST", "/api/v1/mockbank/link", {
-            bankName: bankName,
-            accountNumber: cleanAccount
-          })
-        } catch (linkErr) {
-          console.warn("Failed to link mock bank account during signup:", linkErr)
-        }
-
-        setKyc("verified")
-        setVerified()
-        toast.success("인증이 완료되었습니다. 지갑이 생성되었어요.")
-        setTimeout(() => router.push("/dashboard"), 1200)
-      } catch (err: any) {
-        console.error(err)
-        setKyc("failed")
-        setError(err.message || "인증 및 로그인 처리에 실패했습니다.")
-      }
-    } else {
+    if (code !== correctCode) {
       setKyc("failed")
+      setKycFailKind("code")
+      return
+    }
+
+    // 인증코드는 맞았으니 이제 로그인 + 계좌연결을 시도한다.
+    // 이 두 단계는 회원가입 완료를 위한 "필수" 단계이며,
+    // 어느 한쪽이라도 실패하면 인증 완료(verified) 처리를 하지 않는다.
+    setKyc("waiting")
+    setKycFailKind(null)
+
+    try {
+      const loginData = await apiRequest<{ userId: number; name: string; email: string }>(
+        "POST",
+        "/api/v1/auth/login",
+        { email, password }
+      )
+      if (typeof window !== "undefined") {
+        localStorage.setItem("fxflow-userId", String(loginData.userId))
+      }
+      login(loginData.email, loginData.name)
+
+      // 모의계좌 연결 + 지갑 생성은 필수 단계.
+      // "계좌번호 확인하기"에서 통과했더라도, 그 사이 다른 요청이 같은 번호를
+      // 선점했을 수 있으므로 여기서 다시 한 번 최종 검증된다.
+      await apiRequest("POST", "/api/v1/mockbank/link", {
+        bankName: bankName,
+        accountNumber: cleanAccount
+      })
+
+      setKyc("verified")
+      setVerified()
+      toast.success("인증이 완료되었습니다. 지갑이 생성되었어요.")
+      setTimeout(() => router.push("/dashboard"), 1200)
+    } catch (err: any) {
+      console.error(err)
+      setKyc("failed")
+      setKycFailKind("api")
+      setError(err.message || "계좌 연결에 실패했습니다. 잠시 후 다시 시도해주세요.")
     }
   }
 
@@ -159,14 +208,46 @@ export default function SignupPage() {
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="kycAccount" className="text-muted-foreground text-xs">계좌번호</Label>
                 {kyc === "idle" ? (
-                  <Input
-                    id="kycAccount"
-                    placeholder="숫자 12자리"
-                    value={accountNumber}
-                    onChange={(e) => setAccountNumber(e.target.value.replace(/[^\d]/g, ""))}
-                    maxLength={12}
-                    className="h-9"
-                  />
+                  <>
+                    <Input
+                      id="kycAccount"
+                      placeholder="숫자 12자리"
+                      value={accountNumber}
+                      onChange={(e) => handleAccountNumberChange(e.target.value)}
+                      maxLength={12}
+                      className="h-9"
+                    />
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCheckAccount}
+                        disabled={accountCheck.status === "checking"}
+                      >
+                        {accountCheck.status === "checking" ? (
+                          <span className="flex items-center gap-1.5">
+                            <Loader2 className="size-3.5 animate-spin" />
+                            확인 중...
+                          </span>
+                        ) : (
+                          "계좌번호 확인하기"
+                        )}
+                      </Button>
+                      {accountCheck.status === "available" && (
+                        <span className="flex items-center gap-1 text-xs text-accent">
+                          <Check className="size-3.5" />
+                          {accountCheck.message ?? "사용 가능한 계좌번호입니다."}
+                        </span>
+                      )}
+                      {accountCheck.status === "unavailable" && (
+                        <span className="flex items-center gap-1 text-xs text-destructive">
+                          <AlertCircle className="size-3.5" />
+                          {accountCheck.message ?? "사용할 수 없는 계좌번호입니다."}
+                        </span>
+                      )}
+                    </div>
+                  </>
                 ) : (
                   <span className="font-mono font-medium">
                     {accountNumber.replace(/(\d{3})(\d{3})(\d{6})/, "$1-$2-$3")}
@@ -177,9 +258,16 @@ export default function SignupPage() {
           </div>
 
           {kyc === "idle" && (
-            <Button onClick={startKyc} className="w-full">
-              1원 입금 요청
-            </Button>
+            <div className="flex flex-col gap-1.5">
+              <Button onClick={startKyc} className="w-full" disabled={accountCheck.status !== "available"}>
+                1원 입금 요청
+              </Button>
+              {accountCheck.status !== "available" && (
+                <p className="text-center text-xs text-muted-foreground">
+                  계좌번호 확인을 먼저 진행해주세요.
+                </p>
+              )}
+            </div>
           )}
 
           {(kyc === "waiting" || kyc === "failed") && (
@@ -200,10 +288,16 @@ export default function SignupPage() {
                   className="text-center text-lg tracking-[0.5em]"
                 />
               </div>
-              {kyc === "failed" && (
+              {kyc === "failed" && kycFailKind === "code" && (
                 <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   <AlertCircle className="size-4" />
                   인증에 실패했습니다. 코드를 다시 확인해주세요.
+                </div>
+              )}
+              {kyc === "failed" && kycFailKind === "api" && (
+                <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <AlertCircle className="size-4" />
+                  계좌 연결에 실패하여 가입을 완료할 수 없습니다. 위 오류 내용을 확인 후 다시 시도해주세요.
                 </div>
               )}
               <Button type="submit" className="w-full">
