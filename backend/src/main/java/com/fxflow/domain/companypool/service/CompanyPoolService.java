@@ -111,10 +111,10 @@ public class CompanyPoolService {
      * 지갑 충전이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
      */
     @Transactional
-    @Transactional
     public CompanyPool depositForRemittance(String journalId, String currencyCode, BigDecimal amount, Long remittanceTransactionId) {
-        CompanyPool pool = companyPoolRepository.findByCurrencyCodeForUpdate(currencyCode)
+        CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
                 .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
+        BigDecimal balanceBefore = pool.getBalance();
         BigDecimal balanceAfter = balanceBefore.add(amount);
 
         pool.increase(amount);
@@ -145,10 +145,10 @@ public class CompanyPoolService {
      * 지갑 출금이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
      */
     @Transactional
-    @Transactional
     public CompanyPool withdrawForRemittance(String journalId, String currencyCode, BigDecimal amount, Long remittanceTransactionId) {
-        CompanyPool pool = companyPoolRepository.findByCurrencyCodeForUpdate(currencyCode)
+        CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
                 .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
+        BigDecimal balanceBefore = pool.getBalance();
         BigDecimal balanceAfter = balanceBefore.subtract(amount);
 
         if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {

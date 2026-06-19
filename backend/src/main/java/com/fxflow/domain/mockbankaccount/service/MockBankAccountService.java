@@ -255,7 +255,6 @@ public class MockBankAccountService {
      * TRF-08에서 송금자가 입력한 수취인 계좌번호로 외화를 입금한다.
      */
     @Transactional
-    @Transactional
     public Long depositForRemittance(
             String journalId,
             String accountNumber,
@@ -281,7 +280,7 @@ public class MockBankAccountService {
             String currencyCode,
             String refId
     ) {
-        MockBankAccount bankAccount = mockBankAccountRepository.findById(bankAccountId)
+        MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndDeletedAtIsNullForUpdate(bankAccountId)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
         return depositToMockAccount(journalId, bankAccount, amount, currencyCode, refId);
