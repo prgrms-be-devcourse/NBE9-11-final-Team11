@@ -21,7 +21,7 @@ export default function ExchangePage() {
   const [krwBalance, setKrwBalance] = useState<number>(0)
   const [usdBalance, setUsdBalance] = useState<number>(0)
   const [direction, setDirection] = useState<"KRW_TO_USD" | "USD_TO_KRW">("KRW_TO_USD")
-  const [inputAmount, setInputAmount] = useState("500000")
+  const [inputAmount, setInputAmount] = useState("10000")
   const [quote, setQuote] = useState<any>(null)
   const [loadingQuote, setLoadingQuote] = useState(false)
   const [quoteError, setQuoteError] = useState<string>("")
@@ -92,10 +92,10 @@ export default function ExchangePage() {
     setQuoteError("")
     if (direction === "KRW_TO_USD") {
       setDirection("USD_TO_KRW")
-      setInputAmount("500") // Default to 500 USD
+      setInputAmount("10") // Default to 500 USD
     } else {
       setDirection("KRW_TO_USD")
-      setInputAmount("500000") // Default to 500k KRW
+      setInputAmount("10000") // Default to 500k KRW
     }
   }
 
