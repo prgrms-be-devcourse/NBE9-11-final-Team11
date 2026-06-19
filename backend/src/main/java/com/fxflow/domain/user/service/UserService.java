@@ -5,12 +5,14 @@ import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionR
 import com.fxflow.domain.user.dto.request.LoginRequest;
 import com.fxflow.domain.user.dto.request.SignupRequest;
 import com.fxflow.domain.user.dto.response.SignupResponse;
+import com.fxflow.domain.user.dto.response.UserCheckResponse;
 import com.fxflow.domain.user.dto.response.WithdrawUserResponse;
 import com.fxflow.domain.user.dto.response.UserCheckResponse;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.enums.UserStatus;
 import com.fxflow.domain.user.errorcode.UserErrorCode;
 import com.fxflow.domain.user.repository.UserRepository;
+import com.fxflow.domain.wallet.errorcode.P2pTransferErrorCode;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.domain.wallet.errorcode.P2pTransferErrorCode;
