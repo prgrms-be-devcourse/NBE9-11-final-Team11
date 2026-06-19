@@ -84,10 +84,11 @@ export default function WalletPage() {
           } else if (tx.type === "EXCHANGE") {
             type = "exchange"
             if (tx.currency === "KRW") {
-              title = "KRW → USD 환전"
+              title = "KRW → USD 환전 (지불)"
               amountKRW = -amountKRW
             } else {
-              title = "KRW → USD 환전"
+              title = "KRW → USD 환전 (수취)"
+              amountKRW = amountKRW * 1530 // Convert to KRW for UI list display
             }
           } else if (tx.type === "TRANSFER") {
             type = "remittance"
@@ -157,6 +158,7 @@ export default function WalletPage() {
   }
 
   const walletTx = transactions.filter((t) => t.type === "deposit" || t.type === "withdraw")
+  const exchangeTx = transactions.filter((t) => t.type === "exchange")
 
   return (
     <AppShell title="내 지갑">
@@ -275,19 +277,20 @@ export default function WalletPage() {
           </div>
         </div>
 
-        {/* Deposit/withdraw history */}
+        {/* Deposit/withdraw and Exchange history */}
         <Card className="p-2">
           <Tabs defaultValue="all" className="w-full">
             <div className="flex items-center justify-between px-3 pt-2">
-              <h2 className="text-sm font-semibold">입출금 내역</h2>
+              <h2 className="text-sm font-semibold">입출금 및 환전 내역</h2>
               <TabsList>
                 <TabsTrigger value="all">전체</TabsTrigger>
                 <TabsTrigger value="deposit">입금</TabsTrigger>
                 <TabsTrigger value="withdraw">출금</TabsTrigger>
+                <TabsTrigger value="exchange">환전</TabsTrigger>
               </TabsList>
             </div>
             <TabsContent value="all" className="mt-2 divide-y divide-border">
-              {walletTx.map((t) => (
+              {transactions.map((t) => (
                 <TransactionRow key={t.id} tx={t} />
               ))}
             </TabsContent>
@@ -304,6 +307,11 @@ export default function WalletPage() {
                 .map((t) => (
                   <TransactionRow key={t.id} tx={t} />
                 ))}
+            </TabsContent>
+            <TabsContent value="exchange" className="mt-2 divide-y divide-border">
+              {exchangeTx.map((t) => (
+                <TransactionRow key={t.id} tx={t} />
+              ))}
             </TabsContent>
           </Tabs>
         </Card>
