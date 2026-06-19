@@ -142,9 +142,12 @@ public class RemittanceTransactionService {
         validateIdempotencyKey(idempotencyKey);
 
         RemittanceTransaction existingTransaction = remittanceTransactionRepository
-                .findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+                .findByIdempotencyKey(idempotencyKey)
                 .orElse(null);
         if (existingTransaction != null) {
+            if (!existingTransaction.getUserId().equals(userId)) {
+                throw new BusinessException(RemittanceTransactionErrorCode.IDEMPOTENCY_KEY_CONFLICT);
+            }
             VirtualAccount existingVirtualAccount = getVirtualAccount(existingTransaction.getId());
             return RemittanceTransactionCreateResponse.of(existingTransaction, existingVirtualAccount);
         }
