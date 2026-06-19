@@ -1,6 +1,7 @@
 package com.fxflow.domain.companypool.service;
 
 import com.fxflow.domain.companypool.dto.PoolChange;
+import com.fxflow.domain.companypool.dto.response.PoolDashboardRes;
 import com.fxflow.domain.companypool.entity.CompanyPool;
 import com.fxflow.domain.companypool.errorcode.PoolErrorCode;
 import com.fxflow.domain.companypool.event.PoolChangedEvent;
@@ -8,15 +9,17 @@ import com.fxflow.domain.companypool.repository.CompanyPoolRepository;
 import com.fxflow.domain.ledger.entity.LedgerEntry;
 import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
+import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.global.exception.BusinessException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.OffsetDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -50,6 +53,40 @@ public class CompanyPoolService {
                 .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
     }
 
+    @Transactional(readOnly = true)
+    public PoolDashboardRes getDashboard() {
+        List<PoolDashboardRes.PoolStatusRes> pools = List.of(
+                toPoolStatusRes(getPoolByCurrency("KRW")),
+                toPoolStatusRes(getPoolByCurrency("USD"))
+        );
+        return new PoolDashboardRes(OffsetDateTime.now(), pools);
+    }
+
+    private PoolDashboardRes.PoolStatusRes toPoolStatusRes(CompanyPool pool) {
+        String status = pool.isBelowFloor() ? "BELOW_FLOOR"
+                : pool.isAboveCeiling() ? "ABOVE_CEILING"
+                : "NORMAL";
+        // target 대비 현재 잔액 비율 (0.0 ~ 1.0). 클라이언트에서 *100 하면 퍼센트
+        BigDecimal utilizationRate = pool.getBalance()
+                .divide(pool.getTargetBalance(), 4, RoundingMode.HALF_UP);
+        PoolDashboardRes.RecommendedAction recommendedAction = switch (status) {
+            case "BELOW_FLOOR" -> new PoolDashboardRes.RecommendedAction("BUY", pool.shortageToTarget());
+            case "ABOVE_CEILING" -> new PoolDashboardRes.RecommendedAction(
+                    "SELL", pool.getBalance().subtract(pool.getTargetBalance()));
+            default -> null;
+        };
+        return new PoolDashboardRes.PoolStatusRes(
+                pool.getCurrencyCode(),
+                pool.getBalance(),
+                pool.getTargetBalance(),
+                pool.getFloorBalance(),
+                pool.getCeilingBalance(),
+                status,
+                utilizationRate,
+                recommendedAction
+        );
+    }
+
     public CompanyPool deposit(String journalId, String currencyCode, BigDecimal amount) {
         CompanyPool pool = getPoolByCurrency(currencyCode);
         BigDecimal balanceBefore = pool.getBalance();
@@ -77,6 +114,7 @@ public class CompanyPoolService {
         return pool;
     }
 
+    @Transactional
     public void withdraw(String journalId, String currencyCode, BigDecimal amount) {
         CompanyPool pool = getPoolByCurrency(currencyCode);
         BigDecimal balanceBefore = pool.getBalance();
@@ -102,5 +140,77 @@ public class CompanyPoolService {
                 null
         );
         ledgerEntryRepository.save(poolEntry);
+    }
+
+    /**
+     * TRF-07 가상계좌 입금 확인 후 회사 KRW 풀을 증가시킨다.
+     * 지갑 충전이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
+     */
+    @Transactional
+    public CompanyPool depositForRemittance(String journalId, String currencyCode, BigDecimal amount, Long remittanceTransactionId) {
+        CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
+                .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
+        BigDecimal balanceBefore = pool.getBalance();
+        BigDecimal balanceAfter = balanceBefore.add(amount);
+
+        pool.increase(amount);
+        companyPoolRepository.save(pool);
+
+        LedgerEntry poolEntry = LedgerEntry.create(
+                journalId,
+                LedgerEntryType.TRANSFER,
+                LedgerDirection.CREDIT,
+                null,
+                null,
+                pool.getId(),
+                currencyCode,
+                amount,
+                balanceBefore,
+                balanceAfter,
+                LedgerRefType.REMITTANCE.name(),
+                String.valueOf(remittanceTransactionId)
+        );
+        ledgerEntryRepository.save(poolEntry);
+        eventPublisher.publishEvent(new PoolChangedEvent(this));
+
+        return pool;
+    }
+
+    /**
+     * 해외송금 지급/환불에서 회사 풀을 차감한다.
+     * 지갑 출금이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
+     */
+    @Transactional
+    public CompanyPool withdrawForRemittance(String journalId, String currencyCode, BigDecimal amount, Long remittanceTransactionId) {
+        CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
+                .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
+        BigDecimal balanceBefore = pool.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+
+        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(PoolErrorCode.POOL_INSUFFICIENT_BALANCE);
+        }
+
+        pool.decrease(amount);
+        companyPoolRepository.save(pool);
+
+        LedgerEntry poolEntry = LedgerEntry.create(
+                journalId,
+                LedgerEntryType.TRANSFER,
+                LedgerDirection.DEBIT,
+                null,
+                null,
+                pool.getId(),
+                currencyCode,
+                amount,
+                balanceBefore,
+                balanceAfter,
+                LedgerRefType.REMITTANCE.name(),
+                String.valueOf(remittanceTransactionId)
+        );
+        ledgerEntryRepository.save(poolEntry);
+        eventPublisher.publishEvent(new PoolChangedEvent(this));
+
+        return pool;
     }
 }

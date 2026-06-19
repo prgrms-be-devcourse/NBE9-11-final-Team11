@@ -1,4 +1,4 @@
 package com.fxflow.domain.companypool.dto.request;
 
-public record RebalancingExecuteReq() {
+public record RebalancingExecuteReq(String reason) {
 }

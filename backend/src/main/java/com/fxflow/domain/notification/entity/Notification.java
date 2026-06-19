@@ -35,20 +35,39 @@ public class Notification extends BaseEntity {
     @Column(name = "message", columnDefinition = "TEXT", nullable = false)
     private String message; // 알림 내용
 
+    @Column(name = "related_type", length = 50) // nullable
+    private String relatedType; // 연결 대상 유형 (예: RESERVATION) — 대상 없는 알림은 null
+
+    @Column(name = "related_id", length = 50) // nullable
+    private String relatedId; // 연결 대상 식별자 — relatedType과 한 쌍(둘 다 null 또는 둘 다 set)
+
     @Column(name = "is_read", nullable = false)
     private boolean isRead; // 읽음 여부
 
-    private Notification(User user, NotificationType type, String title, String message) {
+    private Notification(User user, NotificationType type, String title, String message,
+                         String relatedType, String relatedId) {
+        // related_type / related_id 는 한 쌍 — 둘 다 있거나 둘 다 없어야 한다
+        if ((relatedType == null) != (relatedId == null)) {
+            throw new IllegalArgumentException("relatedType과 relatedId 는 함께 설정하거나 둘 다 null이어야 합니다");
+        }
         this.user = user;
         this.type = type;
         this.title = title;
         this.message = message;
+        this.relatedType = relatedType;
+        this.relatedId = relatedId;
         this.isRead = false; // 생성 시 항상 미읽음 상태로 고정
     }
 
-    // 필수값 누락 및 잘못된 상태의 객체 생성을 막기 위해 정적 팩토리 메서드 사용
+    // 연결 대상이 없는 일반 알림 (공지사항 등)
     public static Notification create(User user, NotificationType type, String title, String message) {
-        return new Notification(user, type, title, message);
+        return new Notification(user, type, title, message, null, null);
+    }
+
+    // 연결 대상(예약·거래 등)으로 딥링크되는 알림
+    public static Notification create(User user, NotificationType type, String title, String message,
+                                      String relatedType, String relatedId) {
+        return new Notification(user, type, title, message, relatedType, relatedId);
     }
 
     // 읽음 처리 (setter 노출 대신 도메인 메서드로 상태 변경)

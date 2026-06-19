@@ -10,7 +10,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.fxflow.domain.companypool.PoolTestFixtures;
 import com.fxflow.domain.companypool.dto.response.RebalancingExecuteRes;
+import com.fxflow.domain.companypool.service.AdminAlertService;
 import com.fxflow.domain.companypool.entity.CompanyPool;
 import com.fxflow.domain.companypool.entity.RebalancingOrder;
 import com.fxflow.domain.companypool.enums.TriggerType;
@@ -40,18 +42,17 @@ class RebalancingServiceTest {
     @Mock private RebalancingRepository rebalancingRepository;
     @Mock private RebalancingAuditService auditService;
     @Mock private ExchangeRateProvider exchangeRateProvider;
+    @Mock private AdminAlertService adminAlertService;
 
     @InjectMocks private RebalancingService rebalancingService;
 
-    private static final BigDecimal KRW_TARGET  = new BigDecimal("10000000000"); // 10B
-    private static final BigDecimal KRW_FLOOR   = new BigDecimal("8000000000");  //  8B
-    private static final BigDecimal KRW_CEILING = new BigDecimal("12000000000"); // 12B
-
-    private static final BigDecimal USD_TARGET  = new BigDecimal("6500000"); // 650만
-    private static final BigDecimal USD_FLOOR   = new BigDecimal("5200000"); // 520만
-    private static final BigDecimal USD_CEILING = new BigDecimal("7800000"); // 780만
-
-    private static final BigDecimal MID_RATE = new BigDecimal("1300"); // 1USD = 1300KRW
+    private static final BigDecimal KRW_TARGET  = PoolTestFixtures.KRW_TARGET;
+    private static final BigDecimal KRW_FLOOR   = PoolTestFixtures.KRW_FLOOR;
+    private static final BigDecimal KRW_CEILING = PoolTestFixtures.KRW_CEILING;
+    private static final BigDecimal USD_TARGET  = PoolTestFixtures.USD_TARGET;
+    private static final BigDecimal USD_FLOOR   = PoolTestFixtures.USD_FLOOR;
+    private static final BigDecimal USD_CEILING = PoolTestFixtures.USD_CEILING;
+    private static final BigDecimal MID_RATE    = PoolTestFixtures.MID_RATE;
 
     @BeforeEach
     void setUp() {
@@ -74,14 +75,14 @@ class RebalancingServiceTest {
     }
 
     @Test
-    @DisplayName("둘 다 floor 미만 → BOTH_BELOW_FLOOR 예외, MANUAL_REQUIRED 기록 저장 (별도 트랜잭션)")
-    void execute_bothBelowFloor_throwsException() {
+    @DisplayName("둘 다 floor 미만 → executed=false, reason=BOTH_BELOW_FLOOR, MANUAL_REQUIRED 기록 저장")
+    void execute_bothBelowFloor_returnsNotExecuted() {
         givenPools(new BigDecimal("7000000000"), new BigDecimal("5000000")); // 7B, 500만
 
-        assertThatThrownBy(() -> rebalancingService.execute(TriggerType.MANUAL, null))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
-                        .isEqualTo(PoolErrorCode.BOTH_BELOW_FLOOR));
+        RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
+
+        assertThat(result.executed()).isFalse();
+        assertThat(result.reason()).isEqualTo("BOTH_BELOW_FLOOR");
         verify(auditService).saveManualRequired(eq(TriggerType.MANUAL), any(), anyString());
         verify(rebalancingRepository, never()).save(any());
     }
@@ -111,9 +112,9 @@ class RebalancingServiceTest {
         RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
 
         assertThat(result.executed()).isTrue();
-        assertThat(result.buyCurrency()).isEqualTo("KRW");
-        assertThat(result.sellCurrency()).isEqualTo("USD");
-        assertThat(result.buyAmount()).isEqualByComparingTo("2100000000");
+        assertThat(result.action().buyCurrency()).isEqualTo("KRW");
+        assertThat(result.action().sellCurrency()).isEqualTo("USD");
+        assertThat(result.action().buyAmount()).isEqualByComparingTo("2100000000");
         assertThat(result.cappedBy()).isNull();
         verify(companyPoolRepository).increaseBalance(eq("KRW"), any());
         verify(companyPoolRepository).decreaseBalance(eq("USD"), any());
@@ -132,9 +133,9 @@ class RebalancingServiceTest {
         RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
 
         assertThat(result.executed()).isTrue();
-        assertThat(result.buyCurrency()).isEqualTo("KRW");
+        assertThat(result.action().buyCurrency()).isEqualTo("KRW");
         assertThat(result.cappedBy()).isEqualTo("USD_FLOOR");
-        assertThat(result.buyAmount()).isEqualByComparingTo("1695070000.00");
+        assertThat(result.action().buyAmount()).isEqualByComparingTo("1695070000.00");
         verify(rebalancingRepository).save(any(RebalancingOrder.class));
     }
 
@@ -148,8 +149,8 @@ class RebalancingServiceTest {
         RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
 
         assertThat(result.executed()).isTrue();
-        assertThat(result.buyCurrency()).isEqualTo("USD");
-        assertThat(result.sellCurrency()).isEqualTo("KRW");
+        assertThat(result.action().buyCurrency()).isEqualTo("USD");
+        assertThat(result.action().sellCurrency()).isEqualTo("KRW");
         verify(companyPoolRepository).increaseBalance(eq("USD"), any());
         verify(companyPoolRepository).decreaseBalance(eq("KRW"), any());
     }
@@ -162,11 +163,10 @@ class RebalancingServiceTest {
         givenPools(new BigDecimal("7000000000"), new BigDecimal("8000000"));
 
         RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
-        
-        assertThat(result.buyCurrency()).isEqualTo("KRW");
-        assertThat(result.sellCurrency()).isEqualTo("USD");
+
+        assertThat(result.action().buyCurrency()).isEqualTo("KRW");
+        assertThat(result.action().sellCurrency()).isEqualTo("USD");
     }
-    
 
     @Test
     @DisplayName("수동 실행 중 환율 데이터 없음(Optional.empty) → RATE_UNAVAILABLE 예외")

@@ -7,32 +7,45 @@ import java.math.BigDecimal;
 
 public record RebalancingExecuteRes(
         boolean executed,
-        String buyCurrency,
-        BigDecimal buyAmount,
-        String sellCurrency,
-        BigDecimal sellAmount,
-        BigDecimal midRate,
-        BigDecimal appliedRate,
+        RebalancingAction action,
         String cappedBy,
-        String status,
-        TriggerType triggerType
+        String reason
 ) {
+    //실행된 리밸런싱 상세 정보
+    public record RebalancingAction(
+            String buyCurrency,
+            String sellCurrency,
+            BigDecimal buyAmount,
+            BigDecimal sellAmount,
+            BigDecimal midRate,
+            BigDecimal appliedRate,
+            String status,
+            TriggerType triggerType
+    ) {}
+
     public static RebalancingExecuteRes withinThreshold() {
-        return new RebalancingExecuteRes(false, null, null, null, null, null, null, null, null, null);
+        return new RebalancingExecuteRes(false, null, null, "WITHIN_THRESHOLD");
+    }
+
+    public static RebalancingExecuteRes bothBelowFloor() {
+        return new RebalancingExecuteRes(false, null, null, "BOTH_BELOW_FLOOR");
     }
 
     public static RebalancingExecuteRes from(RebalancingOrder order) {
         return new RebalancingExecuteRes(
                 true,
-                order.getBuyPool().getCurrencyCode(),
-                order.getBuyAmount(),
-                order.getSellPool().getCurrencyCode(),
-                order.getSellAmount(),
-                order.getMidRate(),
-                order.getAppliedRate(),
+                new RebalancingAction(
+                        order.getBuyPool().getCurrencyCode(),
+                        order.getSellPool().getCurrencyCode(),
+                        order.getBuyAmount(),
+                        order.getSellAmount(),
+                        order.getMidRate(),
+                        order.getAppliedRate(),
+                        order.getStatus().name(),
+                        order.getTriggerType()
+                ),
                 order.getCappedBy() != null ? order.getCappedBy().name() : null,
-                order.getStatus().name(),
-                order.getTriggerType()
+                null
         );
     }
 }

@@ -182,7 +182,8 @@ public class RemittanceTransaction extends BaseEntity {
         this.status = TransferStatus.PROCESSING;
     }
 
-    public void complete() {
+    public void complete(Long targetMockAccountId) {
+        this.targetMockAccountId = targetMockAccountId;
         this.status = TransferStatus.COMPLETED;
     }
 

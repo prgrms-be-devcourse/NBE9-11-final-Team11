@@ -1,18 +1,25 @@
 package com.fxflow.domain.remittancetransaction.event;
 
+import com.fxflow.domain.remittancetransaction.service.RemittancePayoutService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class RemittanceFundedEventListener {
 
+    private final RemittancePayoutService remittancePayoutService;
+
     /**
-     * 송금 입금 완료 트랜잭션이 커밋된 뒤 후속 송금 처리를 시작할 수 있는 지점이다.
-     * 현재는 MVP 단계라 로그만 남기고, 추후 TRF-08 외화 지급 처리 또는 Kafka 발행으로 교체한다.
+     * 송금 입금 완료 트랜잭션이 커밋된 뒤 후속 송금 처리를 비동기로 시작한다.
+     * 후속 지급 실패가 입금 완료 API 응답으로 전파되지 않도록 이 지점에서 예외를 기록한다.
      */
+    @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handle(RemittanceFundedEvent event) {
         log.info(
@@ -24,5 +31,10 @@ public class RemittanceFundedEventListener {
                 event.receiveAmount(),
                 event.fundedAt()
         );
+        try {
+            remittancePayoutService.processPayout(event.transferId());
+        } catch (RuntimeException e) {
+            log.error("해외송금 후속 지급 처리 실패. transferId={}", event.transferId(), e);
+        }
     }
 }

@@ -402,10 +402,11 @@ class RemittanceTransactionServiceTest {
         assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountStatus.PAID);
         assertThat(virtualAccount.getPaidAt()).isNotNull();
 
-        verify(companyPoolService).deposit(
+        verify(companyPoolService).depositForRemittance(
                 "JRN-TRF-" + transferId + "-FUND",
                 "KRW",
-                new BigDecimal("1008000.00")
+                new BigDecimal("1008000.00"),
+                transferId
         );
         ArgumentCaptor<RemittanceFundedEvent> eventCaptor =
                 ArgumentCaptor.forClass(RemittanceFundedEvent.class);

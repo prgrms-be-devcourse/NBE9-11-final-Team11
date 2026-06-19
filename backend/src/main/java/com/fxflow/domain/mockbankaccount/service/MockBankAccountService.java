@@ -3,6 +3,7 @@ package com.fxflow.domain.mockbankaccount.service;
 import com.fxflow.domain.ledger.entity.LedgerEntry;
 import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
+import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankAccountCheckResponse;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankLinkResponse;
@@ -30,7 +31,6 @@ import java.util.regex.Pattern;
 public class MockBankAccountService {
     private static final String KRW = "KRW";
     private static final String USD = "USD";
-    private static final String REMITTANCE_TRANSACTION_REF_TYPE = "REMITTANCE_TRANSACTION";
 
     private final MockBankAccountRepository mockBankAccountRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
@@ -241,7 +241,79 @@ public class MockBankAccountService {
                 amount,
                 balanceBefore,
                 balanceAfter,
-                REMITTANCE_TRANSACTION_REF_TYPE,
+                LedgerRefType.REMITTANCE.name(),
+                refId
+        );
+
+        ledgerEntryRepository.save(entry);
+        mockBankAccountRepository.save(bankAccount);
+
+        return bankAccount.getId();
+    }
+
+    /**
+     * TRF-08에서 송금자가 입력한 수취인 계좌번호로 외화를 입금한다.
+     */
+    @Transactional
+    public Long depositForRemittance(
+            String journalId,
+            String accountNumber,
+            BigDecimal amount,
+            String currencyCode,
+            String refId
+    ) {
+        MockBankAccount bankAccount = mockBankAccountRepository
+                .findByAccountNumberAndCurrencyCodeAndDeletedAtIsNullForUpdate(accountNumber, currencyCode)
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+
+        return depositToMockAccount(journalId, bankAccount, amount, currencyCode, refId);
+    }
+
+    /**
+     * TRF-08 지급 실패 시 TRF-07에서 차감했던 송금자 모의계좌로 원화를 환불한다.
+     */
+    @Transactional
+    public Long refundForRemittance(
+            String journalId,
+            Long bankAccountId,
+            BigDecimal amount,
+            String currencyCode,
+            String refId
+    ) {
+        MockBankAccount bankAccount = mockBankAccountRepository.findByIdAndDeletedAtIsNullForUpdate(bankAccountId)
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+
+        return depositToMockAccount(journalId, bankAccount, amount, currencyCode, refId);
+    }
+
+    /**
+     * 해외송금 지급 및 환불에서 공통으로 사용하는 모의계좌 입금 처리 메서드다.
+     * Wallet 입출금이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
+     */
+    private Long depositToMockAccount(
+            String journalId,
+            MockBankAccount bankAccount,
+            BigDecimal amount,
+            String currencyCode,
+            String refId
+    ) {
+        BigDecimal balanceBefore = bankAccount.getBalance();
+        BigDecimal balanceAfter = balanceBefore.add(amount);
+
+        bankAccount.deposit(amount);
+
+        LedgerEntry entry = LedgerEntry.create(
+                journalId,
+                LedgerEntryType.TRANSFER,
+                LedgerDirection.CREDIT,
+                null,
+                bankAccount.getId(),
+                null,
+                currencyCode,
+                amount,
+                balanceBefore,
+                balanceAfter,
+                LedgerRefType.REMITTANCE.name(),
                 refId
         );
 
