@@ -32,7 +32,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -116,7 +115,7 @@ public class WalletService {
         transactionLimitValidator.validateDailyDeposit(user, amount);
         transactionLimitValidator.validateWalletHolding(user, balanceAfter);
 
-        String journalId = "JRN_" + UUID.randomUUID();
+        String journalId = LedgerEntry.generateJournalId();
 
         // mock bank account debit
         mockBankAccountService.withdraw(userId, journalId, bankAccountId, amount, "KRW");
@@ -171,7 +170,7 @@ public class WalletService {
             throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
         }
 
-        String journalId = "JRN_" + UUID.randomUUID();
+        String journalId = LedgerEntry.generateJournalId();
 
         // mock bank account credit
         mockBankAccountService.deposit(userId, journalId, bankAccountId, amount, "KRW");

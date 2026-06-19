@@ -6,6 +6,7 @@ import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
 import com.fxflow.domain.wallet.dto.response.TransactionResponse;
 import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
 import com.fxflow.domain.wallet.service.WalletService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -47,7 +48,7 @@ public class WalletController {
     @PostMapping("/charge")
     public ResponseEntity<TransactionResponse> charge(
             @AuthenticationPrincipal Long userId,
-            @RequestBody ChargeRequest request
+            @Valid @RequestBody ChargeRequest request
     ){
         TransactionResponse res = walletService.charge(userId, request);
         return ResponseEntity.ok(res);
@@ -56,7 +57,7 @@ public class WalletController {
     @PostMapping("/withdraw")
     public ResponseEntity<TransactionResponse> withdraw(
             @AuthenticationPrincipal Long userId,
-            @RequestBody WithdrawRequest request
+            @Valid @RequestBody WithdrawRequest request
     ){
         TransactionResponse res = walletService.withdraw(userId, request);
         return ResponseEntity.ok(res);

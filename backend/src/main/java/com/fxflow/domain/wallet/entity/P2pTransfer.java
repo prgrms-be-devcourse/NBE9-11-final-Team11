@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Entity
 @Table(name = "p2p_transfers")
@@ -29,6 +30,7 @@ public class P2pTransfer extends BaseEntity {
     @Column(precision = 18, scale = 4, nullable = false)
     private BigDecimal amount;
 
+    @Column(length = 255)
     private String memo;
 
     @Enumerated(EnumType.STRING)
@@ -58,6 +60,10 @@ public class P2pTransfer extends BaseEntity {
                 amount,
                 memo
         );
+    }
+
+    public static String generateTransferId() {
+        return "TXN-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
     }
 
     public void complete() {

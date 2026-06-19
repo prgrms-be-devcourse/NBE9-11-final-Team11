@@ -21,7 +21,7 @@ public record TransactionResponse (
                 ledgerEntry.getEntryType(),
                 ledgerEntry.getCurrencyCode(),
                 CurrencyAmountFormatter.format(ledgerEntry.getAmount(), ledgerEntry.getCurrencyCode()),
-                ledgerEntry.getBalanceAfter(),
+                CurrencyAmountFormatter.format(ledgerEntry.getBalanceAfter(), ledgerEntry.getCurrencyCode()),
                 ledgerEntry.getCreatedAt()
         );
     }

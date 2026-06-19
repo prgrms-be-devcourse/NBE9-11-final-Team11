@@ -12,14 +12,15 @@ import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.global.exception.BusinessException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.OffsetDateTime;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.OffsetDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -167,7 +168,7 @@ public class CompanyPoolService {
                 amount,
                 balanceBefore,
                 balanceAfter,
-                LedgerRefType.REMITTANCE.name(),
+                LedgerRefType.REMITTANCE,
                 String.valueOf(remittanceTransactionId)
         );
         ledgerEntryRepository.save(poolEntry);
@@ -205,7 +206,7 @@ public class CompanyPoolService {
                 amount,
                 balanceBefore,
                 balanceAfter,
-                LedgerRefType.REMITTANCE.name(),
+                LedgerRefType.REMITTANCE,
                 String.valueOf(remittanceTransactionId)
         );
         ledgerEntryRepository.save(poolEntry);
