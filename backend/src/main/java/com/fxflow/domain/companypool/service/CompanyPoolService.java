@@ -79,6 +79,38 @@ public class CompanyPoolService {
     }
 
     @Transactional
+    public void withdraw(String journalId, String currencyCode, BigDecimal amount) {
+        CompanyPool pool = getPoolByCurrency(currencyCode);
+        BigDecimal balanceBefore = pool.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
+            // todo: error
+        }
+        pool.decrease(amount);
+        companyPoolRepository.save(pool);
+
+        LedgerEntry poolEntry = LedgerEntry.create(
+                journalId,
+                LedgerEntryType.WITHDRAW,
+                LedgerDirection.DEBIT,
+                null,
+                null,
+                pool.getId(),
+                currencyCode,
+                amount,
+                balanceBefore,
+                balanceAfter,
+                null,
+                null
+        );
+        ledgerEntryRepository.save(poolEntry);
+    }
+
+    /**
+     * TRF-07 가상계좌 입금 확인 후 회사 KRW 풀을 증가시킨다.
+     * 지갑 충전이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
+     */
+    @Transactional
     public CompanyPool depositForRemittance(String journalId, String currencyCode, BigDecimal amount, Long remittanceTransactionId) {
         CompanyPool pool = getPoolByCurrency(currencyCode);
         BigDecimal balanceBefore = pool.getBalance();
@@ -107,6 +139,10 @@ public class CompanyPoolService {
         return pool;
     }
 
+    /**
+     * 해외송금 지급/환불에서 회사 풀을 차감한다.
+     * 지갑 출금이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
+     */
     @Transactional
     public CompanyPool withdrawForRemittance(String journalId, String currencyCode, BigDecimal amount, Long remittanceTransactionId) {
         CompanyPool pool = getPoolByCurrency(currencyCode);
@@ -138,33 +174,5 @@ public class CompanyPoolService {
         eventPublisher.publishEvent(new PoolChangedEvent(this));
 
         return pool;
-    }
-
-    @Transactional
-    public void withdraw(String journalId, String currencyCode, BigDecimal amount) {
-        CompanyPool pool = getPoolByCurrency(currencyCode);
-        BigDecimal balanceBefore = pool.getBalance();
-        BigDecimal balanceAfter = balanceBefore.subtract(amount);
-        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
-            // todo: error
-        }
-        pool.decrease(amount);
-        companyPoolRepository.save(pool);
-
-        LedgerEntry poolEntry = LedgerEntry.create(
-                journalId,
-                LedgerEntryType.WITHDRAW,
-                LedgerDirection.DEBIT,
-                null,
-                null,
-                pool.getId(),
-                currencyCode,
-                amount,
-                balanceBefore,
-                balanceAfter,
-                null,
-                null
-        );
-        ledgerEntryRepository.save(poolEntry);
     }
 }

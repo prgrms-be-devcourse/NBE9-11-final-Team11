@@ -214,10 +214,28 @@ public class MockBankAccountService {
     }
 
     /**
-     * 해외송금 수취인 모의계좌 입금은 Wallet 출금 환급이 아니므로 LedgerEntryType.TRANSFER로 기록한다.
+     * TRF-08에서 송금자가 입력한 수취인 계좌번호로 외화를 입금한다.
      */
     @Transactional
     public Long depositForRemittance(
+            String journalId,
+            String accountNumber,
+            BigDecimal amount,
+            String currencyCode,
+            String refId
+    ) {
+        MockBankAccount bankAccount = mockBankAccountRepository
+                .findByAccountNumberAndCurrencyCodeAndDeletedAtIsNull(accountNumber, currencyCode)
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+
+        return depositToMockAccount(journalId, bankAccount, amount, currencyCode, refId);
+    }
+
+    /**
+     * TRF-08 지급 실패 시 TRF-07에서 차감했던 송금자 모의계좌로 원화를 환불한다.
+     */
+    @Transactional
+    public Long refundForRemittance(
             String journalId,
             Long bankAccountId,
             BigDecimal amount,
@@ -227,6 +245,20 @@ public class MockBankAccountService {
         MockBankAccount bankAccount = mockBankAccountRepository.findById(bankAccountId)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
+        return depositToMockAccount(journalId, bankAccount, amount, currencyCode, refId);
+    }
+
+    /**
+     * 해외송금 지급 및 환불에서 공통으로 사용하는 모의계좌 입금 처리 메서드다.
+     * Wallet 입출금이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
+     */
+    private Long depositToMockAccount(
+            String journalId,
+            MockBankAccount bankAccount,
+            BigDecimal amount,
+            String currencyCode,
+            String refId
+    ) {
         BigDecimal balanceBefore = bankAccount.getBalance();
         BigDecimal balanceAfter = balanceBefore.add(amount);
 

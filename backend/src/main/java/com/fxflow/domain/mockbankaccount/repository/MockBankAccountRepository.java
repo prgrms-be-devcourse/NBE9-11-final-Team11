@@ -20,4 +20,9 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
             Long userId,
             String currencyCode
     );
+
+    Optional<MockBankAccount> findByAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+            String accountNumber,
+            String currencyCode
+    );
 }
