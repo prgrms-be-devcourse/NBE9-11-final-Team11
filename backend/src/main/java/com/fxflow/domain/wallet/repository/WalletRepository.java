@@ -1,5 +1,6 @@
 package com.fxflow.domain.wallet.repository;
 
+import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.wallet.entity.Wallet;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
@@ -13,4 +14,6 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
     Optional<Wallet> findByUserIdAndCurrencyCode(Long userId, String currency);
 
     boolean existsByUserIdAndCurrencyCode(Long userId, String currency);
+
+    Long user(User user);
 }
