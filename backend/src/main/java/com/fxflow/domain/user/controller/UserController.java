@@ -2,8 +2,10 @@ package com.fxflow.domain.user.controller;
 
 import com.fxflow.domain.user.dto.request.LoginRequest;
 import com.fxflow.domain.user.dto.request.SignupRequest;
+import com.fxflow.domain.user.dto.request.WithdrawRequest;
 import com.fxflow.domain.user.dto.response.LoginResponse;
 import com.fxflow.domain.user.dto.response.SignupResponse;
+import com.fxflow.domain.user.dto.response.WithdrawUserResponse;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.service.UserService;
 import com.fxflow.global.security.CookieTokenExtractor;
@@ -17,10 +19,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -73,5 +73,29 @@ public class UserController {
 
         return ResponseEntity.ok().build();
     }
+    /**
+     * 회원 탈퇴
+     * DELETE /api/v1/auth/me
+     * 탈퇴 처리후 현재 jwt도 무효화
+     */
+    @DeleteMapping("/me")
+    public ResponseEntity<WithdrawUserResponse> withdraw(
+            @AuthenticationPrincipal Long id,
+            @Valid @RequestBody WithdrawRequest withdrawRequest,
+            HttpServletRequest httpRequest,
+            HttpServletResponse response
+    ) {
+        WithdrawUserResponse withdrawUserResponse = userService.withDrawn(id, withdrawRequest.password());
+        String token = CookieTokenExtractor.extract(httpRequest);
+        if (token != null) {
+            tokenBlacklistService.invalidate(token);
+        }
+        ResponseCookie cookie = jwtTokenProvider.deleteAccessTokenCookie();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
+        return ResponseEntity.ok(withdrawUserResponse);
+    }
+
+
 
 }

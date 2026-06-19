@@ -1,5 +1,6 @@
 package com.fxflow.domain.wallet.repository;
 
+import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.wallet.entity.Wallet;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
