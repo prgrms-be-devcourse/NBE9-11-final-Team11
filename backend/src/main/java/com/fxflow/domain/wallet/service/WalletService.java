@@ -32,7 +32,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -69,7 +68,7 @@ public class WalletService {
         return WalletBalanceResponse.from(krw.setScale(0, java.math.RoundingMode.HALF_UP).longValue(), walletResponses);
     }
 
-    public TransactionHistoryResponse getTransactionHistory(Long userId, String currency, LocalDate from, LocalDate to, Pageable pageable) {
+    public TransactionHistoryResponse getTransactionHistory(Long userId, String currency, LedgerEntryType type, LocalDate from, LocalDate to, Pageable pageable) {
         // userId + currency로 Wallet 조회
         List<Long> walletIds;
         if (currency != null) {
@@ -88,7 +87,7 @@ public class WalletService {
         LocalDateTime toDateTime = to != null ? to.atTime(23, 59, 59) : null;
 
         Page<LedgerEntry> entries = ledgerEntryRepository.findByWalletIdInAndFilters(
-                walletIds, currency, fromDateTime, toDateTime, pageable
+                walletIds, currency, type, fromDateTime, toDateTime, pageable
         );
 
         // DTO 변환
@@ -116,7 +115,7 @@ public class WalletService {
         transactionLimitValidator.validateDailyDeposit(user, amount);
         transactionLimitValidator.validateWalletHolding(user, balanceAfter);
 
-        String journalId = "JRN_" + UUID.randomUUID();
+        String journalId = LedgerEntry.generateJournalId();
 
         // mock bank account debit
         mockBankAccountService.withdraw(userId, journalId, bankAccountId, amount, "KRW");
@@ -171,7 +170,7 @@ public class WalletService {
             throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
         }
 
-        String journalId = "JRN_" + UUID.randomUUID();
+        String journalId = LedgerEntry.generateJournalId();
 
         // mock bank account credit
         mockBankAccountService.deposit(userId, journalId, bankAccountId, amount, "KRW");

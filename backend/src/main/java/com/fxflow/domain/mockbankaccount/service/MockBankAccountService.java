@@ -241,7 +241,7 @@ public class MockBankAccountService {
                 amount,
                 balanceBefore,
                 balanceAfter,
-                LedgerRefType.REMITTANCE.name(),
+                LedgerRefType.REMITTANCE,
                 refId
         );
 
@@ -313,7 +313,7 @@ public class MockBankAccountService {
                 amount,
                 balanceBefore,
                 balanceAfter,
-                LedgerRefType.REMITTANCE.name(),
+                LedgerRefType.REMITTANCE,
                 refId
         );
 

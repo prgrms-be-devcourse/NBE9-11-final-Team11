@@ -134,12 +134,12 @@ class WalletServiceTest {
 
         given(walletRepository.findByUserIdAndCurrencyCode(userId, currency))
                 .willReturn(Optional.of(wallet));
-        given(ledgerEntryRepository.findByWalletIdInAndFilters(List.of(10L), currency, null, null, pageable))
+        given(ledgerEntryRepository.findByWalletIdInAndFilters(List.of(10L), currency, null, null, null, pageable))
                 .willReturn(emptyPage);
 
         // when
         TransactionHistoryResponse response = walletService.getTransactionHistory(
-                userId, currency, null, null, pageable);
+                userId, currency, null, null, null, pageable);
 
         // then
         assertThat(response.totalCount()).isEqualTo(0);
@@ -159,7 +159,7 @@ class WalletServiceTest {
 
         // when & then
         assertThatThrownBy(() ->
-                walletService.getTransactionHistory(userId, currency, null, null, pageable)
+                walletService.getTransactionHistory(userId, currency, null, null, null, pageable)
         )
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
@@ -181,18 +181,22 @@ class WalletServiceTest {
         given(walletRepository.findByUserIdAndCurrencyCode(userId, currency))
                 .willReturn(Optional.of(wallet));
         given(ledgerEntryRepository.findByWalletIdInAndFilters(
-                eq(List.of(10L)), eq(currency),
+                eq(List.of(10L)),
+                eq(currency),
+                isNull(),
                 eq(LocalDateTime.of(2025, 1, 1, 0, 0, 0)),
                 eq(LocalDateTime.of(2025, 6, 1, 23, 59, 59)),
                 eq(pageable)
         )).willReturn(new PageImpl<>(List.of()));
 
         // when
-        walletService.getTransactionHistory(userId, currency, from, to, pageable);
+        walletService.getTransactionHistory(userId, currency, null, from, to, pageable);
 
         // then
         verify(ledgerEntryRepository).findByWalletIdInAndFilters(
-                eq(List.of(10L)), eq(currency),
+                eq(List.of(10L)),
+                eq(currency),
+                isNull(),
                 eq(LocalDateTime.of(2025, 1, 1, 0, 0, 0)),
                 eq(LocalDateTime.of(2025, 6, 1, 23, 59, 59)),
                 eq(pageable)
@@ -211,14 +215,14 @@ class WalletServiceTest {
 
         given(walletRepository.findByUserIdAndCurrencyCode(userId, currency))
                 .willReturn(Optional.of(wallet));
-        given(ledgerEntryRepository.findByWalletIdInAndFilters(List.of(10L), currency, null, null, pageable))
+        given(ledgerEntryRepository.findByWalletIdInAndFilters(List.of(10L), currency, null, null, null, pageable))
                 .willReturn(new PageImpl<>(List.of()));
 
         // when
-        walletService.getTransactionHistory(userId, currency, null, null, pageable);
+        walletService.getTransactionHistory(userId, currency, null, null, null, pageable);
 
         // then
-        verify(ledgerEntryRepository).findByWalletIdInAndFilters(List.of(10L), currency, null, null, pageable);
+        verify(ledgerEntryRepository).findByWalletIdInAndFilters(List.of(10L), currency, null, null, null, pageable);
     }
 
     @Test
@@ -235,14 +239,14 @@ class WalletServiceTest {
 
         given(walletRepository.findByUserId(userId))
                 .willReturn(List.of(krwWallet, usdWallet));
-        given(ledgerEntryRepository.findByWalletIdInAndFilters(List.of(10L, 11L), null, null, null, pageable))
+        given(ledgerEntryRepository.findByWalletIdInAndFilters(List.of(10L, 11L), null, null, null, null, pageable))
                 .willReturn(new PageImpl<>(List.of()));
 
         // when
-        walletService.getTransactionHistory(userId, null, null, null, pageable);
+        walletService.getTransactionHistory(userId, null, null, null, null, pageable);
 
         // then
-        verify(ledgerEntryRepository).findByWalletIdInAndFilters(List.of(10L, 11L), null, null, null, pageable);
+        verify(ledgerEntryRepository).findByWalletIdInAndFilters(List.of(10L, 11L), null, null, null, null, pageable);
     }
 
     // -- Charge --
