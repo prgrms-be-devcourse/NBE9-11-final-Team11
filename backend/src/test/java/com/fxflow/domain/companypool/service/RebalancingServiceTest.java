@@ -12,7 +12,7 @@ import static org.mockito.Mockito.verify;
 
 import com.fxflow.domain.companypool.PoolTestFixtures;
 import com.fxflow.domain.companypool.dto.response.RebalancingExecuteRes;
-import com.fxflow.global.alert.AdminAlertService;
+import com.fxflow.domain.companypool.service.AdminAlertService;
 import com.fxflow.domain.companypool.entity.CompanyPool;
 import com.fxflow.domain.companypool.entity.RebalancingOrder;
 import com.fxflow.domain.companypool.enums.TriggerType;

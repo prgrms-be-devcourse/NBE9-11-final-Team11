@@ -1,14 +1,9 @@
-package com.fxflow.global.alert;
+package com.fxflow.domain.companypool.service;
 
+import java.math.BigDecimal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-
-/**
- * 임시 알림 구현체 — 로그만 출력.
- * TODO: DiscordAdminAlertService 구현 후 이 빈을 교체할 것.
- */
 @Slf4j
 @Service
 public class LoggingAdminAlertService implements AdminAlertService {
