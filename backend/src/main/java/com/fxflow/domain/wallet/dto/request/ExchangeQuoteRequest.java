@@ -1,10 +1,20 @@
 package com.fxflow.domain.wallet.dto.request;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+
 import java.math.BigDecimal;
 
 public record ExchangeQuoteRequest(
+        @NotBlank(message = "출금 통화는 필수입니다.")
         String fromCurrency,
+
+        @NotBlank(message = "입금 통화는 필수입니다.")
         String toCurrency,
+
+        @NotNull(message = "환전 금액은 필수입니다.")
+        @Positive(message = "환전 금액은 0보다 커야 합니다.")
         BigDecimal amount
 ) {
 }

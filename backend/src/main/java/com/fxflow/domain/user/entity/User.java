@@ -7,7 +7,6 @@ import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;

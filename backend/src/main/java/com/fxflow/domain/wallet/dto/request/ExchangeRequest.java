@@ -1,6 +1,9 @@
 package com.fxflow.domain.wallet.dto.request;
 
+import jakarta.validation.constraints.NotBlank;
+
 public record ExchangeRequest(
-    String quoteId
+        @NotBlank(message = "quoteId는 필수입니다.")
+        String quoteId
 ) {
 }

@@ -120,6 +120,11 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
     }
 
+    public User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+    }
+
     /**
      * 모든 지갑 잔액이 0원인지 확인한다. 잔액이 남아있다면, 회원 탈퇴를 막는다.
      */

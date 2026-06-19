@@ -1,6 +1,7 @@
 package com.fxflow.domain.wallet.dto.response;
 
 import com.fxflow.domain.wallet.entity.ExchangeTransaction;
+import com.fxflow.global.util.CurrencyAmountFormatter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -19,11 +20,11 @@ public record ExchangeResponse (
         return new ExchangeResponse(
                 exchangeTransaction.getTransactionId(),
                 exchangeTransaction.getFromCurrencyCode(),
-                exchangeTransaction.getFromAmount(),
+                CurrencyAmountFormatter.format(exchangeTransaction.getFromAmount(), exchangeTransaction.getFromCurrencyCode()),
                 exchangeTransaction.getToCurrencyCode(),
-                exchangeTransaction.getToAmount(),
+                CurrencyAmountFormatter.format(exchangeTransaction.getToAmount(), exchangeTransaction.getToCurrencyCode()),
                 exchangeTransaction.getFinalRate(),
-                exchangeTransaction.getFeeAmount(),
+                CurrencyAmountFormatter.format(exchangeTransaction.getFeeAmount(), exchangeTransaction.getFromCurrencyCode()),
                 exchangeTransaction.getCreatedAt()
         );
     }

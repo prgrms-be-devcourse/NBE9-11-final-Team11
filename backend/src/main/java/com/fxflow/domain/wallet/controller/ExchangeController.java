@@ -17,10 +17,10 @@ public class ExchangeController {
 
     private final ExchangeService exchangeService;
 
-    @GetMapping("/exchange/quote")
+    @PostMapping("/exchange/quote")
     public ResponseEntity<ExchangeQuoteResponse> getExchangeQuote(
             @AuthenticationPrincipal Long userId,
-            @ModelAttribute ExchangeQuoteRequest request
+            @RequestBody ExchangeQuoteRequest request
     ){
         ExchangeQuoteResponse res = exchangeService.getExchangeQuote(userId, request);
         return ResponseEntity.ok(res);

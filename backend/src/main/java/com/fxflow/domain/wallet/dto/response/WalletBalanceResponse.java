@@ -7,6 +7,8 @@ public record WalletBalanceResponse (
         List<WalletResponse> walletResponseList
 ) {
     public static WalletBalanceResponse from(Long totalKrw, List<WalletResponse> walletResponseList) {
-        return new WalletBalanceResponse(totalKrw, walletResponseList);
+        return new WalletBalanceResponse(
+                totalKrw,
+                walletResponseList);
     }
 }
