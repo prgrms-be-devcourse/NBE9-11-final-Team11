@@ -236,7 +236,10 @@ class RemittanceTransactionServiceTest {
         RemittanceQuoteSnapshot quote = createQuote();
         Recipient recipient = createRecipient(userId);
         UserAnnualUsage annualUsage = createAnnualUsage(userId, currentYear, BigDecimal.ZERO);
+        String idempotencyKey = "idempotency-key";
 
+        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+                .thenReturn(Optional.empty());
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
                 .thenReturn(Optional.of(recipient));
@@ -265,7 +268,7 @@ class RemittanceTransactionServiceTest {
 
         // when
         RemittanceTransactionCreateResponse response =
-                remittanceTransactionService.createTransfer(userId, request);
+                remittanceTransactionService.createTransfer(userId, request, idempotencyKey);
 
         // then
         assertThat(response.transferId()).isEqualTo(transferId);
@@ -306,18 +309,21 @@ class RemittanceTransactionServiceTest {
         // given
         Long userId = 1L;
         RemittanceTransactionCreateRequest request = createRequest();
+        String idempotencyKey = "idempotency-key";
 
+        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+                .thenReturn(Optional.empty());
         when(remittanceQuoteProvider.getQuote(request.quoteId()))
                 .thenThrow(new BusinessException(RemittanceTransactionErrorCode.QUOTE_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request))
+        assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request, idempotencyKey))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(RemittanceTransactionErrorCode.QUOTE_NOT_FOUND);
 
         verifyNoInteractions(recipientRepository);
-        verifyNoInteractions(remittanceTransactionRepository);
+        verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
         verifyNoInteractions(virtualAccountRepository);
     }
 
@@ -331,17 +337,20 @@ class RemittanceTransactionServiceTest {
         Recipient recipient = createRecipient(userId);
         BusinessException exception =
                 new BusinessException(TransactionLimitErrorCode.ANNUAL_REMITTANCE_LIMIT_EXCEEDED);
+        String idempotencyKey = "idempotency-key";
 
+        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+                .thenReturn(Optional.empty());
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
                 .thenReturn(Optional.of(recipient));
         doThrow(exception).when(remittanceValidator).validateLimits(userId, quote.amountUsd());
 
         // when & then
-        assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request))
+        assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request, idempotencyKey))
                 .isSameAs(exception);
 
-        verifyNoInteractions(remittanceTransactionRepository);
+        verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
         verifyNoInteractions(virtualAccountRepository);
     }
 
@@ -352,19 +361,53 @@ class RemittanceTransactionServiceTest {
         Long userId = 1L;
         RemittanceTransactionCreateRequest request = createRequest();
         RemittanceQuoteSnapshot quote = createQuote();
+        String idempotencyKey = "idempotency-key";
 
+        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+                .thenReturn(Optional.empty());
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
                 .thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request))
+        assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request, idempotencyKey))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(RecipientErrorCode.RECIPIENT_NOT_FOUND);
 
-        verifyNoInteractions(remittanceTransactionRepository);
+        verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
         verifyNoInteractions(virtualAccountRepository);
+    }
+
+    @Test
+    @DisplayName("성공: 동일 Idempotency-Key 주문이 이미 있으면 기존 주문과 가상계좌를 반환한다")
+    void createTransfer_duplicateIdempotencyKey_returnsExistingTransfer() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        String idempotencyKey = "idempotency-key";
+        RemittanceTransactionCreateRequest request = createRequest();
+        RemittanceTransaction existingTransaction = createPendingTransaction(userId, transferId);
+        VirtualAccount existingVirtualAccount =
+                createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
+
+        when(remittanceTransactionRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+                .thenReturn(Optional.of(existingTransaction));
+        when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
+                .thenReturn(Optional.of(existingVirtualAccount));
+
+        // when
+        RemittanceTransactionCreateResponse response =
+                remittanceTransactionService.createTransfer(userId, request, idempotencyKey);
+
+        // then
+        assertThat(response.transferId()).isEqualTo(transferId);
+        assertThat(response.status()).isEqualTo(TransferStatus.PENDING);
+        verifyNoInteractions(remittanceQuoteProvider);
+        verifyNoInteractions(recipientRepository);
+        verifyNoInteractions(remittanceValidator);
+        verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
+        verify(virtualAccountRepository, never()).save(any(VirtualAccount.class));
     }
 
     @Test

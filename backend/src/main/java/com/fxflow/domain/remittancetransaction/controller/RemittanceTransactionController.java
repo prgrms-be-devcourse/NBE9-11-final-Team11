@@ -64,10 +64,11 @@ public class RemittanceTransactionController {
     @PostMapping("/transfers")
     public ResponseEntity<RemittanceTransactionCreateResponse> createTransfer(
             @AuthenticationPrincipal Long userId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody RemittanceTransactionCreateRequest request
     ) {
         RemittanceTransactionCreateResponse response =
-                remittanceTransactionService.createTransfer(userId, request);
+                remittanceTransactionService.createTransfer(userId, request, idempotencyKey);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

@@ -19,4 +19,9 @@ public interface RemittanceTransactionRepository extends JpaRepository<Remittanc
      * 특정 송금 거래가 로그인한 사용자의 거래인지 확인하며 조회한다.
      */
     Optional<RemittanceTransaction> findByIdAndUserId(Long id, Long userId);
+
+    /**
+     * 같은 사용자의 동일 Idempotency-Key 송금 주문을 조회한다.
+     */
+    Optional<RemittanceTransaction> findByUserIdAndIdempotencyKey(Long userId, String idempotencyKey);
 }
