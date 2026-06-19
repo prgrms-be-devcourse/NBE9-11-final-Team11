@@ -195,4 +195,9 @@ public class RemittanceTransaction extends BaseEntity {
         this.status = TransferStatus.FAILED;
         this.failureReason = failureReason;
     }
+
+    public void refundFailed(String failureReason) {
+        this.status = TransferStatus.REFUND_FAILED;
+        this.failureReason = failureReason;
+    }
 }

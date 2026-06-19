@@ -52,4 +52,23 @@ class RemittancePayoutServiceTest {
         // then
         verify(remittanceRefundService).refundAfterPayoutFailure(transferId, exception);
     }
+
+    @Test
+    @DisplayName("실패: 환불 트랜잭션까지 실패하면 환불 실패 상태 기록을 호출한다")
+    void processPayout_refundFail_marksRefundFailed() {
+        // given
+        Long transferId = 10L;
+        BusinessException payoutException = new BusinessException(PoolErrorCode.POOL_INSUFFICIENT_BALANCE);
+        RuntimeException refundException = new RuntimeException("환불 처리 실패");
+
+        doThrow(payoutException).when(remittancePayoutProcessor).process(transferId);
+        doThrow(refundException).when(remittanceRefundService)
+                .refundAfterPayoutFailure(transferId, payoutException);
+
+        // when
+        remittancePayoutService.processPayout(transferId);
+
+        // then
+        verify(remittanceRefundService).markRefundFailed(transferId, refundException);
+    }
 }

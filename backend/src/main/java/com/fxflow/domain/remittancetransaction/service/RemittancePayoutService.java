@@ -19,9 +19,19 @@ public class RemittancePayoutService {
     public void processPayout(Long transferId) {
         try {
             remittancePayoutProcessor.process(transferId);
-        } catch (RuntimeException e) {
-            log.warn("해외송금 지급 처리 실패. 환불을 시도합니다. transferId={}", transferId, e);
-            remittanceRefundService.refundAfterPayoutFailure(transferId, e);
+        } catch (RuntimeException payoutException) {
+            log.warn("해외송금 지급 처리 실패. 환불을 시도합니다. transferId={}", transferId, payoutException);
+
+            try {
+                remittanceRefundService.refundAfterPayoutFailure(transferId, payoutException);
+            } catch (RuntimeException refundException) {
+                log.error(
+                        "해외송금 환불 처리 실패. REFUND_FAILED 상태로 기록합니다. transferId={}",
+                        transferId,
+                        refundException
+                );
+                remittanceRefundService.markRefundFailed(transferId, refundException);
+            }
         }
     }
 }
