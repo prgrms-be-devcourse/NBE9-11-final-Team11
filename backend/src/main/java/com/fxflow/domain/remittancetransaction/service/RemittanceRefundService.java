@@ -84,7 +84,7 @@ public class RemittanceRefundService {
         remittanceTransaction.refundFailed(cause.getMessage());
 
         log.error(
-                "해외송금 환불 실패 상태 기록 완료. transferId={}, reason={}",
+                "[CRITICAL-FINANCIAL-ERROR] 해외송금 환불 실패 상태 기록 완료. transferId={}, reason={}",
                 transferId,
                 cause.getMessage()
         );

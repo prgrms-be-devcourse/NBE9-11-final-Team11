@@ -54,7 +54,7 @@ public class RemittancePayoutService {
             remittanceRefundService.markRefundFailed(transferId, refundException);
         } catch (RuntimeException markException) {
             log.error(
-                    "해외송금 환불 실패 상태 기록까지 실패했습니다. 긴급 확인이 필요합니다. transferId={}",
+                    "[CRITICAL-FINANCIAL-ERROR] 해외송금 환불 실패 상태 기록까지 실패했습니다. 긴급 확인이 필요합니다. transferId={}",
                     transferId,
                     markException
             );
