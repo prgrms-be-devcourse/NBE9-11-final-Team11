@@ -68,7 +68,7 @@ public class WalletService {
         return WalletBalanceResponse.from(krw.setScale(0, java.math.RoundingMode.HALF_UP).longValue(), walletResponses);
     }
 
-    public TransactionHistoryResponse getTransactionHistory(Long userId, String currency, LocalDate from, LocalDate to, Pageable pageable) {
+    public TransactionHistoryResponse getTransactionHistory(Long userId, String currency, LedgerEntryType type, LocalDate from, LocalDate to, Pageable pageable) {
         // userId + currency로 Wallet 조회
         List<Long> walletIds;
         if (currency != null) {
@@ -87,7 +87,7 @@ public class WalletService {
         LocalDateTime toDateTime = to != null ? to.atTime(23, 59, 59) : null;
 
         Page<LedgerEntry> entries = ledgerEntryRepository.findByWalletIdInAndFilters(
-                walletIds, currency, fromDateTime, toDateTime, pageable
+                walletIds, currency, type, fromDateTime, toDateTime, pageable
         );
 
         // DTO 변환

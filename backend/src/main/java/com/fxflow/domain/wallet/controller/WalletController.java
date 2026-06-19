@@ -1,5 +1,6 @@
 package com.fxflow.domain.wallet.controller;
 
+import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.wallet.dto.request.ChargeRequest;
 import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
@@ -35,13 +36,14 @@ public class WalletController {
     public ResponseEntity<TransactionHistoryResponse> getTransactionHistory(
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) String currency,
+            @RequestParam(required = false) LedgerEntryType type,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to
     ){
         Pageable pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by("createdAt").descending());
-        TransactionHistoryResponse res = walletService.getTransactionHistory(userId, currency, from, to, pageable);
+        TransactionHistoryResponse res = walletService.getTransactionHistory(userId, currency, type, from, to, pageable);
         return ResponseEntity.ok(res);
     }
 

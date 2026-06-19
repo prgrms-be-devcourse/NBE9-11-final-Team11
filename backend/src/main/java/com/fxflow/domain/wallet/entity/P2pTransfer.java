@@ -1,6 +1,5 @@
 package com.fxflow.domain.wallet.entity;
 
-import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -33,17 +32,12 @@ public class P2pTransfer extends BaseEntity {
     @Column(length = 255)
     private String memo;
 
-    @Enumerated(EnumType.STRING)
-    @Column(length = 20, nullable = false)
-    private TransferStatus status;
-
     private P2pTransfer(Wallet fromWallet, Wallet toWallet, String currencyCode, BigDecimal amount, String memo) {
         this.fromWallet = fromWallet;
         this.toWallet = toWallet;
         this.currencyCode = currencyCode;
         this.amount = amount;
         this.memo = memo;
-        this.status = TransferStatus.PENDING;
     }
 
     public static P2pTransfer create(
@@ -64,14 +58,6 @@ public class P2pTransfer extends BaseEntity {
 
     public static String generateTransferId() {
         return "TXN-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
-    }
-
-    public void complete() {
-        this.status = TransferStatus.COMPLETED;
-    }
-
-    public void fail() {
-        this.status = TransferStatus.FAILED;
     }
 
 }
