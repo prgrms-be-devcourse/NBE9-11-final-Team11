@@ -1,6 +1,7 @@
 package com.fxflow.domain.companypool.service;
 
 import com.fxflow.domain.companypool.dto.PoolChange;
+import com.fxflow.domain.companypool.dto.response.PoolDashboardRes;
 import com.fxflow.domain.companypool.entity.CompanyPool;
 import com.fxflow.domain.companypool.errorcode.PoolErrorCode;
 import com.fxflow.domain.companypool.event.PoolChangedEvent;
@@ -10,13 +11,14 @@ import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.global.exception.BusinessException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.OffsetDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -48,6 +50,40 @@ public class CompanyPoolService {
     public CompanyPool getPoolByCurrency(String currencyCode) {
         return companyPoolRepository.findByCurrencyCode(currencyCode)
                 .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public PoolDashboardRes getDashboard() {
+        List<PoolDashboardRes.PoolStatusRes> pools = List.of(
+                toPoolStatusRes(getPoolByCurrency("KRW")),
+                toPoolStatusRes(getPoolByCurrency("USD"))
+        );
+        return new PoolDashboardRes(OffsetDateTime.now(), pools);
+    }
+
+    private PoolDashboardRes.PoolStatusRes toPoolStatusRes(CompanyPool pool) {
+        String status = pool.isBelowFloor() ? "BELOW_FLOOR"
+                : pool.isAboveCeiling() ? "ABOVE_CEILING"
+                : "NORMAL";
+        // target 대비 현재 잔액 비율 (0.0 ~ 1.0). 클라이언트에서 *100 하면 퍼센트
+        BigDecimal utilizationRate = pool.getBalance()
+                .divide(pool.getTargetBalance(), 4, RoundingMode.HALF_UP);
+        PoolDashboardRes.RecommendedAction recommendedAction = switch (status) {
+            case "BELOW_FLOOR" -> new PoolDashboardRes.RecommendedAction("BUY", pool.shortageToTarget());
+            case "ABOVE_CEILING" -> new PoolDashboardRes.RecommendedAction(
+                    "SELL", pool.getBalance().subtract(pool.getTargetBalance()));
+            default -> null;
+        };
+        return new PoolDashboardRes.PoolStatusRes(
+                pool.getCurrencyCode(),
+                pool.getBalance(),
+                pool.getTargetBalance(),
+                pool.getFloorBalance(),
+                pool.getCeilingBalance(),
+                status,
+                utilizationRate,
+                recommendedAction
+        );
     }
 
     public CompanyPool deposit(String journalId, String currencyCode, BigDecimal amount) {
