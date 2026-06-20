@@ -21,10 +21,12 @@ import {
 } from "@/components/ui/dialog"
 import { useStore } from "@/lib/store"
 import { apiRequest } from "@/lib/api"
+import { useLogout } from "@/hooks/use-logout"
 
 export default function SettingsPage() {
   const router = useRouter()
   const { user, logout } = useStore()
+  const handleLogout = useLogout()
 
   const [name, setName] = useState(user?.name ?? "")
   const [email, setEmail] = useState(user?.email ?? "")
@@ -62,20 +64,6 @@ export default function SettingsPage() {
     toast.success("비밀번호가 변경되었습니다.")
   }
 
-  async function handleLogout() {
-    try {
-      await apiRequest("POST", "/api/v1/auth/logout")
-    } catch (err) {
-      console.error("로그아웃 API 호출 실패", err)
-    } finally {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("fxflow-userId")
-      }
-      logout()
-      router.push("/login")
-    }
-  }
-
   function openDeleteDialog() {
     setDeletePassword("")
     setDeleteError("")
@@ -93,8 +81,9 @@ export default function SettingsPage() {
     try {
       await apiRequest("DELETE", "/api/v1/auth/me", { password: deletePassword })
 
-      // 백엔드가 탈퇴 처리 시 JWT 쿠키를 이미 무효화하므로,
-      // 프론트는 로컬 상태(store, localStorage)만 정리하면 된다.
+      // 백엔드가 탈퇴 처리 시 JWT 쿠키를 이미 무효화하고,
+      // store.tsx의 logout()이 잔액/거래내역 등 전체 상태를 defaultState()로
+      // 리셋하므로 별도로 localStorage의 fxflow-store-v1을 지울 필요는 없다.
       if (typeof window !== "undefined") {
         localStorage.removeItem("fxflow-userId")
       }

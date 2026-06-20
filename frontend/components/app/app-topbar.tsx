@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Menu, Bell, LogOut, User, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
@@ -16,29 +15,15 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { AppSidebar } from "./app-sidebar"
 import { useStore } from "@/lib/store"
-import { apiRequest } from "@/lib/api"
+import { useLogout } from "@/hooks/use-logout"
 import Link from "next/link"
 
 export function AppTopbar({ title }: { title: string }) {
-  const router = useRouter()
-  const { user, logout, notifications } = useStore()
+  const { user, notifications } = useStore()
+  const handleLogout = useLogout()
   const [open, setOpen] = useState(false)
   const unread = notifications.filter((n) => !n.read).length
   const initial = user?.name?.charAt(0) ?? "U"
-
-  async function handleLogout() {
-    try {
-      await apiRequest("POST", "/api/v1/auth/logout")
-    } catch (err) {
-      console.error("로그아웃 API 호출 실패", err)
-    } finally {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("fxflow-userId")
-      }
-      logout()
-      router.push("/login")
-    }
-  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-md sm:px-6">
