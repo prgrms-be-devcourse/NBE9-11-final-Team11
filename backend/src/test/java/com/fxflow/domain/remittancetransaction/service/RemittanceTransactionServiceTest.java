@@ -731,6 +731,31 @@ class RemittanceTransactionServiceTest {
     }
 
     @Test
+    @DisplayName("성공: 가상계좌가 없어도 특정 송금 내역을 상세 조회한다")
+    void getTransfer_success_withoutVirtualAccount() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        Recipient recipient = createRecipient(userId);
+
+        when(remittanceTransactionRepository.findByIdAndUserId(transferId, userId))
+                .thenReturn(Optional.of(remittanceTransaction));
+        when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
+                .thenReturn(Optional.of(recipient));
+        when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
+                .thenReturn(Optional.empty());
+
+        // when
+        RemittanceTransactionDetailResponse response =
+                remittanceTransactionService.getTransfer(userId, transferId);
+
+        // then
+        assertThat(response.transferId()).isEqualTo(transferId);
+        assertThat(response.virtualAccount()).isNull();
+    }
+
+    @Test
     @DisplayName("실패: 특정 송금 내역을 찾을 수 없으면 예외가 발생한다")
     void getTransfer_fail_notFound() {
         // given

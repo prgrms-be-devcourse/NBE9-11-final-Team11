@@ -127,7 +127,9 @@ public class RemittanceTransactionService {
                 ));
 
         Recipient recipient = getRecipientForHistory(remittanceTransaction.getRecipientId());
-        VirtualAccount virtualAccount = getVirtualAccount(remittanceTransaction.getId());
+        VirtualAccount virtualAccount = virtualAccountRepository
+                .findByRemittanceTransactionId(remittanceTransaction.getId())
+                .orElse(null);
 
         return RemittanceTransactionDetailResponse.from(remittanceTransaction, recipient, virtualAccount);
     }

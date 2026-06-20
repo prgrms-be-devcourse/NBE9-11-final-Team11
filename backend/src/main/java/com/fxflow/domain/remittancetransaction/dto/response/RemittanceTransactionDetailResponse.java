@@ -79,7 +79,7 @@ public record RemittanceTransactionDetailResponse(
                 ),
                 remittanceTransaction.getAppliedRate(),
                 CurrencyAmountFormatter.format(remittanceTransaction.getFeeAmount(), KRW),
-                VirtualAccountInfo.from(virtualAccount),
+                virtualAccount == null ? null : VirtualAccountInfo.from(virtualAccount),
                 remittanceTransaction.getCreatedAt()
         );
     }
