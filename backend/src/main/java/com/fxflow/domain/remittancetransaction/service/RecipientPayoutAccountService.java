@@ -6,6 +6,7 @@ import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.repository.UserRepository;
 import java.math.BigDecimal;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,10 +35,11 @@ public class RecipientPayoutAccountService {
             return;
         }
 
+        String recipientEmail = createRecipientEmail(recipient);
         User recipientUser = userRepository
-                .findByEmail(createRecipientEmail(recipient.getAccountNumber()))
+                .findByEmail(recipientEmail)
                 .orElseGet(() -> userRepository.save(User.create(
-                        createRecipientEmail(recipient.getAccountNumber()),
+                        recipientEmail,
                         "remittance-recipient",
                         recipient.getName()
                 )));
@@ -52,7 +54,13 @@ public class RecipientPayoutAccountService {
         mockBankAccountRepository.save(account);
     }
 
-    private String createRecipientEmail(String accountNumber) {
-        return "remittance-recipient-" + accountNumber + "@fxflow.local";
+    private String createRecipientEmail(Recipient recipient) {
+        String sanitizedAccountNumber = recipient.getAccountNumber().replaceAll("[^a-zA-Z0-9]", "");
+        String accountPart = sanitizedAccountNumber.isBlank() ? "unknown" : sanitizedAccountNumber;
+        String uniquePart = recipient.getId() == null
+                ? UUID.randomUUID().toString()
+                : "r" + recipient.getId();
+
+        return "remittance-recipient-" + accountPart + "-" + uniquePart + "@fxflow.local";
     }
 }

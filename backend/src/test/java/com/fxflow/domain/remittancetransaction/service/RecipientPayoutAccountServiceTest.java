@@ -15,6 +15,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,7 +59,7 @@ class RecipientPayoutAccountServiceTest {
         // given
         Recipient recipient = createRecipient();
         User recipientUser = User.create(
-                "remittance-recipient-1234567890@fxflow.local",
+                "remittance-recipient-1234567890-test@fxflow.local",
                 "remittance-recipient",
                 recipient.getName()
         );
@@ -66,7 +68,7 @@ class RecipientPayoutAccountServiceTest {
                 recipient.getAccountNumber(),
                 recipient.getCurrencyCode()
         )).thenReturn(Optional.empty());
-        when(userRepository.findByEmail("remittance-recipient-1234567890@fxflow.local"))
+        when(userRepository.findByEmail(anyString()))
                 .thenReturn(Optional.empty());
         when(userRepository.save(any(User.class))).thenReturn(recipientUser);
 
@@ -74,6 +76,10 @@ class RecipientPayoutAccountServiceTest {
         recipientPayoutAccountService.ensurePayoutAccount(recipient);
 
         // then
+        verify(userRepository).findByEmail(argThat(email ->
+                email.startsWith("remittance-recipient-1234567890-")
+                        && email.endsWith("@fxflow.local")
+        ));
         verify(userRepository).save(any(User.class));
         verify(mockBankAccountRepository).save(any(MockBankAccount.class));
     }
@@ -85,7 +91,7 @@ class RecipientPayoutAccountServiceTest {
                 "US",
                 "USD",
                 "Chase Bank",
-                "1234567890"
+                "123-456 7890"
         );
     }
 
@@ -94,7 +100,7 @@ class RecipientPayoutAccountServiceTest {
                 User.create("recipient@example.com", "password", "John Doe"),
                 "USD",
                 "Chase Bank",
-                "1234567890",
+                "123-456 7890",
                 BigDecimal.ZERO
         );
     }
