@@ -33,6 +33,14 @@ export async function apiRequest<T>(
     } catch (e) {
       throw new Error(res.statusText || `Request failed with status ${res.status}`)
     }
+
+    // 쿠키(JWT)가 없거나 만료/위조된 경우 백엔드는 401 + code:"UNAUTHORIZED"를 반환한다.
+    // (로그인 실패 시의 401은 code:"INVALID_CREDENTIALS"라 여기서 걸리지 않는다.)
+    // 이 경우 전역 이벤트를 발생시켜, SessionWatcher가 자동 로그아웃을 처리하게 한다.
+    if (res.status === 401 && errorData?.code === "UNAUTHORIZED" && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("fxflow:session-expired"))
+    }
+
     throw errorData
   }
 
