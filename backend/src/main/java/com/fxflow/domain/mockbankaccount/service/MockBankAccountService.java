@@ -162,8 +162,11 @@ public class MockBankAccountService {
     public MockBankAccountResponse getMyAccount(Long userId) {
         MockBankAccount account = mockBankAccountRepository
                 .findByUserIdAndCurrencyCode(userId, KRW)
-                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
-
+                .orElseThrow(() -> {
+                    log.warn("[모의계좌 조회 실패] 연결된 계좌 없음 — userId={}", userId);
+                    return new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND);
+                });
+        log.info("[모의계좌 조회 완료] userId={}", userId);
         return MockBankAccountResponse.from(account);
     }
 
