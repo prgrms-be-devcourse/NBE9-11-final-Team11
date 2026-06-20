@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Wallet, ArrowLeftRight, Send, Plus, TrendingUp, TrendingDown } from "lucide-react"
+import { Wallet, ArrowLeftRight, Send, Plus, TrendingUp, TrendingDown, Landmark } from "lucide-react"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,11 +19,21 @@ export default function DashboardPage() {
   const [annualUsedUSD, setAnnualUsedUSD] = useState<number>(12000) // fallback
   const [limit, setLimit] = useState<number>(100000) // fallback
   const [loading, setLoading] = useState(true)
+  // null = 확인 중, true = 연결됨, false = 미연결
+  const [accountLinked, setAccountLinked] = useState<boolean | null>(null)
 
   useEffect(() => {
     async function loadDashboardData() {
       setLoading(true)
       try {
+        // 0. 모의계좌 연결 여부 확인 — 미연결(404)이어도 나머지 대시보드는 정상 진행
+        try {
+          await apiRequest("GET", "/api/v1/users/me/mock-account")
+          setAccountLinked(true)
+        } catch (err) {
+          setAccountLinked(false)
+        }
+
         // 1. Fetch Wallets for KRW Balance
         const walletData = await apiRequest<{ walletResponseList: { currency: string; balance: number }[] }>(
           "GET",
@@ -96,15 +106,52 @@ export default function DashboardPage() {
           <p className="mt-1 text-sm text-muted-foreground">오늘의 자산 현황과 환율을 확인하세요.</p>
         </div>
 
+        {/* Account not linked banner */}
+        {accountLinked === false && (
+          <Card className="flex flex-row items-center justify-between gap-4 border-2 border-primary/40 bg-primary/5 p-5">
+            <div className="flex items-center gap-3">
+              <span className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Landmark className="size-5" />
+              </span>
+              <div>
+                <p className="font-semibold">연결된 계좌가 없어요</p>
+                <p className="text-sm text-muted-foreground">
+                  모의계좌를 연결하면 입출금, 환전, 송금을 이용할 수 있습니다.
+                </p>
+              </div>
+            </div>
+            <Button render={<Link href="/onboarding/link-account" />} size="sm">
+              계좌 연결하기
+            </Button>
+          </Card>
+        )}
+
         {/* Quick actions */}
         <div className="grid gap-3 sm:grid-cols-3">
-          <Button render={<Link href="/wallet" />} size="lg" className="h-auto justify-start gap-3 rounded-2xl py-4">
+          <Button
+            render={<Link href="/wallet" />}
+            size="lg"
+            className="h-auto justify-start gap-3 rounded-2xl py-4"
+            disabled={accountLinked === false}
+          >
             <Plus className="size-5" /> 입금하기
           </Button>
-          <Button render={<Link href="/exchange" />} size="lg" variant="outline" className="h-auto justify-start gap-3 rounded-2xl py-4">
+          <Button
+            render={<Link href="/exchange" />}
+            size="lg"
+            variant="outline"
+            className="h-auto justify-start gap-3 rounded-2xl py-4"
+            disabled={accountLinked === false}
+          >
             <ArrowLeftRight className="size-5" /> 환전하기
           </Button>
-          <Button render={<Link href="/remittance" />} size="lg" variant="outline" className="h-auto justify-start gap-3 rounded-2xl py-4">
+          <Button
+            render={<Link href="/remittance" />}
+            size="lg"
+            variant="outline"
+            className="h-auto justify-start gap-3 rounded-2xl py-4"
+            disabled={accountLinked === false}
+          >
             <Send className="size-5" /> 송금하기
           </Button>
         </div>

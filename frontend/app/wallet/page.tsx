@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Minus, ArrowLeftRight, Wallet as WalletIcon } from "lucide-react"
+import { Plus, Minus, ArrowLeftRight, Wallet as WalletIcon, Landmark } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -20,6 +20,13 @@ import { useEffect } from "react"
 
 const FX_CODES: CurrencyCode[] = ["USD", "JPY", "EUR", "CNY"]
 
+interface MockAccountInfo {
+  bankName: string
+  accountNumber: string
+  currency: string
+  balance: number
+}
+
 export default function WalletPage() {
   const [krwBalance, setKrwBalance] = useState<number>(0)
   const [fxBalances, setFxBalances] = useState<Record<CurrencyCode, number>>({
@@ -29,6 +36,7 @@ export default function WalletPage() {
     EUR: 0,
     CNY: 0,
   })
+  const [mockAccount, setMockAccount] = useState<MockAccountInfo | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [mode, setMode] = useState<"deposit" | "withdraw" | "transfer">("deposit")
   const [amount, setAmount] = useState("")
@@ -47,7 +55,7 @@ export default function WalletPage() {
         "GET",
         "/api/v1/wallets"
       )
-      
+
       const newFxBalances: Record<CurrencyCode, number> = {
         KRW: 0,
         USD: 0,
@@ -55,7 +63,7 @@ export default function WalletPage() {
         EUR: 0,
         CNY: 0,
       }
-      
+
       let localKrw = 0
       if (balanceRes.walletResponseList) {
         balanceRes.walletResponseList.forEach((w) => {
@@ -67,6 +75,24 @@ export default function WalletPage() {
       }
       setKrwBalance(localKrw)
       setFxBalances(newFxBalances)
+
+      // 연결된 모의계좌(KRW) 잔액 조회 — 미연결 상태(404 등)면 카드를 숨긴다
+      try {
+        const mockAccountRes = await apiRequest<MockAccountInfo>(
+          "GET",
+          "/api/v1/users/me/mock-account"
+        )
+        setMockAccount(mockAccountRes)
+      } catch (err: any) {
+        // 회원가입 시 계좌가 즉시 연결되지만, 연결 실패/탈퇴 등으로 404가 날 수 있다.
+        // 이 경우는 정상 흐름이므로 console.error로 시끄럽게 남기지 않는다.
+        if (err?.status === 404) {
+          console.debug("연결된 모의계좌 없음", err)
+        } else {
+          console.error("Failed to load mock account", err)
+        }
+        setMockAccount(null)
+      }
 
       const historyRes = await apiRequest<{ totalCount: number; transactionResponseList: any[] }>(
         "GET",
@@ -151,7 +177,7 @@ export default function WalletPage() {
     const value = Number(amount.replace(/,/g, ""))
     if (!value || value <= 0) return toast.error("올바른 금액을 입력하세요.")
     if (mode === "withdraw" && value > krwBalance) return toast.error("출금 가능 잔액을 초과했습니다.")
-    
+
     if (mode === "transfer") {
       if (checkingEmail) return toast.error("이메일 검증이 완료될 때까지 기다려 주세요.")
       if (!recipientEmail.trim()) return toast.error("수취인 이메일을 입력하세요.")
@@ -312,8 +338,8 @@ export default function WalletPage() {
                       />
                     </div>
                   )}
-                  <Button 
-                    className="w-full" 
+                  <Button
+                    className="w-full"
                     onClick={submit}
                     disabled={mode === "transfer" && checkingEmail}
                   >
@@ -324,6 +350,32 @@ export default function WalletPage() {
             </Dialog>
           </div>
         </Card>
+
+        {/* Linked mock bank account */}
+        {mockAccount && (
+          <div>
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">연결된 계좌</h2>
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-10 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                    <Landmark className="size-[18px]" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">{mockAccount.bankName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {mockAccount.accountNumber.replace(/(\d{3})(\d{3})(\d{6})/, "$1-$2-$3")}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">잔액</p>
+                  <p className="text-lg font-bold tabular-nums">{formatKRW(mockAccount.balance)}</p>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
 
         {/* Balances per currency */}
         <div>
