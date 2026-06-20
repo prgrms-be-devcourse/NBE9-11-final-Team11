@@ -2,7 +2,8 @@
 
 import { use, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Check, Loader2, Package, Building2, Globe, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Check, Loader2, Package, Building2, Globe, CheckCircle2, CreditCard } from "lucide-react"
+import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,12 @@ interface TransferDetailResponse {
   receiveAmountUsd: number
   appliedRate: number
   totalFee: number
+  virtualAccount: {
+    bankName: string
+    accountNumber: string
+    amount: number
+    expiredAt: string
+  }
   createdAt: string
 }
 
@@ -40,35 +47,66 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
   const tx = transactions.find((t) => t.id === id)
   const [transfer, setTransfer] = useState<TransferDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [funding, setFunding] = useState(false)
 
-  useEffect(() => {
-    async function loadTransfer() {
+  async function loadTransfer(showLoading = true) {
+    if (showLoading) {
       setLoading(true)
-      try {
-        const data = await apiRequest<TransferDetailResponse>("GET", `/api/v1/transfers/${transferId}`)
-        setTransfer(data)
-      } catch (err) {
-        console.error("Failed to load remittance detail:", err)
-        setTransfer(null)
-      } finally {
+    }
+    try {
+      const data = await apiRequest<TransferDetailResponse>("GET", `/api/v1/transfers/${transferId}`)
+      setTransfer(data)
+    } catch (err) {
+      console.error("Failed to load remittance detail:", err)
+      setTransfer(null)
+    } finally {
+      if (showLoading) {
         setLoading(false)
       }
     }
+  }
 
+  useEffect(() => {
     loadTransfer()
   }, [transferId])
 
+  useEffect(() => {
+    if (!transfer || ["COMPLETED", "FAILED", "REFUND_FAILED"].includes(transfer.status)) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      loadTransfer(false)
+    }, 2000)
+
+    return () => window.clearInterval(intervalId)
+  }, [transfer?.status, transferId])
+
+  async function mockFundTransfer() {
+    setFunding(true)
+    try {
+      await apiRequest("POST", `/api/v1/transfers/${transferId}/mock-funded`)
+      toast.success("가상계좌 입금이 완료되었습니다.")
+      await loadTransfer(false)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "가상계좌 입금 처리에 실패했습니다.")
+    } finally {
+      setFunding(false)
+    }
+  }
+
   const stageIndex = useMemo(() => {
     if (transfer) {
-      if (transfer.status === "COMPLETED") return 3
+      if (transfer.status === "COMPLETED") return STAGES.length
       if (transfer.status === "PROCESSING" || transfer.status === "FUNDED") return 1
       return 0
     }
 
     if (!tx) return 0
-    if (tx.status === "completed") return 3
+    if (tx.status === "completed") return STAGES.length
     const ageMin = (Date.now() - new Date(tx.createdAt).getTime()) / 60000
-    if (ageMin > 60 * 24) return 3
+    if (ageMin > 60 * 24) return STAGES.length
     if (ageMin > 60 * 6) return 2
     if (ageMin > 30) return 1
     return 0
@@ -98,7 +136,8 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
   }
 
   const failed = transfer?.status === "FAILED" || transfer?.status === "REFUND_FAILED" || tx?.status === "failed"
-  const completed = !failed && stageIndex === 3
+  const pendingDeposit = transfer?.status === "PENDING"
+  const completed = !failed && stageIndex >= STAGES.length
   const title = transfer ? `해외송금 · ${transfer.recipient.name}` : tx!.title
   const amountKrw = transfer ? Number(transfer.sendAmountKrw) + Number(transfer.totalFee) : Math.abs(tx!.amountKRW)
   const receiveCurrency = (tx?.toCurrency ?? "USD") as CurrencyCode
@@ -138,15 +177,39 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
                   ? "bg-destructive/10 text-destructive"
                   : completed
                     ? "bg-accent/15 text-accent"
-                    : "bg-primary/10 text-primary",
+                    : pendingDeposit
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-primary/10 text-primary",
               )}
             >
-              {failed ? null : completed ? <Check className="size-3.5" /> : <Loader2 className="size-3.5 animate-spin" />}
-              {failed ? "실패" : completed ? "완료" : "처리중"}
+              {failed ? null : completed ? <Check className="size-3.5" /> : pendingDeposit ? null : <Loader2 className="size-3.5 animate-spin" />}
+              {failed ? "실패" : completed ? "완료" : pendingDeposit ? "입금 대기" : "처리중"}
             </span>
           </div>
           {detail && <p className="mt-3 text-sm text-muted-foreground">{detail}</p>}
         </Card>
+
+        {pendingDeposit && transfer?.virtualAccount && (
+          <Card className="p-5">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <CreditCard className="size-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold">가상계좌 입금 안내</h2>
+                <dl className="mt-3 space-y-2.5 text-sm">
+                  <InfoRow label="은행" value={transfer.virtualAccount.bankName} />
+                  <InfoRow label="계좌번호" value={transfer.virtualAccount.accountNumber} mono />
+                  <InfoRow label="입금 금액" value={formatKRW(Number(transfer.virtualAccount.amount))} bold />
+                  <InfoRow label="입금 기한" value={formatDateTime(transfer.virtualAccount.expiredAt)} />
+                </dl>
+                <Button className="mt-4 w-full" onClick={mockFundTransfer} disabled={funding}>
+                  {funding ? "입금 처리 중..." : "가상계좌 입금하기"}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Timeline */}
         <Card className="p-5">
@@ -189,5 +252,21 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
         </p>
       </div>
     </AppShell>
+  )
+}
+
+function formatDateTime(iso: string) {
+  const d = new Date(iso)
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
+function InfoRow({ label, value, mono, bold }: { label: string; value: string; mono?: boolean; bold?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <dt className="shrink-0 text-muted-foreground">{label}</dt>
+      <dd className={cn("text-right tabular-nums", mono && "font-mono text-xs", bold ? "font-bold" : "font-medium")}>
+        {value}
+      </dd>
+    </div>
   )
 }
