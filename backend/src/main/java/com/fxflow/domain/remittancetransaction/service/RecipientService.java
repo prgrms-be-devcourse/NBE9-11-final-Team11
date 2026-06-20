@@ -19,10 +19,13 @@ import java.util.List;
 public class RecipientService {
 
     private final RecipientRepository recipientRepository;
+    private final RecipientPayoutAccountService recipientPayoutAccountService;
 
     /**
      * 해외송금 수취인을 등록한다.
      * 동일 사용자가 같은 국가, 은행명, 계좌번호 조합을 중복 등록할 수 없도록 검증한다.
+     * MVP에서는 외부 은행망 대신 수취인 USD 모의계좌가 있어야 지급이 가능하므로,
+     * 수취인 등록 시 지급 대상 모의계좌가 없으면 테스트용 계좌를 함께 생성한다.
      */
     @Transactional
     public RecipientResponse createRecipient(Long userId, RecipientCreateRequest request) {
@@ -36,6 +39,7 @@ public class RecipientService {
                 request.bankName(),
                 request.accountNumber()
         );
+        recipientPayoutAccountService.ensurePayoutAccount(recipient);
 
         Recipient savedRecipient = recipientRepository.save(recipient);
         return RecipientResponse.from(savedRecipient);

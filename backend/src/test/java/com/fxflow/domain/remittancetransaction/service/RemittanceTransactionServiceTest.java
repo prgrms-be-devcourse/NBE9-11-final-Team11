@@ -91,6 +91,9 @@ class RemittanceTransactionServiceTest {
     private CompanyPoolService companyPoolService;
 
     @Mock
+    private RecipientPayoutAccountService recipientPayoutAccountService;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
@@ -698,11 +701,14 @@ class RemittanceTransactionServiceTest {
         Long transferId = 10L;
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
         Recipient recipient = createRecipient(userId);
+        VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
 
         when(remittanceTransactionRepository.findByIdAndUserId(transferId, userId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
                 .thenReturn(Optional.of(recipient));
+        when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
+                .thenReturn(Optional.of(virtualAccount));
 
         // when
         RemittanceTransactionDetailResponse response =
@@ -718,6 +724,9 @@ class RemittanceTransactionServiceTest {
         assertThat(response.receiveAmountUsd()).isEqualByComparingTo(new BigDecimal("736.52"));
         assertThat(response.appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
         assertThat(response.totalFee()).isEqualByComparingTo(new BigDecimal("8000"));
+        assertThat(response.virtualAccount().bankName()).isEqualTo("하나은행");
+        assertThat(response.virtualAccount().accountNumber()).isEqualTo("123-456789-123456");
+        assertThat(response.virtualAccount().amount()).isEqualByComparingTo(new BigDecimal("1008000"));
         assertThat(response.createdAt()).isEqualTo(remittanceTransaction.getCreatedAt());
     }
 

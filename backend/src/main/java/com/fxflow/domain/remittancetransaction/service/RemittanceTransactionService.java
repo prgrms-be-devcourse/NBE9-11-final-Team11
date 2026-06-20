@@ -69,6 +69,7 @@ public class RemittanceTransactionService {
     private final RemittanceValidator remittanceValidator;
     private final MockBankAccountService mockBankAccountService;
     private final CompanyPoolService companyPoolService;
+    private final RecipientPayoutAccountService recipientPayoutAccountService;
     private final ApplicationEventPublisher eventPublisher;
 
     private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("3000.00000000");
@@ -126,8 +127,9 @@ public class RemittanceTransactionService {
                 ));
 
         Recipient recipient = getRecipientForHistory(remittanceTransaction.getRecipientId());
+        VirtualAccount virtualAccount = getVirtualAccount(remittanceTransaction.getId());
 
-        return RemittanceTransactionDetailResponse.from(remittanceTransaction, recipient);
+        return RemittanceTransactionDetailResponse.from(remittanceTransaction, recipient, virtualAccount);
     }
 
     /**
@@ -154,6 +156,7 @@ public class RemittanceTransactionService {
 
         RemittanceQuoteSnapshot quote = remittanceQuoteProvider.getQuote(request.quoteId());
         Recipient recipient = getRecipient(userId, quote.recipientId());
+        recipientPayoutAccountService.ensurePayoutAccount(recipient);
 
         // 견적의 USD 환산 금액으로 건당/연간 해외송금 한도를 검증한다.
         remittanceValidator.validateLimits(userId, quote.amountUsd());
