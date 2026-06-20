@@ -52,7 +52,7 @@ class MockBankAccountServiceTest {
         void success() throws Exception {
             // given
             MockBankAccount account = createAccount("신한은행", "110123456789", new BigDecimal("8500000"));
-            given(mockBankAccountRepository.findByUserIdAndCurrencyCode(USER_ID, KRW))
+            given(mockBankAccountRepository.findFirstByUser_IdAndCurrencyCodeAndDeletedAtIsNull(USER_ID, KRW))
                     .willReturn(Optional.of(account));
 
             // when
@@ -69,9 +69,8 @@ class MockBankAccountServiceTest {
         @DisplayName("실패: 연결된 모의계좌가 없으면 MOCK_ACCOUNT_NOT_FOUND 예외가 발생한다")
         void notFound() {
             // given
-            given(mockBankAccountRepository.findByUserIdAndCurrencyCode(USER_ID, KRW))
+            given(mockBankAccountRepository.findFirstByUser_IdAndCurrencyCodeAndDeletedAtIsNull(USER_ID, KRW))
                     .willReturn(Optional.empty());
-
             // when & then
             assertThatThrownBy(() -> mockBankAccountService.getMyAccount(USER_ID))
                     .isInstanceOf(BusinessException.class)

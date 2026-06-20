@@ -83,8 +83,14 @@ export default function WalletPage() {
           "/api/v1/users/me/mock-account"
         )
         setMockAccount(mockAccountRes)
-      } catch (err) {
-        console.error("Failed to load mock account", err)
+      } catch (err: any) {
+        // 회원가입 시 계좌가 즉시 연결되지만, 연결 실패/탈퇴 등으로 404가 날 수 있다.
+        // 이 경우는 정상 흐름이므로 console.error로 시끄럽게 남기지 않는다.
+        if (err?.status === 404) {
+          console.debug("연결된 모의계좌 없음", err)
+        } else {
+          console.error("Failed to load mock account", err)
+        }
         setMockAccount(null)
       }
 

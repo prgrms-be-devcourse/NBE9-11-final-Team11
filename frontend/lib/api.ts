@@ -41,7 +41,7 @@ export async function apiRequest<T>(
       window.dispatchEvent(new CustomEvent("fxflow:session-expired"))
     }
 
-    throw errorData
+    throw { ...errorData, status: res.status }
   }
 
   // Handle empty or void responses (e.g. logout)

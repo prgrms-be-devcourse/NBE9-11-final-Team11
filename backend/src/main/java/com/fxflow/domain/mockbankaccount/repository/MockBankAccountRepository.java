@@ -1,6 +1,7 @@
 package com.fxflow.domain.mockbankaccount.repository;
 
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
+import com.fxflow.domain.user.entity.User;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -65,4 +66,6 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
               AND m.deletedAt IS NULL
             """)
     Optional<MockBankAccount> findByIdAndDeletedAtIsNullForUpdate(@Param("id") Long id);
+
+    Long user(User user);
 }

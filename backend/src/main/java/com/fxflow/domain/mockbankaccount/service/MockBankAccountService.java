@@ -158,10 +158,13 @@ public class MockBankAccountService {
         return MockBankAccountCheckResponse.success();
     }
 
+    /*
+    * 모의계좌에 연결된 잔액을 조회하는 메서드
+    */
     @Transactional(readOnly = true)
     public MockBankAccountResponse getMyAccount(Long userId) {
         MockBankAccount account = mockBankAccountRepository
-                .findByUserIdAndCurrencyCode(userId, KRW)
+                .findFirstByUser_IdAndCurrencyCodeAndDeletedAtIsNull(userId,KRW)
                 .orElseThrow(() -> {
                     log.warn("[모의계좌 조회 실패] 연결된 계좌 없음 — userId={}", userId);
                     return new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND);
