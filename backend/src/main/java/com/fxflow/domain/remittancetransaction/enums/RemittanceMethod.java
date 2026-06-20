@@ -1,6 +1,5 @@
 package com.fxflow.domain.remittancetransaction.enums;
 
 public enum RemittanceMethod {
-    OVERSEAS  // 모의계좌 출발 -> 가상계좌 펀딩 -> 수취인 외화 계좌 지급
-    // WALLET 민경님 파트
+    BANK_TRANSFER // 가상계좌 입금 확인 후 회사 외화풀에서 수취인 계좌로 지급하는 해외송금 방식
 }

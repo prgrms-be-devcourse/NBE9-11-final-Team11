@@ -1,7 +1,6 @@
 package com.fxflow.domain.wallet.entity;
 
 import com.fxflow.domain.user.entity.User;
-import com.fxflow.domain.wallet.enums.ExchangeStatus;
 import com.fxflow.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -52,21 +51,14 @@ public class ExchangeTransaction extends BaseEntity {
     @Column(name = "final_rate", precision = 18, scale = 8, nullable = false)
     private BigDecimal finalRate;
 
-    @Enumerated(EnumType.STRING)
-    @Column(length = 30, nullable = false)
-    private ExchangeStatus status;
-
     @Column(length = 100, nullable = false, unique = true)
     private String idempotencyKey;
-
-    @Column(name = "failure_reason", length = 255)
-    private String failureReason;
 
     @Column(name = "fee_amount", nullable = false)
     private BigDecimal feeAmount;
 
 
-    private ExchangeTransaction(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, ExchangeStatus status, String idempotencyKey, BigDecimal feeAmount) {
+    private ExchangeTransaction(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, String idempotencyKey, BigDecimal feeAmount) {
         this.transactionId = "EX_" + java.util.UUID.randomUUID().toString().replace("-", "");
         this.user = user;
         this.fromWallet = fromWallet;
@@ -78,12 +70,11 @@ public class ExchangeTransaction extends BaseEntity {
         this.baseRate = baseRate;
         this.spreadRate = spreadRate;
         this.finalRate = finalRate;
-        this.status = status;
         this.idempotencyKey = idempotencyKey;
         this.feeAmount = feeAmount;
     }
 
-    public static ExchangeTransaction create(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, ExchangeStatus status, String idempotencyKey, BigDecimal feeAmount) {
-        return new ExchangeTransaction(user, fromWallet, toWallet, fromCurrencyCode, toCurrencyCode, fromAmount, toAmount, baseRate, spreadRate, finalRate, status, idempotencyKey, feeAmount);
+    public static ExchangeTransaction create(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, String idempotencyKey, BigDecimal feeAmount) {
+        return new ExchangeTransaction(user, fromWallet, toWallet, fromCurrencyCode, toCurrencyCode, fromAmount, toAmount, baseRate, spreadRate, finalRate, idempotencyKey, feeAmount);
     }
 }

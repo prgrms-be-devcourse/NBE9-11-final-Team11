@@ -14,7 +14,8 @@ public enum UserErrorCode implements ErrorCode {
     EMAIL_DUPLICATED(HttpStatus.CONFLICT, "EMAIL_DUPLICATED", "이미 사용 중인 이메일입니다."),
     PASSWORD_POLICY_VIOLATION(HttpStatus.BAD_REQUEST, "PASSWORD_POLICY_VIOLATION", "비밀번호 정책을 위반했습니다."),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "이메일 또는 비밀번호가 일치하지 않습니다."),
-    WITHDRAWAL_BLOCKED(HttpStatus.CONFLICT, "WITHDRAWAL_BLOCKED", "잔액 또는 진행 중 거래가 있어 탈퇴할 수 없습니다.");
+    WITHDRAWAL_BLOCKED(HttpStatus.CONFLICT, "WITHDRAWAL_BLOCKED", "잔액 또는 진행 중 거래가 있어 탈퇴할 수 없습니다."),
+    ALREADY_WITHDRAWN(HttpStatus.CONFLICT, "ALREADY_WITHDRAWN", "이미 탈퇴한 회원입니다.");
 
     private final HttpStatus status;
     private final String code;

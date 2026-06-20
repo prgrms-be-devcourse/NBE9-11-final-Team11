@@ -2,6 +2,7 @@ package com.fxflow.domain.ledger.entity;
 
 import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
+import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -9,6 +10,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Entity
 @Getter
@@ -48,8 +50,9 @@ public class LedgerEntry extends BaseEntity {
     @Column(name = "balance_after", nullable = false, precision = 18, scale = 2)
     private BigDecimal balanceAfter;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "ref_type", length = 50)
-    private String refType;
+    private LedgerRefType refType;
 
     @Column(name = "ref_id", length = 50)
     private String refId;
@@ -57,7 +60,7 @@ public class LedgerEntry extends BaseEntity {
     private LedgerEntry(String journalId, LedgerEntryType entryType, LedgerDirection ledgerDirection,
                         Long walletId, Long mockBankAccountId, Long companyPoolId, String currencyCode,
                         BigDecimal amount, BigDecimal balanceBefore, BigDecimal balanceAfter,
-                        String refType, String refId){
+                        LedgerRefType refType, String refId){
         this.journalId = journalId;
         this.entryType = entryType;
         this.ledgerDirection = ledgerDirection;
@@ -76,9 +79,13 @@ public class LedgerEntry extends BaseEntity {
             String journalId, LedgerEntryType entryType, LedgerDirection ledgerDirection,
             Long walletId, Long mockBankAccountId, Long companyPoolId, String currencyCode,
             BigDecimal amount, BigDecimal balanceBefore, BigDecimal balanceAfter,
-            String refType, String refId
+            LedgerRefType refType, String refId
     ) {
         return new LedgerEntry(
                 journalId, entryType, ledgerDirection, walletId, mockBankAccountId, companyPoolId, currencyCode, amount, balanceBefore, balanceAfter, refType, refId);
+    }
+
+    public static String generateJournalId() {
+        return "JNL-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
     }
 }

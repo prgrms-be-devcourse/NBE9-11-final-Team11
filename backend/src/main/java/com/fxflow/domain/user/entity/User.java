@@ -7,7 +7,6 @@ import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -66,8 +65,11 @@ public class User extends BaseEntity {
     }
 
     // 회원 탈퇴
-    public void withdraw() {
-        this.status = UserStatus.WITHDRAWN;
+    public void withdraw(String maskedEmail,String maskedName) {
+        this.status=UserStatus.WITHDRAWN;
+        this.email=maskedEmail;
+        this.name=maskedName;
+        this.passwordHash="";
     }
     // 한도 증액 완료 시 호출
     public void upgradeTier() {
