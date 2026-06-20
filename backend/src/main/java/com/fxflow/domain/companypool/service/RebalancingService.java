@@ -30,7 +30,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class RebalancingService {
 
-    private static final BigDecimal SPREAD = new BigDecimal("0.003");
+    static final BigDecimal SPREAD = new BigDecimal("0.003");
     private final AtomicBoolean executing = new AtomicBoolean(false);
 
     private final CompanyPoolRepository companyPoolRepository;

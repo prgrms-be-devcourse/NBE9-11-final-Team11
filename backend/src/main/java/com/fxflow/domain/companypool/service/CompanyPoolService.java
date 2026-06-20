@@ -26,8 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CompanyPoolService {
 
-    // RebalancingService와 동일한 스프레드 — 대시보드 예상치 계산에 사용
-    private static final BigDecimal SPREAD = new BigDecimal("0.003");
+    private static final BigDecimal SPREAD = RebalancingService.SPREAD;
 
     private final CompanyPoolRepository companyPoolRepository;
     private final ApplicationEventPublisher eventPublisher;
