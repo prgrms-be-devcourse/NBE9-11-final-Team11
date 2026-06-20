@@ -19,6 +19,6 @@ public record PoolDashboardRes(
             RecommendedAction recommendedAction
     ) {}
 
-    // null이면 정상 범위
-    public record RecommendedAction(String type, BigDecimal amount) {}
+    // null이면 정상 범위. counterAmount는 환율 조회 실패 시 null
+    public record RecommendedAction(String type, BigDecimal amount, BigDecimal counterAmount) {}
 }
