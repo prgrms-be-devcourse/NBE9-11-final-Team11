@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
 import {
   COUNTRIES,
   CURRENCY_META,
@@ -74,6 +75,7 @@ export default function RemittancePage() {
 
   const [krwInput, setKrwInput] = useState("1000000")
   const [reason, setReason] = useState(REMITTANCE_REASONS[0])
+  const [reasonDetail, setReasonDetail] = useState("")
 
   const recipient = recipients.find((r) => r.id === recipientId)
   const country = COUNTRIES.find((c) => c.name === (recipient?.country ?? form.country)) ?? COUNTRIES[0]
@@ -184,7 +186,7 @@ export default function RemittancePage() {
         {
           quoteId: currentQuote.quoteId,
           reason: REASON_TO_API[reason] ?? "ETC",
-          reasonDetail: reason,
+          reasonDetail: reasonDetail.trim() || reason,
         },
         { "Idempotency-Key": idempotencyKey }
       )
@@ -358,6 +360,17 @@ export default function RemittancePage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="reasonDetail">상세 사유</Label>
+                <Textarea
+                  id="reasonDetail"
+                  value={reasonDetail}
+                  onChange={(e) => setReasonDetail(e.target.value)}
+                  maxLength={100}
+                  placeholder="예: 유학 생활비, 가족 생활비 지원"
+                  className="min-h-20 resize-none"
+                />
+              </div>
             </div>
           </Card>
         )}
@@ -371,6 +384,7 @@ export default function RemittancePage() {
               <Row label="국가 / 통화" value={`${recipient.country} · ${currency}`} />
               <Row label="은행 / 계좌" value={`${recipient.bank} · ${recipient.account}`} />
               <Row label="송금 목적" value={reason} />
+              {reasonDetail.trim() && <Row label="상세 사유" value={reasonDetail.trim()} />}
               <Separator />
               <Row label="송금 금액" value={formatKRW(krwAmount)} />
               <Row label="적용 환율" value={`${formatRate(quote?.exchangeRate ?? rate.rate)} / ${currency}`} />
