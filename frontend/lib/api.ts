@@ -79,7 +79,8 @@ export const getRebalanceHistory = () =>
 export async function apiRequest<T>(
   method: string,
   path: string,
-  body?: any
+  body?: any,
+  headers?: Record<string, string>
 ): Promise<T> {
   const url = `${BASE_URL}${path}`
 
@@ -92,6 +93,7 @@ export async function apiRequest<T>(
     method,
     headers: {
       "Content-Type": "application/json",
+      ...headers,
     },
     credentials: "include",
   }
@@ -117,7 +119,10 @@ export async function apiRequest<T>(
       window.dispatchEvent(new CustomEvent("fxflow:session-expired"))
     }
 
-    throw { ...errorData, status: res.status }
+    const message = errorData?.message || errorData?.code || res.statusText || `Request failed with status ${res.status}`
+    const error = new Error(message)
+    Object.assign(error, errorData, { status: res.status })
+    throw error
   }
 
   // Handle empty or void responses (e.g. logout)

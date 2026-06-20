@@ -28,6 +28,9 @@ class RecipientServiceTest {
     @Mock
     private RecipientRepository recipientRepository;
 
+    @Mock
+    private RecipientPayoutAccountService recipientPayoutAccountService;
+
     @InjectMocks
     private RecipientService recipientService;
 
@@ -57,6 +60,7 @@ class RecipientServiceTest {
         assertThat(response.bankName()).isEqualTo("Chase Bank");
         assertThat(response.accountNumber()).isEqualTo("1234567890");
 
+        verify(recipientPayoutAccountService).ensurePayoutAccount(any(Recipient.class));
         verify(recipientRepository).save(any(Recipient.class));
     }
 

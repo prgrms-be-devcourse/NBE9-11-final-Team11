@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, ChevronRight, UserPlus } from "lucide-react"
+import { ArrowLeftRight, Check, ChevronRight, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -11,34 +11,81 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { useStore, type Recipient } from "@/lib/store"
+import { Textarea } from "@/components/ui/textarea"
 import {
   COUNTRIES,
   CURRENCY_META,
   RATES,
   REMITTANCE_REASONS,
-  remittanceFee,
-  bankFee,
   formatKRW,
   formatCurrency,
   krwPerUnit,
   type CurrencyCode,
 } from "@/lib/fx-data"
 import { cn } from "@/lib/utils"
+import { apiRequest } from "@/lib/api"
 
 const STEPS = ["수취인", "금액", "확인"]
+const REASON_TO_API: Record<string, string> = {
+  가족생활비: "FAMILY_SUPPORT",
+  유학경비: "TUITION",
+  여행경비: "LIVING_EXPENSES",
+  투자: "ETC",
+  기타: "ETC",
+}
+
+function createIdempotencyKey() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+
+  return Math.random().toString(36).substring(2) + Date.now().toString(36)
+}
+
+interface Recipient {
+  id: string
+  name: string
+  country: string
+  countryCode: string
+  currency: CurrencyCode
+  bank: string
+  account: string
+}
+
+interface QuoteResponse {
+  sendAmountKrw: number
+  receiveAmountUsd: number
+  exchangeRate: number
+  fixedFee: number
+  percentFee: number
+  totalFee: number
+  quoteId: string
+  expiredAt: string
+}
+
+interface CreateTransferResponse {
+  transferId: number
+  status: string
+}
 
 export default function RemittancePage() {
   const router = useRouter()
-  const { krwBalance, recipients, addRecipient, remit } = useStore()
   const [step, setStep] = useState(0)
+  const [recipients, setRecipients] = useState<Recipient[]>([])
+  const [loadingRecipients, setLoadingRecipients] = useState(true)
+  const [loadingQuote, setLoadingQuote] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [quote, setQuote] = useState<QuoteResponse | null>(null)
 
-  const [recipientId, setRecipientId] = useState(recipients[0]?.id ?? "")
-  const [adding, setAdding] = useState(recipients.length === 0)
+  const [recipientId, setRecipientId] = useState("")
+  const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ name: "", country: COUNTRIES[0].name, bank: "", account: "" })
 
   const [krwInput, setKrwInput] = useState("1000000")
+  const [receiveInput, setReceiveInput] = useState("")
+  const [amountMode, setAmountMode] = useState<"send" | "receive">("send")
   const [reason, setReason] = useState(REMITTANCE_REASONS[0])
+  const [reasonDetail, setReasonDetail] = useState("")
 
   const recipient = recipients.find((r) => r.id === recipientId)
   const country = COUNTRIES.find((c) => c.name === (recipient?.country ?? form.country)) ?? COUNTRIES[0]
@@ -46,46 +93,147 @@ export default function RemittancePage() {
   const rate = currency === "KRW" ? { rate: 1, unit: 1 } : RATES[currency as Exclude<CurrencyCode, "KRW">]
 
   const krwAmount = Number(krwInput.replace(/[^\d]/g, "")) || 0
-  const { fee, received, bankCost, savings } = useMemo(() => {
-    const fee = remittanceFee(krwAmount)
-    const received = krwAmount / krwPerUnit(currency)
-    const bankCost = bankFee(krwAmount) + Math.round(krwAmount * 0.0175)
-    const savings = Math.max(0, bankCost - fee)
-    return { fee, received, bankCost, savings }
-  }, [krwAmount, currency])
+  const { fee, received } = useMemo(() => {
+    const fee = quote?.totalFee ?? 0
+    const received = quote?.receiveAmountUsd ?? krwAmount / krwPerUnit(currency)
+    return { fee, received }
+  }, [krwAmount, currency, quote])
 
   const total = krwAmount + fee
 
-  function saveRecipient() {
+  useEffect(() => {
+    async function loadInitialData() {
+      try {
+        const recipientData = await apiRequest<any[]>("GET", "/api/v1/recipients")
+
+        const mappedRecipients = (recipientData || []).map(mapRecipient)
+        setRecipients(mappedRecipients)
+        setRecipientId(mappedRecipients[0]?.id ?? "")
+        setAdding(mappedRecipients.length === 0)
+      } catch (err: any) {
+        console.error(err)
+        toast.error(err.message || "수취인 정보를 불러오지 못했습니다.")
+        setAdding(true)
+      } finally {
+        setLoadingRecipients(false)
+      }
+    }
+
+    loadInitialData()
+  }, [])
+
+  useEffect(() => {
+    setQuote(null)
+  }, [recipientId, krwInput, reason])
+
+  async function fetchQuote() {
+    if (!recipient) return null
+    setLoadingQuote(true)
+    try {
+      const data = await apiRequest<QuoteResponse>("POST", "/api/v1/transfers/quote", {
+        recipientId: Number(recipient.id),
+        sendAmountKrw: krwAmount,
+        reason: REASON_TO_API[reason] ?? "ETC",
+      })
+      setQuote(data)
+      return data
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "송금 견적을 불러오지 못했습니다.")
+      return null
+    } finally {
+      setLoadingQuote(false)
+    }
+  }
+
+  async function saveRecipient() {
     if (!form.name.trim() || !form.bank.trim() || !form.account.trim())
       return toast.error("수취인 정보를 모두 입력하세요.")
     const c = COUNTRIES.find((x) => x.name === form.country) ?? COUNTRIES[0]
-    const rec = addRecipient({
-      name: form.name,
-      country: form.country,
-      currency: c.currency,
-      bank: form.bank,
-      account: form.account,
-    })
-    setRecipientId(rec.id)
-    setAdding(false)
-    toast.success("수취인이 추가되었습니다.")
+    if (c.code !== "US" || c.currency !== "USD") return toast.error("현재 MVP에서는 미국·USD 수취인만 등록할 수 있습니다.")
+
+    try {
+      const created = await apiRequest<any>("POST", "/api/v1/recipients", {
+        name: form.name.trim(),
+        countryCode: c.code,
+        currencyCode: c.currency,
+        bankName: form.bank.trim(),
+        accountNumber: form.account.replace(/\D/g, ""),
+      })
+      const rec = mapRecipient(created)
+      setRecipients((prev) => [...prev, rec])
+      setRecipientId(rec.id)
+      setAdding(false)
+      setForm({ name: "", country: COUNTRIES[0].name, bank: "", account: "" })
+      toast.success("수취인이 추가되었습니다.")
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "수취인 등록에 실패했습니다.")
+    }
   }
 
-  function next() {
+  function handleKrwInputChange(value: string) {
+    setKrwInput(value.replace(/[^\d]/g, ""))
+  }
+
+  function handleReceiveInputChange(value: string) {
+    const cleaned = value
+      .replace(/[^0-9.]/g, "")
+      .replace(/(\..*)\./g, "$1")
+
+    setReceiveInput(cleaned)
+
+    const receiveAmount = Number(cleaned) || 0
+    const estimatedKrw = Math.ceil(receiveAmount * krwPerUnit(currency))
+    setKrwInput(estimatedKrw > 0 ? String(estimatedKrw) : "")
+  }
+
+  function toggleAmountMode() {
+    if (amountMode === "send") {
+      setReceiveInput(received > 0 ? received.toFixed(2) : "")
+      setAmountMode("receive")
+      return
+    }
+
+    setAmountMode("send")
+  }
+
+  async function next() {
     if (step === 0 && !recipient) return toast.error("수취인을 선택하거나 추가하세요.")
     if (step === 1) {
       if (krwAmount <= 0) return toast.error("송금 금액을 입력하세요.")
-      if (total > krwBalance) return toast.error("KRW 잔액이 부족합니다.")
+      const nextQuote = quote ?? await fetchQuote()
+      if (!nextQuote) return
     }
     setStep((s) => Math.min(2, s + 1))
   }
 
-  function submit() {
+  async function submit() {
     if (!recipient) return
-    const id = remit(recipient, krwAmount, received, rate.rate, fee, reason)
-    toast.success("송금이 신청되었습니다.")
-    router.push(`/remittance/${id}`)
+    const currentQuote = quote ?? await fetchQuote()
+    if (!currentQuote) return
+
+    setSubmitting(true)
+    try {
+      const idempotencyKey = createIdempotencyKey()
+      const response = await apiRequest<CreateTransferResponse>(
+        "POST",
+        "/api/v1/transfers",
+        {
+          quoteId: currentQuote.quoteId,
+          reason: REASON_TO_API[reason] ?? "ETC",
+          reasonDetail: reasonDetail.trim() || reason,
+        },
+        { "Idempotency-Key": idempotencyKey }
+      )
+      toast.success("송금이 신청되었습니다.")
+      router.push(`/remittance/${response.transferId}`)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "송금 신청에 실패했습니다.")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -121,7 +269,8 @@ export default function RemittancePage() {
         {step === 0 && (
           <Card className="p-5">
             <h2 className="text-base font-bold">수취인 선택</h2>
-            {!adding && recipients.length > 0 && (
+            {loadingRecipients && <p className="mt-4 text-sm text-muted-foreground">수취인 정보를 불러오는 중입니다.</p>}
+            {!loadingRecipients && !adding && recipients.length > 0 && (
               <div className="mt-4 space-y-2">
                 {recipients.map((r) => (
                   <button
@@ -149,7 +298,7 @@ export default function RemittancePage() {
               </div>
             )}
 
-            {adding && (
+            {!loadingRecipients && adding && (
               <div className="mt-4 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="r-name">수취인 이름</Label>
@@ -218,18 +367,43 @@ export default function RemittancePage() {
             <div className="mt-4 space-y-4">
               <div className="rounded-2xl border border-border bg-secondary/40 p-4">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-muted-foreground">보내는 금액 (KRW)</Label>
-                  <span className="text-xs text-muted-foreground tabular-nums">잔액 {formatKRW(krwBalance)}</span>
+                  <Label className="text-xs text-muted-foreground">
+                    {amountMode === "send" ? "보내는 금액 (KRW)" : `수취 금액 (${currency})`}
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleAmountMode}
+                    className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
+                  >
+                    <ArrowLeftRight className="size-3.5" />
+                    {amountMode === "send" ? "수취 금액 입력" : "보내는 금액 입력"}
+                  </Button>
                 </div>
-                <Input
-                  inputMode="numeric"
-                  value={krwInput ? Number(krwInput).toLocaleString("ko-KR") : ""}
-                  onChange={(e) => setKrwInput(e.target.value.replace(/[^\d]/g, ""))}
-                  className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
-                  placeholder="0"
-                />
+                {amountMode === "send" ? (
+                  <Input
+                    inputMode="numeric"
+                    value={krwInput ? Number(krwInput).toLocaleString("ko-KR") : ""}
+                    onChange={(e) => handleKrwInputChange(e.target.value)}
+                    className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
+                    placeholder="0"
+                  />
+                ) : (
+                  <Input
+                    inputMode="decimal"
+                    value={receiveInput}
+                    onChange={(e) => handleReceiveInputChange(e.target.value)}
+                    className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
+                    placeholder="0.00"
+                  />
+                )}
                 <p className="mt-1 text-right text-sm text-muted-foreground">
-                  수취 예상 {formatCurrency(received, currency)}
+                  {loadingQuote
+                    ? "견적 계산 중..."
+                    : amountMode === "send"
+                      ? `수취 예상 ${formatCurrency(received, currency)}`
+                      : `예상 지출 비용 ${formatKRW(krwAmount)}`}
                 </p>
               </div>
               <div className="space-y-2">
@@ -247,11 +421,16 @@ export default function RemittancePage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="rounded-2xl bg-accent/10 p-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">은행 대비 절약</span>
-                  <span className="font-bold text-accent tabular-nums">{formatKRW(savings)}</span>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="reasonDetail">상세 사유</Label>
+                <Textarea
+                  id="reasonDetail"
+                  value={reasonDetail}
+                  onChange={(e) => setReasonDetail(e.target.value)}
+                  maxLength={100}
+                  placeholder="예: 유학 생활비, 가족 생활비 지원"
+                  className="min-h-20 resize-none"
+                />
               </div>
             </div>
           </Card>
@@ -266,9 +445,10 @@ export default function RemittancePage() {
               <Row label="국가 / 통화" value={`${recipient.country} · ${currency}`} />
               <Row label="은행 / 계좌" value={`${recipient.bank} · ${recipient.account}`} />
               <Row label="송금 목적" value={reason} />
+              {reasonDetail.trim() && <Row label="상세 사유" value={reasonDetail.trim()} />}
               <Separator />
               <Row label="송금 금액" value={formatKRW(krwAmount)} />
-              <Row label="적용 환율" value={`₩${rate.rate.toLocaleString("ko-KR")} / ${rate.unit > 1 ? rate.unit + " " : ""}${currency}`} />
+              <Row label="적용 환율" value={`${formatRate(quote?.exchangeRate ?? rate.rate)} / ${currency}`} />
               <Row label="수수료" value={formatKRW(fee)} />
               <Separator />
               <Row label="총 출금액" value={formatKRW(total)} bold />
@@ -288,18 +468,35 @@ export default function RemittancePage() {
             </Button>
           )}
           {step < 2 ? (
-            <Button className="flex-1" onClick={next}>
-              다음
+            <Button className="flex-1" onClick={next} disabled={loadingQuote}>
+              {loadingQuote ? "견적 계산 중..." : "다음"}
             </Button>
           ) : (
-            <Button className="flex-1" size="lg" onClick={submit}>
-              송금 신청하기
+            <Button className="flex-1" size="lg" onClick={submit} disabled={submitting}>
+              {submitting ? "신청 중..." : "송금 신청하기"}
             </Button>
           )}
         </div>
       </div>
     </AppShell>
   )
+}
+
+function mapRecipient(recipient: any): Recipient {
+  const country = COUNTRIES.find((item) => item.code === recipient.countryCode) ?? COUNTRIES[0]
+  return {
+    id: String(recipient.recipientId),
+    name: recipient.name,
+    country: country.name,
+    countryCode: recipient.countryCode,
+    currency: recipient.currencyCode as CurrencyCode,
+    bank: recipient.bankName,
+    account: recipient.accountNumber,
+  }
+}
+
+function formatRate(rate: number) {
+  return `₩${Number(rate).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function Row({ label, value, bold, accent }: { label: string; value: string; bold?: boolean; accent?: boolean }) {

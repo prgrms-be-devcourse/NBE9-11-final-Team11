@@ -91,6 +91,9 @@ class RemittanceTransactionServiceTest {
     private CompanyPoolService companyPoolService;
 
     @Mock
+    private RecipientPayoutAccountService recipientPayoutAccountService;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
@@ -412,12 +415,14 @@ class RemittanceTransactionServiceTest {
         Long transferId = 10L;
         String idempotencyKey = "idempotency-key";
         RemittanceTransactionCreateRequest request = createRequest();
+        RemittanceQuoteSnapshot quote = createQuote();
         RemittanceTransaction existingTransaction = createPendingTransaction(userId, transferId);
         VirtualAccount existingVirtualAccount =
                 createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
 
         when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.of(existingTransaction));
+        when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
                 .thenReturn(Optional.of(existingVirtualAccount));
 
@@ -428,11 +433,48 @@ class RemittanceTransactionServiceTest {
         // then
         assertThat(response.transferId()).isEqualTo(transferId);
         assertThat(response.status()).isEqualTo(TransferStatus.PENDING);
-        verifyNoInteractions(remittanceQuoteProvider);
         verifyNoInteractions(recipientRepository);
         verifyNoInteractions(remittanceValidator);
         verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
         verify(virtualAccountRepository, never()).save(any(VirtualAccount.class));
+    }
+
+    @Test
+    @DisplayName("실패: 동일 Idempotency-Key로 다른 송금 요청을 보내면 예외가 발생한다")
+    void createTransfer_fail_invalidIdempotencyRequest() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        String idempotencyKey = "idempotency-key";
+        RemittanceTransactionCreateRequest request = createRequest();
+        RemittanceQuoteSnapshot quote = new RemittanceQuoteSnapshot(
+                "TQUOTE-001",
+                1L,
+                "KRW",
+                new BigDecimal("2000000.00"),
+                "USD",
+                new BigDecimal("1473.04"),
+                new BigDecimal("1351.00000000"),
+                new BigDecimal("13000.00"),
+                new BigDecimal("2000000.00"),
+                new BigDecimal("1473.04")
+        );
+        RemittanceTransaction existingTransaction = createPendingTransaction(userId, transferId);
+
+        when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
+                .thenReturn(Optional.of(existingTransaction));
+        when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request, idempotencyKey))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RemittanceTransactionErrorCode.INVALID_IDEMPOTENCY_REQUEST);
+
+        verifyNoInteractions(recipientRepository);
+        verifyNoInteractions(remittanceValidator);
+        verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
+        verifyNoInteractions(virtualAccountRepository);
     }
 
     @Test
@@ -698,11 +740,14 @@ class RemittanceTransactionServiceTest {
         Long transferId = 10L;
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
         Recipient recipient = createRecipient(userId);
+        VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
 
         when(remittanceTransactionRepository.findByIdAndUserId(transferId, userId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
                 .thenReturn(Optional.of(recipient));
+        when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
+                .thenReturn(Optional.of(virtualAccount));
 
         // when
         RemittanceTransactionDetailResponse response =
@@ -718,7 +763,35 @@ class RemittanceTransactionServiceTest {
         assertThat(response.receiveAmountUsd()).isEqualByComparingTo(new BigDecimal("736.52"));
         assertThat(response.appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
         assertThat(response.totalFee()).isEqualByComparingTo(new BigDecimal("8000"));
+        assertThat(response.virtualAccount().bankName()).isEqualTo("하나은행");
+        assertThat(response.virtualAccount().accountNumber()).isEqualTo("123-456789-123456");
+        assertThat(response.virtualAccount().amount()).isEqualByComparingTo(new BigDecimal("1008000"));
         assertThat(response.createdAt()).isEqualTo(remittanceTransaction.getCreatedAt());
+    }
+
+    @Test
+    @DisplayName("성공: 가상계좌가 없어도 특정 송금 내역을 상세 조회한다")
+    void getTransfer_success_withoutVirtualAccount() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        Recipient recipient = createRecipient(userId);
+
+        when(remittanceTransactionRepository.findByIdAndUserId(transferId, userId))
+                .thenReturn(Optional.of(remittanceTransaction));
+        when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
+                .thenReturn(Optional.of(recipient));
+        when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
+                .thenReturn(Optional.empty());
+
+        // when
+        RemittanceTransactionDetailResponse response =
+                remittanceTransactionService.getTransfer(userId, transferId);
+
+        // then
+        assertThat(response.transferId()).isEqualTo(transferId);
+        assertThat(response.virtualAccount()).isNull();
     }
 
     @Test

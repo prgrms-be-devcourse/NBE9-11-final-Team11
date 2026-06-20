@@ -69,6 +69,7 @@ public class RemittanceTransactionService {
     private final RemittanceValidator remittanceValidator;
     private final MockBankAccountService mockBankAccountService;
     private final CompanyPoolService companyPoolService;
+    private final RecipientPayoutAccountService recipientPayoutAccountService;
     private final ApplicationEventPublisher eventPublisher;
 
     private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("3000.00000000");
@@ -126,8 +127,11 @@ public class RemittanceTransactionService {
                 ));
 
         Recipient recipient = getRecipientForHistory(remittanceTransaction.getRecipientId());
+        VirtualAccount virtualAccount = virtualAccountRepository
+                .findByRemittanceTransactionId(remittanceTransaction.getId())
+                .orElse(null);
 
-        return RemittanceTransactionDetailResponse.from(remittanceTransaction, recipient);
+        return RemittanceTransactionDetailResponse.from(remittanceTransaction, recipient, virtualAccount);
     }
 
     /**
@@ -148,12 +152,16 @@ public class RemittanceTransactionService {
             if (!existingTransaction.getUserId().equals(userId)) {
                 throw new BusinessException(RemittanceTransactionErrorCode.IDEMPOTENCY_KEY_CONFLICT);
             }
+            RemittanceQuoteSnapshot quote = remittanceQuoteProvider.getQuote(request.quoteId());
+            validateSameIdempotencyRequest(existingTransaction, quote);
+
             VirtualAccount existingVirtualAccount = getVirtualAccount(existingTransaction.getId());
             return RemittanceTransactionCreateResponse.of(existingTransaction, existingVirtualAccount);
         }
 
         RemittanceQuoteSnapshot quote = remittanceQuoteProvider.getQuote(request.quoteId());
         Recipient recipient = getRecipient(userId, quote.recipientId());
+        recipientPayoutAccountService.ensurePayoutAccount(recipient);
 
         // 견적의 USD 환산 금액으로 건당/연간 해외송금 한도를 검증한다.
         remittanceValidator.validateLimits(userId, quote.amountUsd());
@@ -165,6 +173,11 @@ public class RemittanceTransactionService {
         RemittanceTransaction remittanceTransaction = RemittanceTransaction.create(
                 userId,
                 quote.recipientId(),
+                recipient.getName(),
+                recipient.getCountryCode(),
+                recipient.getCurrencyCode(),
+                recipient.getBankName(),
+                recipient.getAccountNumber(),
                 null,
                 RemittanceMethod.BANK_TRANSFER.name(),
                 null,
@@ -191,6 +204,27 @@ public class RemittanceTransactionService {
         VirtualAccount savedVirtualAccount = virtualAccountRepository.save(virtualAccount);
 
         return RemittanceTransactionCreateResponse.of(savedTransaction, savedVirtualAccount);
+    }
+
+    /**
+     * 같은 Idempotency-Key로 다른 수취인/금액의 송금 요청이 재사용되는 것을 방지한다.
+     */
+    private void validateSameIdempotencyRequest(
+            RemittanceTransaction existingTransaction,
+            RemittanceQuoteSnapshot quote
+    ) {
+        boolean sameRequest = existingTransaction.getRecipientId().equals(quote.recipientId())
+                && hasSameAmount(existingTransaction.getSendAmount(), quote.sendAmount())
+                && hasSameAmount(existingTransaction.getReceiveAmount(), quote.receiveAmount())
+                && hasSameAmount(existingTransaction.getAmountUsd(), quote.amountUsd());
+
+        if (!sameRequest) {
+            throw new BusinessException(RemittanceTransactionErrorCode.INVALID_IDEMPOTENCY_REQUEST);
+        }
+    }
+
+    private boolean hasSameAmount(BigDecimal first, BigDecimal second) {
+        return first.compareTo(second) == 0;
     }
 
     /**
