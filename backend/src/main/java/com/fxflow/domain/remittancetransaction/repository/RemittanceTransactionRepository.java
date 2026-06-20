@@ -21,6 +21,13 @@ public interface RemittanceTransactionRepository extends JpaRepository<Remittanc
      */
     Optional<RemittanceTransaction> findByIdAndUserId(Long id, Long userId);
 
-    //특정 유저의 진행중인 거래가 있는지 조회한다.
-    boolean existsByUserIdAndStatusIn(Long userId, List<TransferStatus> pending);
+    /**
+     * 동일 Idempotency-Key 송금 주문을 조회한다.
+     */
+    Optional<RemittanceTransaction> findByIdempotencyKey(String idempotencyKey);
+
+    /**
+     * 특정 유저의 진행중인 거래가 있는지 조회한다.
+     */
+    boolean existsByUserIdAndStatusIn(Long userId, List<TransferStatus> statuses);
 }

@@ -18,7 +18,6 @@ import com.fxflow.domain.wallet.dto.response.ExchangeQuoteResponse;
 import com.fxflow.domain.wallet.dto.response.ExchangeResponse;
 import com.fxflow.domain.wallet.entity.ExchangeTransaction;
 import com.fxflow.domain.wallet.entity.Wallet;
-import com.fxflow.domain.wallet.enums.ExchangeStatus;
 import com.fxflow.domain.wallet.errorcode.ExchangeErrorCode;
 import com.fxflow.domain.wallet.errorcode.WalletErrorCode;
 import com.fxflow.domain.wallet.repository.ExchangeTransactionRepository;
@@ -163,7 +162,6 @@ public class ExchangeService {
                 cache.baseRate(),
                 cache.spreadRate(),
                 cache.finalRate(),
-                ExchangeStatus.COMPLETED,
                 idempotencyKey,
                 cache.feeAmount()
         );

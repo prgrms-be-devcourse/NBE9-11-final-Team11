@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -60,6 +61,10 @@ class TransactionLimitValidatorTest {
 
     private TransactionLimit mockLimit(LimitType limitType, LimitTier tier, String currencyCode, BigDecimal limitAmount) {
         return TransactionLimit.create(limitType, tier, currencyCode, limitAmount);
+    }
+
+    private LocalDate todayKst() {
+        return LocalDate.now(ZoneId.of("Asia/Seoul"));
     }
 
     // ── 1. 건당 송금 한도 검증 ─────────────────────────────────────────────
@@ -136,10 +141,10 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("성공: 누적액 + 요청액이 한도 미만")
         void success() {
-            UserAnnualUsage usage = UserAnnualUsage.create(user, 2025);
+            UserAnnualUsage usage = UserAnnualUsage.create(user, todayKst().getYear());
             usage.addUsage(new BigDecimal("50000"));
 
-            when(userAnnualUsageRepository.findByUserIdAndYear(1L, LocalDate.now().getYear()))
+            when(userAnnualUsageRepository.findByUserIdAndYear(1L, todayKst().getYear()))
                     .thenReturn(Optional.of(usage));
 
             assertThatCode(() -> validator.validateAnnualRemittance(user, new BigDecimal("3000")))
@@ -149,10 +154,10 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("실패: 누적액 + 요청액이 한도 초과")
         void fail_exceeded() {
-            UserAnnualUsage usage = UserAnnualUsage.create(user, 2025);
+            UserAnnualUsage usage = UserAnnualUsage.create(user, todayKst().getYear());
             usage.addUsage(new BigDecimal("98000"));
 
-            when(userAnnualUsageRepository.findByUserIdAndYear(1L, LocalDate.now().getYear()))
+            when(userAnnualUsageRepository.findByUserIdAndYear(1L, todayKst().getYear()))
                     .thenReturn(Optional.of(usage));
 
             assertThatThrownBy(() -> validator.validateAnnualRemittance(user, new BigDecimal("5000")))
@@ -164,7 +169,7 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("성공: 첫 송금 (UserAnnualUsage 없는 경우)")
         void success_firstRemittance() {
-            when(userAnnualUsageRepository.findByUserIdAndYear(1L, LocalDate.now().getYear()))
+            when(userAnnualUsageRepository.findByUserIdAndYear(1L, todayKst().getYear()))
                     .thenReturn(Optional.empty());
 
             assertThatCode(() -> validator.validateAnnualRemittance(user, new BigDecimal("3000")))
@@ -220,10 +225,10 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("성공: 누적액 + 요청액이 한도 미만")
         void success() {
-            UserDailyUsage usage = UserDailyUsage.create(user, LocalDate.now());
+            UserDailyUsage usage = UserDailyUsage.create(user, todayKst());
             usage.addDeposit(new BigDecimal("500000"));
 
-            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, LocalDate.now()))
+            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, todayKst()))
                     .thenReturn(Optional.of(usage));
 
             assertThatCode(() -> validator.validateDailyDeposit(user, new BigDecimal("1000000")))
@@ -233,10 +238,10 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("실패: 누적액 + 요청액이 한도 초과")
         void fail_exceeded() {
-            UserDailyUsage usage = UserDailyUsage.create(user, LocalDate.now());
+            UserDailyUsage usage = UserDailyUsage.create(user, todayKst());
             usage.addDeposit(new BigDecimal("1500000"));
 
-            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, LocalDate.now()))
+            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, todayKst()))
                     .thenReturn(Optional.of(usage));
 
             assertThatThrownBy(() -> validator.validateDailyDeposit(user, new BigDecimal("1000000")))
@@ -248,7 +253,7 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("성공: 첫 입금 (UserDailyUsage 없는 경우)")
         void success_firstDeposit() {
-            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, LocalDate.now()))
+            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, todayKst()))
                     .thenReturn(Optional.empty());
 
             assertThatCode(() -> validator.validateDailyDeposit(user, new BigDecimal("1000000")))
@@ -276,10 +281,10 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("성공: 누적액 + 요청액이 한도 미만")
         void success() {
-            UserDailyUsage usage = UserDailyUsage.create(user, LocalDate.now());
+            UserDailyUsage usage = UserDailyUsage.create(user, todayKst());
             usage.addWithdrawal(new BigDecimal("500000"));
 
-            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, LocalDate.now()))
+            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, todayKst()))
                     .thenReturn(Optional.of(usage));
 
             assertThatCode(() -> validator.validateDailyWithdrawal(user, new BigDecimal("1000000")))
@@ -289,10 +294,10 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("실패: 누적액 + 요청액이 한도 초과")
         void fail_exceeded() {
-            UserDailyUsage usage = UserDailyUsage.create(user, LocalDate.now());
+            UserDailyUsage usage = UserDailyUsage.create(user, todayKst());
             usage.addWithdrawal(new BigDecimal("1500000"));
 
-            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, LocalDate.now()))
+            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, todayKst()))
                     .thenReturn(Optional.of(usage));
 
             assertThatThrownBy(() -> validator.validateDailyWithdrawal(user, new BigDecimal("1000000")))
@@ -304,7 +309,7 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("성공: 첫 출금 (UserDailyUsage 없는 경우)")
         void success_firstWithdrawal() {
-            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, LocalDate.now()))
+            when(userDailyUsageRepository.findByUserIdAndUsageDate(1L, todayKst()))
                     .thenReturn(Optional.empty());
 
             assertThatCode(() -> validator.validateDailyWithdrawal(user, new BigDecimal("1000000")))
@@ -469,10 +474,10 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("성공: 누적액 + 요청액이 한도 미만")
         void success() {
-            UserExchangeDailyUsage usage = UserExchangeDailyUsage.create(user, LocalDate.now());
+            UserExchangeDailyUsage usage = UserExchangeDailyUsage.create(user, todayKst());
             usage.addExchange(new BigDecimal("500000"));
 
-            when(userExchangeDailyUsageRepository.findByUserIdAndUsageDate(1L, LocalDate.now()))
+            when(userExchangeDailyUsageRepository.findByUserIdAndUsageDate(1L, todayKst()))
                     .thenReturn(Optional.of(usage));
 
             assertThatCode(() -> validator.validateDailyExchange(user, new BigDecimal("1000000")))
@@ -482,10 +487,10 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("실패: 누적액 + 요청액이 한도 초과")
         void fail_exceeded() {
-            UserExchangeDailyUsage usage = UserExchangeDailyUsage.create(user, LocalDate.now());
+            UserExchangeDailyUsage usage = UserExchangeDailyUsage.create(user, todayKst());
             usage.addExchange(new BigDecimal("1500000"));
 
-            when(userExchangeDailyUsageRepository.findByUserIdAndUsageDate(1L, LocalDate.now()))
+            when(userExchangeDailyUsageRepository.findByUserIdAndUsageDate(1L, todayKst()))
                     .thenReturn(Optional.of(usage));
 
             assertThatThrownBy(() -> validator.validateDailyExchange(user, new BigDecimal("1000000")))
@@ -497,7 +502,7 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("성공: 첫 환전 (UserExchangeDailyUsage 없는 경우)")
         void success_firstExchange() {
-            when(userExchangeDailyUsageRepository.findByUserIdAndUsageDate(1L, LocalDate.now()))
+            when(userExchangeDailyUsageRepository.findByUserIdAndUsageDate(1L, todayKst()))
                     .thenReturn(Optional.empty());
 
             assertThatCode(() -> validator.validateDailyExchange(user, new BigDecimal("1000000")))
@@ -524,10 +529,10 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("성공: 누적액 + 요청액이 한도 미만")
         void success() {
-            UserExchangeAnnualUsage usage = UserExchangeAnnualUsage.create(user, 2025);
+            UserExchangeAnnualUsage usage = UserExchangeAnnualUsage.create(user, todayKst().getYear());
             usage.addExchange(new BigDecimal("50000"));
 
-            when(userExchangeAnnualUsageRepository.findByUserIdAndYear(1L, LocalDate.now().getYear()))
+            when(userExchangeAnnualUsageRepository.findByUserIdAndYear(1L, todayKst().getYear()))
                     .thenReturn(Optional.of(usage));
 
             assertThatCode(() -> validator.validateAnnualExchange(user, new BigDecimal("3000")))
@@ -537,10 +542,10 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("실패: 누적액 + 요청액이 한도 초과")
         void fail_exceeded() {
-            UserExchangeAnnualUsage usage = UserExchangeAnnualUsage.create(user, 2025);
+            UserExchangeAnnualUsage usage = UserExchangeAnnualUsage.create(user, todayKst().getYear());
             usage.addExchange(new BigDecimal("98000"));
 
-            when(userExchangeAnnualUsageRepository.findByUserIdAndYear(1L, LocalDate.now().getYear()))
+            when(userExchangeAnnualUsageRepository.findByUserIdAndYear(1L, todayKst().getYear()))
                     .thenReturn(Optional.of(usage));
 
             assertThatThrownBy(() -> validator.validateAnnualExchange(user, new BigDecimal("5000")))
@@ -552,7 +557,7 @@ class TransactionLimitValidatorTest {
         @Test
         @DisplayName("성공: 첫 환전 (UserExchangeAnnualUsage 없는 경우)")
         void success_firstExchange() {
-            when(userExchangeAnnualUsageRepository.findByUserIdAndYear(1L, LocalDate.now().getYear()))
+            when(userExchangeAnnualUsageRepository.findByUserIdAndYear(1L, todayKst().getYear()))
                     .thenReturn(Optional.empty());
 
             assertThatCode(() -> validator.validateAnnualExchange(user, new BigDecimal("3000")))

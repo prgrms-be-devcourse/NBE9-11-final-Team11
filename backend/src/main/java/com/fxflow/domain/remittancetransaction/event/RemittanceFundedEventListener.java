@@ -1,6 +1,7 @@
 package com.fxflow.domain.remittancetransaction.event;
 
 import com.fxflow.domain.remittancetransaction.service.RemittancePayoutService;
+import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -19,7 +20,7 @@ public class RemittanceFundedEventListener {
      * 송금 입금 완료 트랜잭션이 커밋된 뒤 후속 송금 처리를 비동기로 시작한다.
      * 후속 지급 실패가 입금 완료 API 응답으로 전파되지 않도록 이 지점에서 예외를 기록한다.
      */
-    @Async
+    @Async("remittanceTaskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handle(RemittanceFundedEvent event) {
         log.info(
@@ -33,8 +34,10 @@ public class RemittanceFundedEventListener {
         );
         try {
             remittancePayoutService.processPayout(event.transferId());
+        } catch (BusinessException e) {
+            log.warn("해외송금 후속 지급 처리 실패. transferId={}", event.transferId(), e);
         } catch (RuntimeException e) {
-            log.error("해외송금 후속 지급 처리 실패. transferId={}", event.transferId(), e);
+            log.error("해외송금 후속 지급 처리 중 시스템 예외가 발생했습니다. transferId={}", event.transferId(), e);
         }
     }
 }
