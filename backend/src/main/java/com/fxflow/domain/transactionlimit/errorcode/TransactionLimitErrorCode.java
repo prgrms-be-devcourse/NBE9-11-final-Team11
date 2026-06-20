@@ -20,7 +20,7 @@ public enum TransactionLimitErrorCode implements ErrorCode {
     PER_REMITTANCE_LIMIT_EXCEEDED(
             HttpStatus.CONFLICT,
             "PER_REMITTANCE_LIMIT_EXCEEDED",
-            "건당 송금 한도를 초과했습니다."         // USD $5,000
+            "건당 최대 송금 한도는 5,000 USD입니다."         // USD $5,000
     ),
     ANNUAL_REMITTANCE_LIMIT_EXCEEDED(
             HttpStatus.CONFLICT,
