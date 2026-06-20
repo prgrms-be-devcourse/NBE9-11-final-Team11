@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { TxStatusBadge } from "@/components/app/status-badges"
 import { timeAgo } from "@/components/app/transaction-row"
-import { useStore, type Transaction, type TxType, type TxStatus } from "@/lib/store"
+import type { Transaction, TxType, TxStatus } from "@/lib/store"
 import { formatKRW, formatCurrency } from "@/lib/fx-data"
 import { apiRequest } from "@/lib/api"
 
@@ -42,6 +42,10 @@ const statusLabels: Record<TxStatus | "all", string> = {
 function formatDateTime(iso: string) {
   const d = new Date(iso)
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
+function formatRate(rate: number) {
+  return `₩${Number(rate).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export default function TransactionsPage() {
@@ -129,11 +133,11 @@ export default function TransactionsPage() {
           const res = await apiRequest<any[]>("GET", "/api/v1/transfers")
           remittanceList = (res || []).map((tx) => {
             let status: TxStatus = "completed"
-            if (tx.status === "PENDING" || tx.status === "PROCESSING" || tx.status === "SETTLED" || tx.status === "PAYOUT_INITIATED") {
+            if (tx.status === "PENDING" || tx.status === "FUNDED" || tx.status === "PROCESSING") {
               status = "processing"
-            } else if (tx.status === "FAILED") {
+            } else if (tx.status === "FAILED" || tx.status === "REFUND_FAILED" || tx.status === "CANCELED") {
               status = "failed"
-            } else if (tx.status === "REFUNDED" || tx.status === "REFUND_INITIATED") {
+            } else if (tx.status === "REFUNDED") {
               status = "refunded"
             }
 
@@ -141,7 +145,7 @@ export default function TransactionsPage() {
               id: `r-${tx.transferId}`,
               type: "remittance",
               title: `해외송금 · ${tx.recipientName}`,
-              amountKRW: -Number(tx.sendAmount),
+              amountKRW: -(Number(tx.sendAmount) + Number(tx.feeAmount ?? 0)),
               fromCurrency: tx.sendCurrency,
               toCurrency: tx.receiveCurrency,
               rate: tx.appliedRate,
@@ -285,7 +289,7 @@ export default function TransactionsPage() {
                           {formatKRW(Math.abs(t.amountKRW))}
                         </TableCell>
                         <TableCell className="text-right text-sm tabular-nums">
-                          {t.rate ? `₩${t.rate.toLocaleString("ko-KR")}` : "—"}
+                          {t.rate ? formatRate(t.rate) : "—"}
                         </TableCell>
                         <TableCell className="text-right text-sm tabular-nums">
                           {t.fee ? formatKRW(t.fee) : "—"}
@@ -348,7 +352,7 @@ export default function TransactionsPage() {
                         label="통화쌍"
                         value={`${detail.fromCurrency ?? "KRW"} → ${detail.toCurrency ?? "KRW"}`}
                       />
-                      <Row label="체결 환율" value={`₩${detail.rate.toLocaleString("ko-KR")}`} />
+                      <Row label="체결 환율" value={formatRate(detail.rate)} />
                       {detail.toCurrency && (
                         <Row label="환산 금액" value={formatCurrency(received(detail), detail.toCurrency)} />
                       )}

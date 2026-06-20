@@ -165,6 +165,11 @@ public class RemittanceTransactionService {
         RemittanceTransaction remittanceTransaction = RemittanceTransaction.create(
                 userId,
                 quote.recipientId(),
+                recipient.getName(),
+                recipient.getCountryCode(),
+                recipient.getCurrencyCode(),
+                recipient.getBankName(),
+                recipient.getAccountNumber(),
                 null,
                 RemittanceMethod.BANK_TRANSFER.name(),
                 null,

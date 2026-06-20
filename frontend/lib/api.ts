@@ -3,7 +3,8 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
 export async function apiRequest<T>(
   method: string,
   path: string,
-  body?: any
+  body?: any,
+  headers?: Record<string, string>
 ): Promise<T> {
   const url = `${BASE_URL}${path}`
 
@@ -16,6 +17,7 @@ export async function apiRequest<T>(
     method,
     headers: {
       "Content-Type": "application/json",
+      ...headers,
     },
     credentials: "include",
   }
@@ -33,7 +35,10 @@ export async function apiRequest<T>(
     } catch (e) {
       throw new Error(res.statusText || `Request failed with status ${res.status}`)
     }
-    throw errorData
+    const message = errorData?.message || errorData?.code || res.statusText || `Request failed with status ${res.status}`
+    const error = new Error(message)
+    Object.assign(error, errorData, { status: res.status })
+    throw error
   }
 
   // Handle empty or void responses (e.g. logout)
