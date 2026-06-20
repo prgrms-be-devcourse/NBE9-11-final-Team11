@@ -16,7 +16,6 @@ import {
   CURRENCY_META,
   RATES,
   REMITTANCE_REASONS,
-  bankFee,
   formatKRW,
   formatCurrency,
   krwPerUnit,
@@ -82,12 +81,10 @@ export default function RemittancePage() {
   const rate = currency === "KRW" ? { rate: 1, unit: 1 } : RATES[currency as Exclude<CurrencyCode, "KRW">]
 
   const krwAmount = Number(krwInput.replace(/[^\d]/g, "")) || 0
-  const { fee, received, bankCost, savings } = useMemo(() => {
+  const { fee, received } = useMemo(() => {
     const fee = quote?.totalFee ?? 0
     const received = quote?.receiveAmountUsd ?? krwAmount / krwPerUnit(currency)
-    const bankCost = bankFee(krwAmount) + Math.round(krwAmount * 0.0175)
-    const savings = Math.max(0, bankCost - fee)
-    return { fee, received, bankCost, savings }
+    return { fee, received }
   }, [krwAmount, currency, quote])
 
   const total = krwAmount + fee
@@ -360,12 +357,6 @@ export default function RemittancePage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="rounded-2xl bg-accent/10 p-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">은행 대비 절약</span>
-                  <span className="font-bold text-accent tabular-nums">{formatKRW(savings)}</span>
-                </div>
               </div>
             </div>
           </Card>
