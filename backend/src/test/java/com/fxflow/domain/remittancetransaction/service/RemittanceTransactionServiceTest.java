@@ -415,12 +415,14 @@ class RemittanceTransactionServiceTest {
         Long transferId = 10L;
         String idempotencyKey = "idempotency-key";
         RemittanceTransactionCreateRequest request = createRequest();
+        RemittanceQuoteSnapshot quote = createQuote();
         RemittanceTransaction existingTransaction = createPendingTransaction(userId, transferId);
         VirtualAccount existingVirtualAccount =
                 createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
 
         when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.of(existingTransaction));
+        when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
                 .thenReturn(Optional.of(existingVirtualAccount));
 
@@ -431,11 +433,48 @@ class RemittanceTransactionServiceTest {
         // then
         assertThat(response.transferId()).isEqualTo(transferId);
         assertThat(response.status()).isEqualTo(TransferStatus.PENDING);
-        verifyNoInteractions(remittanceQuoteProvider);
         verifyNoInteractions(recipientRepository);
         verifyNoInteractions(remittanceValidator);
         verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
         verify(virtualAccountRepository, never()).save(any(VirtualAccount.class));
+    }
+
+    @Test
+    @DisplayName("실패: 동일 Idempotency-Key로 다른 송금 요청을 보내면 예외가 발생한다")
+    void createTransfer_fail_invalidIdempotencyRequest() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        String idempotencyKey = "idempotency-key";
+        RemittanceTransactionCreateRequest request = createRequest();
+        RemittanceQuoteSnapshot quote = new RemittanceQuoteSnapshot(
+                "TQUOTE-001",
+                1L,
+                "KRW",
+                new BigDecimal("2000000.00"),
+                "USD",
+                new BigDecimal("1473.04"),
+                new BigDecimal("1351.00000000"),
+                new BigDecimal("13000.00"),
+                new BigDecimal("2000000.00"),
+                new BigDecimal("1473.04")
+        );
+        RemittanceTransaction existingTransaction = createPendingTransaction(userId, transferId);
+
+        when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
+                .thenReturn(Optional.of(existingTransaction));
+        when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request, idempotencyKey))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RemittanceTransactionErrorCode.INVALID_IDEMPOTENCY_REQUEST);
+
+        verifyNoInteractions(recipientRepository);
+        verifyNoInteractions(remittanceValidator);
+        verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
+        verifyNoInteractions(virtualAccountRepository);
     }
 
     @Test

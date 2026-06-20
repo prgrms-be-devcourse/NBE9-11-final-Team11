@@ -152,6 +152,9 @@ public class RemittanceTransactionService {
             if (!existingTransaction.getUserId().equals(userId)) {
                 throw new BusinessException(RemittanceTransactionErrorCode.IDEMPOTENCY_KEY_CONFLICT);
             }
+            RemittanceQuoteSnapshot quote = remittanceQuoteProvider.getQuote(request.quoteId());
+            validateSameIdempotencyRequest(existingTransaction, quote);
+
             VirtualAccount existingVirtualAccount = getVirtualAccount(existingTransaction.getId());
             return RemittanceTransactionCreateResponse.of(existingTransaction, existingVirtualAccount);
         }
@@ -201,6 +204,27 @@ public class RemittanceTransactionService {
         VirtualAccount savedVirtualAccount = virtualAccountRepository.save(virtualAccount);
 
         return RemittanceTransactionCreateResponse.of(savedTransaction, savedVirtualAccount);
+    }
+
+    /**
+     * 같은 Idempotency-Key로 다른 수취인/금액의 송금 요청이 재사용되는 것을 방지한다.
+     */
+    private void validateSameIdempotencyRequest(
+            RemittanceTransaction existingTransaction,
+            RemittanceQuoteSnapshot quote
+    ) {
+        boolean sameRequest = existingTransaction.getRecipientId().equals(quote.recipientId())
+                && hasSameAmount(existingTransaction.getSendAmount(), quote.sendAmount())
+                && hasSameAmount(existingTransaction.getReceiveAmount(), quote.receiveAmount())
+                && hasSameAmount(existingTransaction.getAmountUsd(), quote.amountUsd());
+
+        if (!sameRequest) {
+            throw new BusinessException(RemittanceTransactionErrorCode.INVALID_IDEMPOTENCY_REQUEST);
+        }
+    }
+
+    private boolean hasSameAmount(BigDecimal first, BigDecimal second) {
+        return first.compareTo(second) == 0;
     }
 
     /**

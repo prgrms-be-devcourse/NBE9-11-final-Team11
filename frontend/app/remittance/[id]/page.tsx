@@ -71,7 +71,7 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
   }, [transferId])
 
   useEffect(() => {
-    if (!transfer || ["COMPLETED", "FAILED", "REFUND_FAILED"].includes(transfer.status)) {
+    if (!transfer || ["COMPLETED", "FAILED", "REFUND_FAILED", "CANCELED"].includes(transfer.status)) {
       return
     }
 
