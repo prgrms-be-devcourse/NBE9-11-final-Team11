@@ -12,23 +12,26 @@ import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.global.exception.BusinessException;
+import com.fxflow.global.fx.ExchangeRateProvider;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.OffsetDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.OffsetDateTime;
-import java.util.List;
-
 @Service
 @RequiredArgsConstructor
 public class CompanyPoolService {
 
+    private static final BigDecimal SPREAD = RebalancingService.SPREAD;
+
     private final CompanyPoolRepository companyPoolRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final LedgerEntryRepository ledgerEntryRepository;
+    private final ExchangeRateProvider exchangeRateProvider;
 
     /**
      * 충전·환급·해외송금이 호출하는 풀 갱신 인터페이스
@@ -56,26 +59,53 @@ public class CompanyPoolService {
 
     @Transactional(readOnly = true)
     public PoolDashboardRes getDashboard() {
+        // 환율 조회 실패 시 counterAmount=null로만 내려보내고 대시보드는 정상 반환
+        BigDecimal appliedRate = exchangeRateProvider.getLatestRate("USD", "KRW")
+                .map(snap -> snap.midRate()
+                        .multiply(BigDecimal.ONE.add(SPREAD))
+                        .setScale(8, RoundingMode.FLOOR))
+                .orElse(null);
+
+        CompanyPool krwPool = getPoolByCurrency("KRW");
+        CompanyPool usdPool = getPoolByCurrency("USD");
+
         List<PoolDashboardRes.PoolStatusRes> pools = List.of(
-                toPoolStatusRes(getPoolByCurrency("KRW")),
-                toPoolStatusRes(getPoolByCurrency("USD"))
+                toPoolStatusRes(krwPool, usdPool, appliedRate),
+                toPoolStatusRes(usdPool, krwPool, appliedRate)
         );
         return new PoolDashboardRes(OffsetDateTime.now(), pools);
     }
 
-    private PoolDashboardRes.PoolStatusRes toPoolStatusRes(CompanyPool pool) {
+    private PoolDashboardRes.PoolStatusRes toPoolStatusRes(CompanyPool pool, CompanyPool otherPool, BigDecimal appliedRate) {
         String status = pool.isBelowFloor() ? "BELOW_FLOOR"
                 : pool.isAboveCeiling() ? "ABOVE_CEILING"
                 : "NORMAL";
         // target 대비 현재 잔액 비율 (0.0 ~ 1.0). 클라이언트에서 *100 하면 퍼센트
         BigDecimal utilizationRate = pool.getBalance()
-                .divide(pool.getTargetBalance(), 4, RoundingMode.HALF_UP);
-        PoolDashboardRes.RecommendedAction recommendedAction = switch (status) {
-            case "BELOW_FLOOR" -> new PoolDashboardRes.RecommendedAction("BUY", pool.shortageToTarget());
-            case "ABOVE_CEILING" -> new PoolDashboardRes.RecommendedAction(
-                    "SELL", pool.getBalance().subtract(pool.getTargetBalance()));
-            default -> null;
-        };
+                .divide(pool.getTargetBalance(), 4, RoundingMode.FLOOR);
+
+        PoolDashboardRes.RecommendedAction recommendedAction = null;
+        if (!"NORMAL".equals(status)) {
+            BigDecimal amount = "BELOW_FLOOR".equals(status)
+                    ? pool.shortageToTarget()
+                    : pool.getBalance().subtract(pool.getTargetBalance());
+
+            // BUY일 때 상대 풀의 floor 여유분으로 실제 체결 가능량을 cap
+            if ("BELOW_FLOOR".equals(status) && appliedRate != null) {
+                BigDecimal sellSurplus = otherPool.surplusAboveFloor();
+                BigDecimal maxBuyable = "KRW".equals(pool.getCurrencyCode())
+                        ? sellSurplus.multiply(appliedRate).setScale(2, RoundingMode.FLOOR)
+                        : sellSurplus.divide(appliedRate, 2, RoundingMode.FLOOR);
+                if (maxBuyable.compareTo(amount) < 0) {
+                    amount = maxBuyable;
+                }
+            }
+
+            BigDecimal counterAmount = calculateCounterAmount(pool.getCurrencyCode(), amount, appliedRate);
+            String type = "BELOW_FLOOR".equals(status) ? "BUY" : "SELL";
+            recommendedAction = new PoolDashboardRes.RecommendedAction(type, amount, counterAmount);
+        }
+
         return new PoolDashboardRes.PoolStatusRes(
                 pool.getCurrencyCode(),
                 pool.getBalance(),
@@ -86,6 +116,15 @@ public class CompanyPoolService {
                 utilizationRate,
                 recommendedAction
         );
+    }
+
+    // KRW 액션 → 상대 통화 USD 매도량: amount / appliedRate
+    // USD 액션 → 상대 통화 KRW 매도량: amount * appliedRate
+    private BigDecimal calculateCounterAmount(String currencyCode, BigDecimal amount, BigDecimal appliedRate) {
+        if (appliedRate == null) return null;
+        return "KRW".equals(currencyCode)
+                ? amount.divide(appliedRate, 2, RoundingMode.FLOOR)
+                : amount.multiply(appliedRate).setScale(2, RoundingMode.FLOOR);
     }
 
     public CompanyPool deposit(String journalId, String currencyCode, BigDecimal amount) {
