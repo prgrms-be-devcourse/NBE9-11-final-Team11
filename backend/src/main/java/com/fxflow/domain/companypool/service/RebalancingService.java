@@ -92,6 +92,11 @@ public class RebalancingService {
         BigDecimal appliedRate = applySpread(midRate);
         TradeAmounts amounts   = calculateTradeAmounts(buyPool, sellPool, appliedRate, buyingKrw);
 
+        if (amounts.buyAmount().compareTo(BigDecimal.ZERO) == 0) {
+            log.info("매입량이 0으로 계산됨. 리밸런싱 스킵.");
+            return RebalancingExecuteRes.withinThreshold();
+        }
+
         return executeAndRecord(buyPool, sellPool, amounts, midRate, appliedRate, triggerType, reason);
     }
 
