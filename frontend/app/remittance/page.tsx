@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, ChevronRight, UserPlus } from "lucide-react"
+import { ArrowLeftRight, Check, ChevronRight, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -74,6 +74,8 @@ export default function RemittancePage() {
   const [form, setForm] = useState({ name: "", country: COUNTRIES[0].name, bank: "", account: "" })
 
   const [krwInput, setKrwInput] = useState("1000000")
+  const [receiveInput, setReceiveInput] = useState("")
+  const [amountMode, setAmountMode] = useState<"send" | "receive">("send")
   const [reason, setReason] = useState(REMITTANCE_REASONS[0])
   const [reasonDetail, setReasonDetail] = useState("")
 
@@ -160,6 +162,32 @@ export default function RemittancePage() {
       console.error(err)
       toast.error(err.message || "수취인 등록에 실패했습니다.")
     }
+  }
+
+  function handleKrwInputChange(value: string) {
+    setKrwInput(value.replace(/[^\d]/g, ""))
+  }
+
+  function handleReceiveInputChange(value: string) {
+    const cleaned = value
+      .replace(/[^0-9.]/g, "")
+      .replace(/(\..*)\./g, "$1")
+
+    setReceiveInput(cleaned)
+
+    const receiveAmount = Number(cleaned) || 0
+    const estimatedKrw = Math.ceil(receiveAmount * krwPerUnit(currency))
+    setKrwInput(estimatedKrw > 0 ? String(estimatedKrw) : "")
+  }
+
+  function toggleAmountMode() {
+    if (amountMode === "send") {
+      setReceiveInput(received > 0 ? received.toFixed(2) : "")
+      setAmountMode("receive")
+      return
+    }
+
+    setAmountMode("send")
   }
 
   async function next() {
@@ -331,18 +359,43 @@ export default function RemittancePage() {
             <div className="mt-4 space-y-4">
               <div className="rounded-2xl border border-border bg-secondary/40 p-4">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-muted-foreground">보내는 금액 (KRW)</Label>
-                  <span className="text-xs text-muted-foreground">가상계좌 입금 예정</span>
+                  <Label className="text-xs text-muted-foreground">
+                    {amountMode === "send" ? "보내는 금액 (KRW)" : `수취 금액 (${currency})`}
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleAmountMode}
+                    className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
+                  >
+                    <ArrowLeftRight className="size-3.5" />
+                    {amountMode === "send" ? "수취 금액 입력" : "보내는 금액 입력"}
+                  </Button>
                 </div>
-                <Input
-                  inputMode="numeric"
-                  value={krwInput ? Number(krwInput).toLocaleString("ko-KR") : ""}
-                  onChange={(e) => setKrwInput(e.target.value.replace(/[^\d]/g, ""))}
-                  className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
-                  placeholder="0"
-                />
+                {amountMode === "send" ? (
+                  <Input
+                    inputMode="numeric"
+                    value={krwInput ? Number(krwInput).toLocaleString("ko-KR") : ""}
+                    onChange={(e) => handleKrwInputChange(e.target.value)}
+                    className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
+                    placeholder="0"
+                  />
+                ) : (
+                  <Input
+                    inputMode="decimal"
+                    value={receiveInput}
+                    onChange={(e) => handleReceiveInputChange(e.target.value)}
+                    className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
+                    placeholder="0.00"
+                  />
+                )}
                 <p className="mt-1 text-right text-sm text-muted-foreground">
-                  {loadingQuote ? "견적 계산 중..." : `수취 예상 ${formatCurrency(received, currency)}`}
+                  {loadingQuote
+                    ? "견적 계산 중..."
+                    : amountMode === "send"
+                      ? `수취 예상 ${formatCurrency(received, currency)}`
+                      : `예상 지출 비용 ${formatKRW(krwAmount)}`}
                 </p>
               </div>
               <div className="space-y-2">
