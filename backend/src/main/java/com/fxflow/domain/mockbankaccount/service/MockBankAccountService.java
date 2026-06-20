@@ -6,6 +6,7 @@ import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankAccountCheckResponse;
+import com.fxflow.domain.mockbankaccount.dto.response.MockBankAccountResponse;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankLinkResponse;
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
@@ -157,6 +158,20 @@ public class MockBankAccountService {
         return MockBankAccountCheckResponse.success();
     }
 
+    /*
+    * 모의계좌에 연결된 잔액을 조회하는 메서드
+    */
+    @Transactional(readOnly = true)
+    public MockBankAccountResponse getMyAccount(Long userId) {
+        MockBankAccount account = mockBankAccountRepository
+                .findFirstByUser_IdAndCurrencyCodeAndDeletedAtIsNull(userId,KRW)
+                .orElseThrow(() -> {
+                    log.warn("[모의계좌 조회 실패] 연결된 계좌 없음 — userId={}", userId);
+                    return new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND);
+                });
+        log.info("[모의계좌 조회 완료] userId={}", userId);
+        return MockBankAccountResponse.from(account);
+    }
 
     /**
      * 계좌번호 형식 검증
