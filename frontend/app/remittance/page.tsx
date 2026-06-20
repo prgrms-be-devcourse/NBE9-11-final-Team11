@@ -34,6 +34,14 @@ const REASON_TO_API: Record<string, string> = {
   기타: "ETC",
 }
 
+function createIdempotencyKey() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+
+  return Math.random().toString(36).substring(2) + Date.now().toString(36)
+}
+
 interface Recipient {
   id: string
   name: string
@@ -207,7 +215,7 @@ export default function RemittancePage() {
 
     setSubmitting(true)
     try {
-      const idempotencyKey = crypto.randomUUID()
+      const idempotencyKey = createIdempotencyKey()
       const response = await apiRequest<CreateTransferResponse>(
         "POST",
         "/api/v1/transfers",
