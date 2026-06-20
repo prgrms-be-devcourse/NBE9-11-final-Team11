@@ -4,7 +4,7 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import type { CurrencyCode } from "./fx-data"
 
-export type TxType = "deposit" | "withdraw" | "exchange" | "remittance" | "transfer"
+export type TxType = "deposit" | "withdraw" | "exchange" | "remittance"
 export type TxStatus = "completed" | "processing" | "failed" | "refunded"
 
 export interface Transaction {
@@ -254,8 +254,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, user: { email, name: name ?? s.user?.name ?? "사용자", verified: s.user?.verified ?? false } }))
   }, [])
 
+  // 로그아웃 시 user뿐 아니라 잔액·거래내역·예약·수취인·알림 등 전체 상태를
+  // defaultState()로 초기화한다.
+  // (이전에는 user만 null로 바꿔서, 같은 브라우저에서 다른 계정으로 로그인하면
+  //  이전 사용자의 잔액/거래내역이 그대로 남아있는 데이터 격리 문제가 있었음)
   const logout = useCallback(() => {
-    setState((s) => ({ ...s, user: null }))
+    setState(defaultState())
   }, [])
 
   const setVerified = useCallback(() => {
