@@ -1,249 +1,420 @@
 "use client"
 
-import { useMemo } from "react"
-import { Droplets, TrendingUp, AlertTriangle, CheckCircle2, ArrowUpRight, ArrowDownRight } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { AlertTriangle, CheckCircle2, RefreshCw, Clock, ArrowDownRight } from "lucide-react"
+import { toast } from "sonner"
 import { AdminShell } from "@/components/admin/admin-shell"
 import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { PoolBalanceChart, RebalancingChart } from "@/components/admin/pool-charts"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import {
+  getPoolDashboard,
+  triggerRebalance,
+  getRebalanceHistory,
+  type PoolDashboardResponse,
+  type RebalanceHistoryItem,
+  type ApiError,
+} from "@/lib/api"
 
-interface Pool {
-  code: string
-  flag: string
-  name: string
-  balance: number // 억원
-  target: number
-  floor: number
-  ceiling: number
+// ── 헬퍼 ────────────────────────────────────────────────────────
+
+function formatCurrency(currency: "KRW" | "USD", amount: number) {
+  if (currency === "KRW") return `₩${(amount / 1e8).toFixed(1)}억`
+  return `$${(amount / 1e4).toFixed(1)}만`
 }
 
-const POOLS: Pool[] = [
-  { code: "KRW", flag: "🇰🇷", name: "원화 풀", balance: 112, target: 100, floor: 50, ceiling: 150 },
-  { code: "USD", flag: "🇺🇸", name: "달러 풀", balance: 47, target: 60, floor: 40, ceiling: 90 },
-  { code: "JPY", flag: "🇯🇵", name: "엔화 풀", balance: 38, target: 40, floor: 25, ceiling: 60 },
-  { code: "EUR", flag: "🇪🇺", name: "유로 풀", balance: 22, target: 30, floor: 20, ceiling: 45 },
-]
-
-type Health = "정상" | "주의" | "위험"
-
-function healthOf(p: Pool): Health {
-  if (p.balance <= p.floor * 1.05 || p.balance >= p.ceiling * 0.97) return "위험"
-  const band = p.ceiling - p.floor
-  const dist = Math.abs(p.balance - p.target)
-  if (dist > band * 0.25) return "주의"
-  return "정상"
+function formatAmount(currency: "KRW" | "USD", amount: number) {
+  if (currency === "KRW") return `${Math.round(amount / 1e8)}억`
+  return `${Math.round(amount / 1e4)}만`
 }
 
-const healthMeta: Record<Health, { cls: string; icon: typeof CheckCircle2 }> = {
-  정상: { cls: "bg-accent/15 text-accent", icon: CheckCircle2 },
-  주의: { cls: "bg-chart-3/15 text-chart-3", icon: AlertTriangle },
-  위험: { cls: "bg-destructive/10 text-destructive", icon: AlertTriangle },
+function formatDateTime(iso: string) {
+  const d = new Date(iso)
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
 }
 
-function poolTrend(seed: number, base: number) {
-  const out: { date: string; balance: number }[] = []
-  let s = seed * 7
-  for (let i = 29; i >= 0; i--) {
-    s = (s * 9301 + 49297) % 233280
-    const noise = (s / 233280 - 0.5) * base * 0.12
-    const trend = Math.sin((29 - i) / 7) * base * 0.06
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    out.push({
-      date: `${d.getMonth() + 1}/${d.getDate()}`,
-      balance: Math.round((base + noise + trend) * 10) / 10,
-    })
+// ── 풀 카드 (바 통합) ────────────────────────────────────────────
+
+const STATUS_COLOR: Record<string, string> = {
+  NORMAL: "var(--color-accent)",
+  BELOW_FLOOR: "var(--color-destructive)",
+  ABOVE_CEILING: "var(--color-chart-3)",
+}
+
+const STATUS_META: Record<string, { label: string; cls: string; icon: typeof CheckCircle2 }> = {
+  NORMAL: { label: "정상", cls: "bg-accent/15 text-accent", icon: CheckCircle2 },
+  BELOW_FLOOR: { label: "부족", cls: "bg-destructive/10 text-destructive", icon: AlertTriangle },
+  ABOVE_CEILING: { label: "초과", cls: "bg-chart-3/15 text-chart-3", icon: AlertTriangle },
+}
+
+function PoolCard({ pool, isSellSource, showRecommended, sellAmount }: { pool: PoolStatusRes; isSellSource: boolean; showRecommended: boolean; sellAmount?: number | null }) {
+  const meta = STATUS_META[pool.status] ?? STATUS_META.NORMAL
+  const Icon = meta.icon
+  const color = STATUS_COLOR[pool.status]
+
+  // 바 기준: ceilingBalance = 100% 너비
+  const ref = pool.ceilingBalance
+  const balancePct = Math.min((pool.balance / ref) * 100, 100)
+  const floorPct = (pool.floorBalance / ref) * 100
+  const targetPct = (pool.targetBalance / ref) * 100
+
+  const action = pool.recommendedAction
+  const actionPct = action
+    ? Math.min((action.amount / ref) * 100, 100 - balancePct)
+    : 0
+
+  const afterBalance = action
+    ? action.type === "BUY"
+      ? pool.balance + action.amount
+      : pool.balance - action.amount
+    : null
+
+  return (
+    <Card className="p-5">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between">
+        <span className="text-base font-bold">{pool.currencyCode} Pool</span>
+        <span className={cn("flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold", meta.cls)}>
+          <Icon className="size-3" />
+          {meta.label}
+        </span>
+      </div>
+
+      {/* 현재 잔고 */}
+      <p className="mt-3 text-3xl font-bold tabular-nums">
+        {formatCurrency(pool.currencyCode, pool.balance)}
+      </p>
+
+      {/* 권장 조치 */}
+      {action && (
+        <div className="mt-1 text-sm tabular-nums">
+          <span className="font-medium" style={{ color }}>
+            {action.type === "BUY" ? "권장 매입" : "권장 매도"}{" "}
+            {formatCurrency(pool.currencyCode, action.amount)}
+          </span>
+          {action.counterAmount != null && (
+            <span className="ml-1 text-muted-foreground">
+              {"/ "}
+              {formatCurrency(pool.currencyCode === "KRW" ? "USD" : "KRW", action.counterAmount)} 매도
+            </span>
+          )}
+          {afterBalance !== null && (
+            <span className="ml-2 text-muted-foreground">
+              → 조치 후{" "}
+              <span style={{ color }}>{formatCurrency(pool.currencyCode, afterBalance)}</span>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* 재원 풀 */}
+      {isSellSource && !action && (
+        <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+          <ArrowDownRight className="size-3.5" />
+          리밸런싱 재원
+          {sellAmount != null && (
+            <span> — {formatCurrency(pool.currencyCode, sellAmount)} 매도 예정</span>
+          )}
+        </p>
+      )}
+
+      {/* 바 영역 */}
+      <div className="mt-5">
+        {/* 마커가 바 위아래로 돌출되도록 py로 영역 확보 */}
+        <div className="relative py-1.5">
+          {/* 얇은 바 */}
+          <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
+            {/* 현재 보유 (진한) */}
+            <div
+              className="absolute inset-y-0 left-0 rounded-l-full"
+              style={{ width: `${balancePct}%`, background: color }}
+            />
+            {/* BUY 권장 (연한, 오른쪽 연장) — 버튼 hover 시에만 표시 */}
+            {showRecommended && action?.type === "BUY" && actionPct > 0 && (
+              <div
+                className="absolute inset-y-0"
+                style={{ left: `${balancePct}%`, width: `${actionPct}%`, background: color, opacity: 0.3 }}
+              />
+            )}
+            {/* SELL 권장 (연한) — 버튼 hover 시에만 표시 */}
+            {showRecommended && action?.type === "SELL" && actionPct > 0 && (
+              <div
+                className="absolute inset-y-0"
+                style={{
+                  left: `${Math.max(0, balancePct - actionPct)}%`,
+                  width: `${actionPct}%`,
+                  background: color,
+                  opacity: 0.3,
+                }}
+              />
+            )}
+          </div>
+
+          {/* 마커 선 */}
+          <div className="pointer-events-none absolute inset-0">
+            <div
+              className="absolute inset-y-0 w-0.5"
+              style={{ left: `${floorPct}%`, background: "#52525b" }}
+            />
+            <div
+              className="absolute inset-y-0 w-0.5"
+              style={{ left: `${targetPct}%`, background: "#18181b" }}
+            />
+          </div>
+        </div>
+
+        {/* 스케일 라벨 */}
+        <div className="relative mt-1 h-4">
+          {/* 왼쪽 끝: 0 */}
+          <span className="absolute left-0 text-[11px] text-muted-foreground">0</span>
+          {/* 하한 */}
+          <span
+            className="absolute whitespace-nowrap text-[11px] font-medium"
+            style={{ left: `${floorPct}%`, transform: "translateX(-50%)", color: "#52525b" }}
+          >
+            하한 {formatAmount(pool.currencyCode, pool.floorBalance)}
+          </span>
+          {/* 목표 */}
+          <span
+            className="absolute whitespace-nowrap text-[11px] font-medium"
+            style={{ left: `${targetPct}%`, transform: "translateX(-50%)", color: "#18181b" }}
+          >
+            기준 {formatAmount(pool.currencyCode, pool.targetBalance)}
+          </span>
+          {/* 오른쪽 끝: 상한 */}
+          <span className="absolute right-0 text-[11px] text-muted-foreground">
+            {formatAmount(pool.currencyCode, pool.ceilingBalance)}
+          </span>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ── 수동 리밸런싱 버튼 ───────────────────────────────────────────
+
+type ResultType = "success" | "info" | "warning" | "error"
+
+function RebalanceCard({ onDone, onHoverChange }: { onDone: () => void; onHoverChange: (v: boolean) => void }) {
+  const [loading, setLoading] = useState(false)
+  const [resultMsg, setResultMsg] = useState<string | null>(null)
+  const [resultType, setResultType] = useState<ResultType>("info")
+
+  async function handleRebalance() {
+    setLoading(true)
+    setResultMsg(null)
+    try {
+      const res = await triggerRebalance()
+      if (res.executed && res.action) {
+        const a = res.action
+        const msg = `${a.buyCurrency} 매입 완료 · ${formatCurrency(a.buyCurrency, a.buyAmount)} · 환율 ${Number(a.appliedRate).toLocaleString("ko-KR")}${res.cappedBy ? ` (상한 적용: ${res.cappedBy})` : ""}`
+        setResultMsg(msg)
+        setResultType("success")
+        toast.success("리밸런싱 실행됨")
+        onDone()
+      } else if (res.reason === "BOTH_BELOW_FLOOR") {
+        setResultMsg("KRW/USD 모두 부족 — 환전 불가. 관리자 수동 개입이 필요합니다.")
+        setResultType("warning")
+        toast.warning("리밸런싱 불가 — 양쪽 모두 부족")
+      } else {
+        setResultMsg("정상 범위 내 — 조치 불필요 (WITHIN_THRESHOLD)")
+        setResultType("info")
+        toast.info("리밸런싱 불필요")
+      }
+    } catch (e) {
+      const err = e as ApiError
+      if (err?.code === "REBALANCE_IN_PROGRESS") {
+        setResultMsg("이미 리밸런싱이 진행 중입니다. 잠시 후 다시 시도하세요.")
+      } else if (err?.code === "RATE_UNAVAILABLE") {
+        setResultMsg("환율 정보를 가져올 수 없어 리밸런싱을 실행하지 못했습니다.")
+      } else {
+        setResultMsg(err?.message ?? "알 수 없는 오류가 발생했습니다.")
+      }
+      setResultType("error")
+      toast.error("리밸런싱 실패")
+    } finally {
+      setLoading(false)
+    }
   }
-  return out
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold">수동 리밸런싱</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">현재 풀 상태를 기반으로 즉시 리밸런싱을 실행합니다.</p>
+        </div>
+        <Button
+          onClick={handleRebalance}
+          disabled={loading}
+          className="shrink-0"
+          onMouseEnter={() => onHoverChange(true)}
+          onMouseLeave={() => onHoverChange(false)}
+        >
+          {loading
+            ? <><RefreshCw className="mr-2 size-4 animate-spin" />실행 중...</>
+            : <><RefreshCw className="mr-2 size-4" />리밸런싱 실행</>}
+        </Button>
+      </div>
+      {resultMsg && (
+        <div className={cn(
+          "mt-4 rounded-2xl px-4 py-3 text-sm font-medium",
+          resultType === "success" && "bg-accent/10 text-accent",
+          resultType === "info" && "bg-secondary text-muted-foreground",
+          resultType === "warning" && "bg-chart-3/10 text-chart-3",
+          resultType === "error" && "bg-destructive/10 text-destructive",
+        )}>
+          {resultMsg}
+        </div>
+      )}
+    </Card>
+  )
 }
 
-const REBALANCING_EVENTS = [
-  { date: "6/3", amount: 12 },
-  { date: "6/4", amount: -8 },
-  { date: "6/5", amount: 5 },
-  { date: "6/6", amount: -15 },
-  { date: "6/7", amount: 9 },
-  { date: "6/8", amount: -6 },
-  { date: "6/9", amount: 14 },
-]
+// ── 리밸런싱 이력 표 ─────────────────────────────────────────────
+
+function RebalanceHistory({ items, loading, error }: {
+  items: RebalanceHistoryItem[]
+  loading: boolean
+  error: string | null
+}) {
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="px-5 pt-5 pb-1">
+        <h2 className="text-base font-bold">리밸런싱 이력</h2>
+      </div>
+      {loading ? (
+        <p className="px-5 py-8 text-center text-sm text-muted-foreground">불러오는 중...</p>
+      ) : error ? (
+        <p className="px-5 py-8 text-center text-sm text-destructive">{error}</p>
+      ) : items.length === 0 ? (
+        <p className="px-5 py-8 text-center text-sm text-muted-foreground">이력이 없습니다.</p>
+      ) : (
+        <div className="overflow-x-auto pb-5">
+          <Table className="[&_th]:px-5 [&_td]:px-5 [&_th]:h-8 [&_th]:py-1.5 [&_th]:text-center [&_td]:py-2.5 [&_td]:text-center [&_tr]:border-0 [&_thead_tr]:bg-secondary/60 [&_tbody_tr:nth-child(even)]:bg-secondary/30">
+            <TableHeader>
+              <TableRow>
+                <TableHead>매입</TableHead>
+                <TableHead>매도</TableHead>
+                <TableHead>매입 금액</TableHead>
+                <TableHead>적용 환율</TableHead>
+                <TableHead>트리거</TableHead>
+                <TableHead>실행 시각</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-semibold">{item.buyCurrency}</TableCell>
+                  <TableCell className="text-muted-foreground">{item.sellCurrency}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {formatCurrency(item.buyCurrency, item.buyAmount)}
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    {Number(item.appliedRate).toLocaleString("ko-KR")}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {{ MANUAL: "수동실행", AUTO: "거래 후 자동실행", SCHEDULER: "스케줄러" }[item.triggerType] ?? item.triggerType}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground tabular-nums">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Clock className="size-3" />
+                      {formatDateTime(item.executedAt)}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ── 메인 페이지 ──────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const krw = POOLS[0]
-  const krwTrend = useMemo(() => poolTrend(krw.code.charCodeAt(0), krw.target), [krw])
+  const [dashboard, setDashboard] = useState<PoolDashboardResponse | null>(null)
+  const [dashLoading, setDashLoading] = useState(true)
+  const [dashError, setDashError] = useState<string | null>(null)
+
+  const [history, setHistory] = useState<RebalanceHistoryItem[]>([])
+  const [histLoading, setHistLoading] = useState(true)
+  const [histError, setHistError] = useState<string | null>(null)
+  const [rebalanceHover, setRebalanceHover] = useState(false)
+
+  const fetchDashboard = useCallback(async () => {
+    setDashLoading(true)
+    setDashError(null)
+    try {
+      setDashboard(await getPoolDashboard())
+    } catch (e) {
+      setDashError((e as ApiError)?.message ?? "풀 현황을 불러오지 못했습니다.")
+    } finally {
+      setDashLoading(false)
+    }
+  }, [])
+
+  const fetchHistory = useCallback(async () => {
+    setHistLoading(true)
+    setHistError(null)
+    try {
+      setHistory(await getRebalanceHistory())
+    } catch (e) {
+      setHistError((e as ApiError)?.message ?? "이력을 불러오지 못했습니다.")
+    } finally {
+      setHistLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchDashboard()
+    fetchHistory()
+  }, [fetchDashboard, fetchHistory])
+
+  const buyPool = dashboard?.pools.find((p) => p.recommendedAction?.type === "BUY")
 
   return (
     <AdminShell title="유동성 풀 현황" active="/admin">
       <div className="space-y-6">
-        {/* KRW pool spotlight */}
-        <Card className="overflow-hidden border-0 bg-primary p-6 text-primary-foreground">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <span className="flex items-center gap-2 text-sm font-medium text-primary-foreground/80">
-                <Droplets className="size-4" /> KRW Pool · 원화 유동성
-              </span>
-              <p className="mt-2 text-4xl font-bold tabular-nums">{krw.balance}억원</p>
-              <p className="mt-1 text-sm text-primary-foreground/80">
-                목표 {krw.target}억 · 하한 {krw.floor}억 · 상한 {krw.ceiling}억
-              </p>
+        {/* 풀 카드 — 세로 배치 */}
+        {dashLoading ? (
+          <Card className="p-8 text-center text-sm text-muted-foreground">풀 현황 불러오는 중...</Card>
+        ) : dashError ? (
+          <Card className="p-8 text-center text-sm text-destructive">{dashError}</Card>
+        ) : dashboard ? (
+          <>
+            <div className="flex flex-col gap-4">
+              {dashboard.pools.map((p) => (
+                <PoolCard
+                  key={p.currencyCode}
+                  pool={p}
+                  isSellSource={buyPool !== undefined && p.currencyCode !== buyPool.currencyCode}
+                  showRecommended={rebalanceHover}
+                  sellAmount={
+                    buyPool !== undefined && p.currencyCode !== buyPool.currencyCode
+                      ? (buyPool.recommendedAction?.counterAmount ?? null)
+                      : null
+                  }
+                />
+              ))}
             </div>
-            <span className="rounded-full bg-primary-foreground/15 px-3 py-1 text-sm font-semibold">
-              {healthOf(krw)}
-            </span>
-          </div>
-          {/* Floor / target / ceiling visualization */}
-          <div className="mt-6">
-            <div className="relative h-3 w-full rounded-full bg-primary-foreground/20">
-              <div
-                className="absolute inset-y-0 left-0 rounded-full bg-primary-foreground"
-                style={{ width: `${Math.min(100, (krw.balance / krw.ceiling) * 100)}%` }}
-              />
-              <div
-                className="absolute -top-1 h-5 w-0.5 bg-primary-foreground/60"
-                style={{ left: `${(krw.target / krw.ceiling) * 100}%` }}
-              />
-            </div>
-            <div className="mt-2 flex justify-between text-xs text-primary-foreground/70 tabular-nums">
-              <span>0</span>
-              <span>목표 {krw.target}억</span>
-              <span>{krw.ceiling}억</span>
-            </div>
-          </div>
-        </Card>
+            <p className="text-right text-xs text-muted-foreground">
+              조회 시각: {formatDateTime(dashboard.asOf)}
+            </p>
+          </>
+        ) : null}
 
-        {/* Per-currency pools */}
-        <div>
-          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">통화별 풀 현황</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {POOLS.map((p) => {
-              const health = healthOf(p)
-              const meta = healthMeta[health]
-              const pct = Math.min(100, (p.balance / p.ceiling) * 100)
-              return (
-                <Card key={p.code} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <span className="text-xl" aria-hidden>
-                        {p.flag}
-                      </span>
-                      <span className="text-sm font-semibold">{p.code} Pool</span>
-                    </span>
-                    <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", meta.cls)}>{health}</span>
-                  </div>
-                  <p className="mt-3 text-2xl font-bold tabular-nums">{p.balance}억</p>
-                  <div className="mt-2 h-2 w-full rounded-full bg-secondary">
-                    <div
-                      className={cn(
-                        "h-full rounded-full",
-                        health === "위험" ? "bg-destructive" : health === "주의" ? "bg-chart-3" : "bg-accent",
-                      )}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground tabular-nums">
-                    목표 {p.target}억 · {p.floor}~{p.ceiling}억
-                  </p>
-                </Card>
-              )
-            })}
-          </div>
-        </div>
+        <RebalanceCard onDone={() => { fetchDashboard(); fetchHistory() }} onHoverChange={setRebalanceHover} />
 
-        {/* Rebalancing recommendations */}
-        <Card className="p-5">
-          <h2 className="text-base font-bold">리밸런싱 권고</h2>
-          <p className="mt-1 text-sm text-muted-foreground">목표 잔고 대비 편차에 따른 자동 권고입니다.</p>
-          <div className="mt-4 space-y-2">
-            {POOLS.map((p) => {
-              const health = healthOf(p)
-              const meta = healthMeta[health]
-              const Icon = meta.icon
-              const diff = p.target - p.balance
-              const action =
-                health === "정상"
-                  ? "조치 불필요"
-                  : diff > 0
-                    ? `${Math.abs(diff)}억원 유입 권고`
-                    : `${Math.abs(diff)}억원 유출 권고`
-              return (
-                <div
-                  key={p.code}
-                  className="flex items-center justify-between rounded-2xl border border-border p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={cn("flex size-10 items-center justify-center rounded-full", meta.cls)}>
-                      <Icon className="size-[18px]" />
-                    </span>
-                    <div>
-                      <p className="font-medium">
-                        {p.flag} {p.code} Pool
-                      </p>
-                      <p className="text-sm text-muted-foreground">{action}</p>
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 text-sm font-semibold tabular-nums",
-                      diff > 0 ? "text-accent" : diff < 0 ? "text-destructive" : "text-muted-foreground",
-                    )}
-                  >
-                    {diff !== 0 &&
-                      (diff > 0 ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />)}
-                    {diff > 0 ? "+" : ""}
-                    {diff}억
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </Card>
-
-        {/* Charts */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="p-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">
-                <TrendingUp className="mr-1 inline size-4 text-primary" />
-                KRW Pool 잔고 추이
-              </h3>
-              <span className="text-xs text-muted-foreground">최근 30일</span>
-            </div>
-            <div className="mt-4 h-64 w-full">
-              <PoolBalanceChart data={krwTrend} floor={krw.floor} ceiling={krw.ceiling} />
-            </div>
-            <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-0.5 w-4 bg-chart-3" /> 상한 {krw.ceiling}억
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-0.5 w-4 bg-destructive" /> 하한 {krw.floor}억
-              </span>
-            </div>
-          </Card>
-
-          <Card className="p-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">최근 리밸런싱 이벤트</h3>
-              <span className="text-xs text-muted-foreground">최근 7건</span>
-            </div>
-            <div className="mt-4 h-64 w-full">
-              <RebalancingChart data={REBALANCING_EVENTS} />
-            </div>
-            <Separator className="my-3" />
-            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="size-2.5 rounded-sm bg-accent" /> 유입
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="size-2.5 rounded-sm bg-destructive" /> 유출
-              </span>
-            </div>
-          </Card>
-        </div>
-
-        <p className="text-center text-xs text-muted-foreground">
-          본 관리자 대시보드의 모든 수치는 시뮬레이션용 목업 데이터입니다.
-        </p>
+        <RebalanceHistory
+          items={history}
+          loading={histLoading}
+          error={histError}
+        />
       </div>
     </AdminShell>
   )
