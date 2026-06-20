@@ -6,6 +6,7 @@ import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankAccountCheckResponse;
+import com.fxflow.domain.mockbankaccount.dto.response.MockBankAccountResponse;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankLinkResponse;
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
@@ -157,6 +158,14 @@ public class MockBankAccountService {
         return MockBankAccountCheckResponse.success();
     }
 
+    @Transactional(readOnly = true)
+    public MockBankAccountResponse getMyAccount(Long userId) {
+        MockBankAccount account = mockBankAccountRepository
+                .findByUserIdAndCurrencyCode(userId, KRW)
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+
+        return MockBankAccountResponse.from(account);
+    }
 
     /**
      * 계좌번호 형식 검증
