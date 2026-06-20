@@ -30,7 +30,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class RebalancingService {
 
-    private static final BigDecimal SPREAD = new BigDecimal("0.003");
+    static final BigDecimal SPREAD = new BigDecimal("0.003");
     private final AtomicBoolean executing = new AtomicBoolean(false);
 
     private final CompanyPoolRepository companyPoolRepository;
@@ -92,6 +92,11 @@ public class RebalancingService {
         BigDecimal appliedRate = applySpread(midRate);
         TradeAmounts amounts   = calculateTradeAmounts(buyPool, sellPool, appliedRate, buyingKrw);
 
+        if (amounts.buyAmount().compareTo(BigDecimal.ZERO) == 0) {
+            log.info("매입량이 0으로 계산됨. 리밸런싱 스킵.");
+            return RebalancingExecuteRes.withinThreshold();
+        }
+
         return executeAndRecord(buyPool, sellPool, amounts, midRate, appliedRate, triggerType, reason);
     }
 
@@ -127,7 +132,7 @@ public class RebalancingService {
     }
 
     private BigDecimal applySpread(BigDecimal midRate) {
-        return midRate.multiply(BigDecimal.ONE.add(SPREAD)).setScale(8, RoundingMode.HALF_UP);
+        return midRate.multiply(BigDecimal.ONE.add(SPREAD)).setScale(8, RoundingMode.FLOOR);
     }
 
     // 케이스 4: 양쪽 모두 floor 미만 → 환전으로 조정 불가, 관리자 알림 + 미실행 반환
@@ -146,8 +151,8 @@ public class RebalancingService {
                                                BigDecimal appliedRate, boolean buyingKrw) {
         BigDecimal desiredBuyAmount = buyPool.shortageToTarget();
         BigDecimal maxBuyableFromSell = buyingKrw
-                ? sellPool.surplusAboveFloor().multiply(appliedRate).setScale(2, RoundingMode.HALF_UP)
-                : sellPool.surplusAboveFloor().divide(appliedRate, 2, RoundingMode.HALF_UP);
+                ? sellPool.surplusAboveFloor().multiply(appliedRate).setScale(2, RoundingMode.FLOOR)
+                : sellPool.surplusAboveFloor().divide(appliedRate, 2, RoundingMode.FLOOR);
 
         CappedBy cappedBy = null;
         BigDecimal buyAmount;
@@ -160,8 +165,8 @@ public class RebalancingService {
         }
 
         BigDecimal sellAmount = buyingKrw
-                ? buyAmount.divide(appliedRate, 2, RoundingMode.HALF_UP)
-                : buyAmount.multiply(appliedRate).setScale(2, RoundingMode.HALF_UP);
+                ? buyAmount.divide(appliedRate, 2, RoundingMode.FLOOR)
+                : buyAmount.multiply(appliedRate).setScale(2, RoundingMode.FLOOR);
 
         return new TradeAmounts(buyAmount, sellAmount, cappedBy);
     }
