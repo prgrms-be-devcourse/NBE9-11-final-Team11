@@ -47,6 +47,10 @@ public record RemittanceTransactionDetailResponse(
     ) {
 
         public static VirtualAccountInfo from(VirtualAccount virtualAccount) {
+            if (virtualAccount == null) {
+                return null;
+            }
+
             return new VirtualAccountInfo(
                     virtualAccount.getBankName(),
                     virtualAccount.getAccountNumber(),
@@ -79,7 +83,7 @@ public record RemittanceTransactionDetailResponse(
                 ),
                 remittanceTransaction.getAppliedRate(),
                 CurrencyAmountFormatter.format(remittanceTransaction.getFeeAmount(), KRW),
-                virtualAccount == null ? null : VirtualAccountInfo.from(virtualAccount),
+                VirtualAccountInfo.from(virtualAccount),
                 remittanceTransaction.getCreatedAt()
         );
     }
