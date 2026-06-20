@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { User, Mail, Lock, LogOut, ShieldCheck, ShieldAlert, Trash2 } from "lucide-react"
+import { User, Mail, Lock, LogOut, ShieldCheck, ShieldAlert, Trash2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -42,6 +42,9 @@ export default function SettingsPage() {
   const [confirm, setConfirm] = useState("")
 
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deletePassword, setDeletePassword] = useState("")
+  const [deleteError, setDeleteError] = useState("")
+  const [deleting, setDeleting] = useState(false)
 
   function saveProfile() {
     if (!name.trim()) return toast.error("이름을 입력하세요.")
@@ -73,10 +76,38 @@ export default function SettingsPage() {
     }
   }
 
-  function handleDelete() {
-    logout()
-    toast.success("회원 탈퇴가 완료되었습니다.")
-    router.push("/")
+  function openDeleteDialog() {
+    setDeletePassword("")
+    setDeleteError("")
+    setDeleteOpen(true)
+  }
+
+  async function handleDelete() {
+    if (!deletePassword) {
+      setDeleteError("비밀번호를 입력하세요.")
+      return
+    }
+
+    setDeleting(true)
+    setDeleteError("")
+    try {
+      await apiRequest("DELETE", "/api/v1/auth/me", { password: deletePassword })
+
+      // 백엔드가 탈퇴 처리 시 JWT 쿠키를 이미 무효화하므로,
+      // 프론트는 로컬 상태(store, localStorage)만 정리하면 된다.
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("fxflow-userId")
+      }
+      logout()
+      setDeleteOpen(false)
+      toast.success("회원 탈퇴가 완료되었습니다.")
+      router.push("/")
+    } catch (err: any) {
+      console.error(err)
+      setDeleteError(err.message || "회원 탈퇴에 실패했습니다.")
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const initial = user?.name?.charAt(0) ?? "U"
@@ -152,7 +183,7 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               className="w-full justify-start border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
-              onClick={() => setDeleteOpen(true)}
+              onClick={openDeleteDialog}
             >
               <Trash2 className="size-4" /> 회원 탈퇴
             </Button>
@@ -195,20 +226,43 @@ export default function SettingsPage() {
       </Dialog>
 
       {/* Delete account dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog open={deleteOpen} onOpenChange={(o) => !deleting && setDeleteOpen(o)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>회원 탈퇴</DialogTitle>
             <DialogDescription>
-              탈퇴 시 모든 시뮬레이션 데이터가 삭제되며 복구할 수 없습니다. 계속하시겠습니까?
+              탈퇴 시 모든 데이터가 마스킹 처리되며 복구할 수 없습니다. 잔액이 남아있거나 진행 중인 거래가
+              있으면 탈퇴할 수 없습니다. 계속하려면 비밀번호를 입력하세요.
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="delete-password">비밀번호</Label>
+              <Input
+                id="delete-password"
+                type="password"
+                value={deletePassword}
+                onChange={(e) => {
+                  setDeletePassword(e.target.value)
+                  setDeleteError("")
+                }}
+                placeholder="현재 비밀번호 입력"
+                disabled={deleting}
+              />
+            </div>
+            {deleteError && (
+              <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <AlertCircle className="size-4 shrink-0" />
+                {deleteError}
+              </div>
+            )}
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
               취소
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              탈퇴하기
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? "처리 중..." : "탈퇴하기"}
             </Button>
           </DialogFooter>
         </DialogContent>
