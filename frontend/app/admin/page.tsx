@@ -403,8 +403,8 @@ export default function AdminPage() {
                 />
               ))}
             </div>
-            <p className="text-right text-xs text-muted-foreground">
-              조회 시각: {formatDateTime(dashboard.asOf)}
+            <p className="-mt-4 text-right text-xs text-muted-foreground">
+              업데이트: {formatDateTime(dashboard.asOf)}
             </p>
           </>
         ) : null}
