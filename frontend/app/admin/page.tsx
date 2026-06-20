@@ -16,6 +16,7 @@ import {
   type PoolDashboardResponse,
   type RebalanceHistoryItem,
   type ApiError,
+  type PoolStatusRes,
 } from "@/lib/api"
 
 // ── 헬퍼 ────────────────────────────────────────────────────────
