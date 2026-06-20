@@ -317,7 +317,7 @@ function RebalanceHistory({ items, loading, error }: {
                     {Number(item.appliedRate).toLocaleString("ko-KR")}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {{ MANUAL: "수동실행", AUTO: "거래 후 자동실행", SCHEDULER: "스케줄러" }[item.triggerType] ?? item.triggerType}
+                    {({ MANUAL: "수동실행", AUTO: "거래 후 자동실행", SCHEDULER: "스케줄러" } as Record<string, string>)[item.triggerType] ?? item.triggerType}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground tabular-nums">
                     <span className="inline-flex items-center gap-1.5">
