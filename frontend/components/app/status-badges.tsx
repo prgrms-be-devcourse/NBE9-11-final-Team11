@@ -7,6 +7,7 @@ const txStatusMap: Record<TxStatus, { label: string; cls: string }> = {
   processing: { label: "처리중", cls: "bg-primary/10 text-primary border-transparent" },
   failed: { label: "실패", cls: "bg-destructive/10 text-destructive border-transparent" },
   refunded: { label: "환불됨", cls: "bg-muted text-muted-foreground border-transparent" },
+  canceled: { label: "취소", cls: "bg-muted text-muted-foreground border-transparent" },
 }
 
 export function TxStatusBadge({ status }: { status: TxStatus }) {
