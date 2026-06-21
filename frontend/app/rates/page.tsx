@@ -8,19 +8,9 @@ import { Button } from "@/components/ui/button"
 import { RateChart } from "@/components/app/rate-chart"
 import { getLatestRate, type FxRateLatest } from "@/lib/api"
 import { CURRENCY_META } from "@/lib/fx-data"
+import { formatFetchedAt } from "@/lib/utils"
 
 const POLL_INTERVAL_MS = 60_000 // 60초마다 최신 환율 폴링
-
-function formatFetchedAt(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
 
 export default function RatesPage() {
   const [rate, setRate] = useState<FxRateLatest | null>(null)
@@ -28,7 +18,9 @@ export default function RatesPage() {
 
   useEffect(() => {
     let active = true
+    let timerId: ReturnType<typeof setTimeout> | undefined
 
+    // 이전 요청이 끝난 뒤 다음 폴링을 예약(재귀 setTimeout) — 요청 중첩 방지
     const load = async () => {
       try {
         const data = await getLatestRate("USD", "KRW")
@@ -37,15 +29,17 @@ export default function RatesPage() {
       } catch {
         // 실패(404 등) 시 마지막 정상값을 유지한다. 한 번도 못 받았으면 rate === null → 안내 표시.
       } finally {
-        if (active) setLoading(false)
+        if (active) {
+          setLoading(false)
+          timerId = setTimeout(load, POLL_INTERVAL_MS)
+        }
       }
     }
 
     load()
-    const timer = setInterval(load, POLL_INTERVAL_MS)
     return () => {
       active = false
-      clearInterval(timer)
+      clearTimeout(timerId)
     }
   }, [])
 
