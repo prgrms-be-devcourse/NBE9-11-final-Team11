@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { User, Mail, Lock, LogOut, ShieldCheck, ShieldAlert, Trash2 } from "lucide-react"
+import { User, Mail, Lock, LogOut, ShieldCheck, ShieldAlert, Trash2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -21,6 +21,9 @@ import {
 } from "@/components/ui/dialog"
 import { useStore } from "@/lib/store"
 import { apiRequest } from "@/lib/api"
+
+// 백엔드 ChangePasswordRequest와 동일한 정책 — 대소문자, 숫자, 특수문자 포함 8자 이상
+const PASSWORD_POLICY_REGEX = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -43,10 +46,15 @@ export default function SettingsPage() {
   const [changingPassword, setChangingPassword] = useState(false)
 
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deletePassword, setDeletePassword] = useState("")
+  const [deleteError, setDeleteError] = useState("")
+  const [deleting, setDeleting] = useState(false)
 
   async function changePassword() {
     if (!current || !next) return toast.error("비밀번호를 입력하세요.")
-    if (next.length < 8) return toast.error("새 비밀번호는 8자 이상이어야 합니다.")
+    if (!PASSWORD_POLICY_REGEX.test(next)) {
+      return toast.error("새 비밀번호는 8자 이상, 대소문자, 숫자, 특수문자를 포함해야 합니다.")
+    }
     if (next !== confirm) return toast.error("새 비밀번호가 일치하지 않습니다.")
 
     setChangingPassword(true)
@@ -79,10 +87,26 @@ export default function SettingsPage() {
     router.push("/login")
   }
 
-  function handleDelete() {
-    logout()
-    toast.success("회원 탈퇴가 완료되었습니다.")
-    router.push("/")
+  async function handleDelete() {
+    if (!deletePassword) {
+      setDeleteError("비밀번호를 입력하세요.")
+      return
+    }
+
+    setDeleting(true)
+    setDeleteError("")
+    try {
+      await apiRequest("DELETE", "/api/v1/auth/me", { password: deletePassword })
+      logout()
+      setDeleteOpen(false)
+      toast.success("회원 탈퇴가 완료되었습니다.")
+      router.push("/")
+    } catch (err: any) {
+      console.error(err)
+      setDeleteError(err.message || "회원 탈퇴에 실패했습니다.")
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const initial = user?.name?.charAt(0) ?? "U"
@@ -173,7 +197,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Change password dialog */}
-      <Dialog open={pwOpen} onOpenChange={setPwOpen}>
+      <Dialog open={pwOpen} onOpenChange={(o) => !changingPassword && setPwOpen(o)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>비밀번호 변경</DialogTitle>
@@ -184,15 +208,33 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="current">현재 비밀번호</Label>
-              <Input id="current" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+              <Input
+                id="current"
+                type="password"
+                value={current}
+                onChange={(e) => setCurrent(e.target.value)}
+                disabled={changingPassword}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="next">새 비밀번호</Label>
-              <Input id="next" type="password" value={next} onChange={(e) => setNext(e.target.value)} />
+              <Input
+                id="next"
+                type="password"
+                value={next}
+                onChange={(e) => setNext(e.target.value)}
+                disabled={changingPassword}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-pw">새 비밀번호 확인</Label>
-              <Input id="confirm-pw" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+              <Input
+                id="confirm-pw"
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                disabled={changingPassword}
+              />
             </div>
           </div>
           <DialogFooter>
@@ -207,20 +249,53 @@ export default function SettingsPage() {
       </Dialog>
 
       {/* Delete account dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(o) => {
+          if (deleting) return
+          setDeleteOpen(o)
+          if (!o) {
+            setDeletePassword("")
+            setDeleteError("")
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>회원 탈퇴</DialogTitle>
             <DialogDescription>
-              탈퇴 시 모든 시뮬레이션 데이터가 삭제되며 복구할 수 없습니다. 계속하시겠습니까?
+              탈퇴 시 모든 데이터가 마스킹 처리되며 복구할 수 없습니다. 잔액이 남아있거나 진행 중인 거래가
+              있으면 탈퇴할 수 없습니다. 계속하려면 비밀번호를 입력하세요.
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="delete-password">비밀번호</Label>
+              <Input
+                id="delete-password"
+                type="password"
+                value={deletePassword}
+                onChange={(e) => {
+                  setDeletePassword(e.target.value)
+                  setDeleteError("")
+                }}
+                placeholder="현재 비밀번호 입력"
+                disabled={deleting}
+              />
+            </div>
+            {deleteError && (
+              <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <AlertCircle className="size-4 shrink-0" />
+                {deleteError}
+              </div>
+            )}
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
               취소
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              탈퇴하기
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? "처리 중..." : "탈퇴하기"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -103,6 +103,10 @@ public class UserService {
         log.info("[비밀번호 변경 시작] userId={}", userId);
 
         User user = getUser(userId);
+        if (user.getStatus() == UserStatus.WITHDRAWN) {
+            log.warn("[비밀번호 변경 실패] 탈퇴한 회원 — userId={}", userId);
+            throw new BusinessException(UserErrorCode.ALREADY_WITHDRAWN);
+        }
 
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
             log.warn("[비밀번호 변경 실패] 현재 비밀번호 불일치 — userId={}", userId);
