@@ -75,6 +75,7 @@ public class RemittanceTransactionService {
     private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("3000.00000000");
     private static final BigDecimal PERCENT_FEE_RATE = new BigDecimal("0.005");
     private static final long QUOTE_EXPIRATION_MINUTES = 5L;
+    private static final long VIRTUAL_ACCOUNT_EXPIRATION_MINUTES = 10L;
     private static final String REMITTANCE_QUOTE_KEY_PREFIX = "remittance:quote:";
 
     private final ExchangeRateProvider exchangeRateProvider;
@@ -448,7 +449,7 @@ public class RemittanceTransactionService {
             BigDecimal expectedAmount
     ) {
         LocalDateTime issuedAt = LocalDateTime.now();
-        LocalDateTime expiredAt = issuedAt.plusHours(1);
+        LocalDateTime expiredAt = issuedAt.plusMinutes(VIRTUAL_ACCOUNT_EXPIRATION_MINUTES);
 
         return VirtualAccount.create(
                 userId,
