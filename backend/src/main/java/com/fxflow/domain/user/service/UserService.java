@@ -93,6 +93,33 @@ public class UserService {
         return user;
     }
 
+    /*
+    * 비밀번호를 재설정한다.
+    * 현재 비밀번호로 1차 검증을 진행한다.
+    * 변경할려는 비밀번호가 현재 비밀번호랑 같을시 에러를 발생한다.
+    */
+    @Transactional
+    public void changePassword(Long userId, String currentPassword, String newPassword) {
+        log.info("[비밀번호 변경 시작] userId={}", userId);
+
+        User user = getUser(userId);
+
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            log.warn("[비밀번호 변경 실패] 현재 비밀번호 불일치 — userId={}", userId);
+            throw new BusinessException(UserErrorCode.PASSWORD_MISMATCH);
+        }
+
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            log.warn("[비밀번호 변경 실패] 기존과 동일한 비밀번호 — userId={}", userId);
+            throw new BusinessException(UserErrorCode.SAME_AS_OLD_PASSWORD);
+        }
+
+        String encodedNewPassword = passwordEncoder.encode(newPassword);
+        user.changePassword(encodedNewPassword);
+
+        log.info("[비밀번호 변경 완료] userId={}", userId);
+    }
+
 
     /**
      * 회원 탈퇴

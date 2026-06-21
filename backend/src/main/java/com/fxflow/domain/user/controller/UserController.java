@@ -1,5 +1,6 @@
 package com.fxflow.domain.user.controller;
 
+import com.fxflow.domain.user.dto.request.ChangePasswordRequest;
 import com.fxflow.domain.user.dto.request.LoginRequest;
 import com.fxflow.domain.user.dto.request.SignupRequest;
 import com.fxflow.domain.user.dto.request.WithdrawRequest;
@@ -94,6 +95,29 @@ public class UserController {
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
         return ResponseEntity.ok(withdrawUserResponse);
+    }
+    /*
+    * 비밀번호 변경
+    * Patch /api/v1/auth/me/password
+    * 변경 성공 시 보안을 위해 현재 세션도 함께 무효화한다 (재로그인 필요).
+    */
+    @PatchMapping("/me/password")
+    public ResponseEntity<Void> changePassword(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody ChangePasswordRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse response
+    ) {
+        userService.changePassword(userId, request.currentPassword(), request.newPassword());
+
+        String token = CookieTokenExtractor.extract(httpRequest);
+        if (token != null) {
+            tokenBlacklistService.invalidate(token);
+        }
+        ResponseCookie cookie = jwtTokenProvider.deleteAccessTokenCookie();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
+        return ResponseEntity.noContent().build();
     }
 
 

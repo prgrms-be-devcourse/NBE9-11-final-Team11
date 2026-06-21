@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { User, Mail, Lock, LogOut, ShieldCheck, ShieldAlert, Trash2, AlertCircle } from "lucide-react"
+import { User, Mail, Lock, LogOut, ShieldCheck, ShieldAlert, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -21,12 +21,10 @@ import {
 } from "@/components/ui/dialog"
 import { useStore } from "@/lib/store"
 import { apiRequest } from "@/lib/api"
-import { useLogout } from "@/hooks/use-logout"
 
 export default function SettingsPage() {
   const router = useRouter()
   const { user, logout } = useStore()
-  const handleLogout = useLogout()
 
   const [name, setName] = useState(user?.name ?? "")
   const [email, setEmail] = useState(user?.email ?? "")
@@ -42,61 +40,49 @@ export default function SettingsPage() {
   const [current, setCurrent] = useState("")
   const [next, setNext] = useState("")
   const [confirm, setConfirm] = useState("")
+  const [changingPassword, setChangingPassword] = useState(false)
 
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deletePassword, setDeletePassword] = useState("")
-  const [deleteError, setDeleteError] = useState("")
-  const [deleting, setDeleting] = useState(false)
 
-  function saveProfile() {
-    if (!name.trim()) return toast.error("이름을 입력하세요.")
-    toast.success("프로필이 저장되었습니다.")
-  }
-
-  function changePassword() {
+  async function changePassword() {
     if (!current || !next) return toast.error("비밀번호를 입력하세요.")
     if (next.length < 8) return toast.error("새 비밀번호는 8자 이상이어야 합니다.")
     if (next !== confirm) return toast.error("새 비밀번호가 일치하지 않습니다.")
-    setPwOpen(false)
-    setCurrent("")
-    setNext("")
-    setConfirm("")
-    toast.success("비밀번호가 변경되었습니다.")
-  }
 
-  function openDeleteDialog() {
-    setDeletePassword("")
-    setDeleteError("")
-    setDeleteOpen(true)
-  }
-
-  async function handleDelete() {
-    if (!deletePassword) {
-      setDeleteError("비밀번호를 입력하세요.")
-      return
-    }
-
-    setDeleting(true)
-    setDeleteError("")
+    setChangingPassword(true)
     try {
-      await apiRequest("DELETE", "/api/v1/auth/me", { password: deletePassword })
+      await apiRequest("PATCH", "/api/v1/auth/me/password", {
+        currentPassword: current,
+        newPassword: next,
+      })
 
-      // 백엔드가 탈퇴 처리 시 JWT 쿠키를 이미 무효화하고,
-      // store.tsx의 logout()이 잔액/거래내역 등 전체 상태를 defaultState()로
-      // 리셋하므로 별도로 localStorage의 fxflow-store-v1을 지울 필요는 없다.
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("fxflow-userId")
-      }
+      setPwOpen(false)
+      setCurrent("")
+      setNext("")
+      setConfirm("")
+      toast.success("비밀번호가 변경되었습니다. 다시 로그인해주세요.")
+
+      // 비밀번호 변경 성공 시 서버 측 세션(쿠키)이 이미 무효화되므로
+      // 클라이언트 상태도 함께 정리하고 로그인 화면으로 이동한다.
       logout()
-      setDeleteOpen(false)
-      toast.success("회원 탈퇴가 완료되었습니다.")
-      router.push("/")
+      router.push("/login")
     } catch (err: any) {
       console.error(err)
-      setDeleteError(err.message || "회원 탈퇴에 실패했습니다.")
+      toast.error(err.message || "비밀번호 변경에 실패했습니다.")
     } finally {
-      setDeleting(false)
+      setChangingPassword(false)
     }
+  }
+
+  function handleLogout() {
+    logout()
+    router.push("/login")
+  }
+
+  function handleDelete() {
+    logout()
+    toast.success("회원 탈퇴가 완료되었습니다.")
+    router.push("/")
   }
 
   const initial = user?.name?.charAt(0) ?? "U"
@@ -129,17 +115,19 @@ export default function SettingsPage() {
               <Label htmlFor="name">이름</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="pl-9" />
+                <Input id="name" value={name} disabled className="pl-9" />
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">이메일</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-9" />
+                <Input id="email" type="email" value={email} disabled className="pl-9" />
               </div>
             </div>
-            <Button onClick={saveProfile}>변경사항 저장</Button>
+            <p className="text-xs text-muted-foreground">
+              이름과 이메일은 본인확인(KYC) 정보와 연결되어 있어 직접 변경할 수 없습니다.
+            </p>
           </div>
         </Card>
 
@@ -172,7 +160,7 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               className="w-full justify-start border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
-              onClick={openDeleteDialog}
+              onClick={() => setDeleteOpen(true)}
             >
               <Trash2 className="size-4" /> 회원 탈퇴
             </Button>
@@ -189,7 +177,9 @@ export default function SettingsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>비밀번호 변경</DialogTitle>
-            <DialogDescription>새 비밀번호는 8자 이상이어야 합니다.</DialogDescription>
+            <DialogDescription>
+              새 비밀번호는 8자 이상, 대소문자·숫자·특수문자를 포함해야 합니다. 변경 후 다시 로그인해야 합니다.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -206,52 +196,31 @@ export default function SettingsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPwOpen(false)}>
+            <Button variant="outline" onClick={() => setPwOpen(false)} disabled={changingPassword}>
               취소
             </Button>
-            <Button onClick={changePassword}>변경하기</Button>
+            <Button onClick={changePassword} disabled={changingPassword}>
+              {changingPassword ? "변경 중..." : "변경하기"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete account dialog */}
-      <Dialog open={deleteOpen} onOpenChange={(o) => !deleting && setDeleteOpen(o)}>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>회원 탈퇴</DialogTitle>
             <DialogDescription>
-              탈퇴 시 모든 데이터가 마스킹 처리되며 복구할 수 없습니다. 잔액이 남아있거나 진행 중인 거래가
-              있으면 탈퇴할 수 없습니다. 계속하려면 비밀번호를 입력하세요.
+              탈퇴 시 모든 시뮬레이션 데이터가 삭제되며 복구할 수 없습니다. 계속하시겠습니까?
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="delete-password">비밀번호</Label>
-              <Input
-                id="delete-password"
-                type="password"
-                value={deletePassword}
-                onChange={(e) => {
-                  setDeletePassword(e.target.value)
-                  setDeleteError("")
-                }}
-                placeholder="현재 비밀번호 입력"
-                disabled={deleting}
-              />
-            </div>
-            {deleteError && (
-              <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                <AlertCircle className="size-4 shrink-0" />
-                {deleteError}
-              </div>
-            )}
-          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
               취소
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? "처리 중..." : "탈퇴하기"}
+            <Button variant="destructive" onClick={handleDelete}>
+              탈퇴하기
             </Button>
           </DialogFooter>
         </DialogContent>
