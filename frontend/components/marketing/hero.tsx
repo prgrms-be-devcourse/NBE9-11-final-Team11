@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ArrowRight, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { RATES, formatKRW } from "@/lib/fx-data"
+import { LiveRateWidget } from "./live-rate-widget"
 
 export function Hero() {
   return (
@@ -31,47 +31,7 @@ export function Hero() {
         </div>
 
         <div className="relative">
-          <div className="rounded-3xl border border-border bg-card p-6 shadow-xl shadow-primary/5">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-semibold">실시간 환율</p>
-              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="size-2 animate-pulse rounded-full bg-accent" />
-                3분마다 갱신
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {Object.values(RATES).map((r) => (
-                <div
-                  key={r.code}
-                  className="flex items-center justify-between rounded-2xl bg-secondary/60 px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl" aria-hidden>
-                      {r.flag}
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold">
-                        {r.code}
-                        {r.unit > 1 ? ` (${r.unit})` : ""}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{r.name}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold tabular-nums">{formatKRW(r.rate)}</p>
-                    <p
-                      className={`text-xs font-medium tabular-nums ${
-                        r.change >= 0 ? "text-accent" : "text-destructive"
-                      }`}
-                    >
-                      {r.change >= 0 ? "+" : ""}
-                      {r.change}%
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <LiveRateWidget />
         </div>
       </div>
     </section>
