@@ -274,6 +274,29 @@ public class RemittanceTransactionService {
         return RemittanceMockFundedResponse.of(remittanceTransaction, virtualAccount);
     }
 
+    /**
+     * 사용자가 입금 대기 중인 송금 주문을 취소한다.
+     */
+    @Transactional
+    public RemittanceCancelResponse cancelTransfer(Long userId, Long transferId) {
+        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findById(transferId)
+                .orElseThrow(() -> new BusinessException(
+                        RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
+                ));
+
+        validateTransferOwner(userId, remittanceTransaction);
+        validateCancelableTransfer(remittanceTransaction);
+
+        VirtualAccount virtualAccount = getVirtualAccount(remittanceTransaction.getId());
+        validateIssuedVirtualAccount(virtualAccount);
+
+        releaseReservedAnnualLimit(userId, remittanceTransaction.getAmountUsd());
+        remittanceTransaction.cancel();
+        virtualAccount.cancel();
+
+        return RemittanceCancelResponse.of(remittanceTransaction, virtualAccount);
+    }
+
     private void validateIdempotencyKey(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new BusinessException(RemittanceTransactionErrorCode.IDEMPOTENCY_KEY_REQUIRED);
@@ -317,6 +340,17 @@ public class RemittanceTransactionService {
         }
 
         usage.addUsage(amountUsd);
+    }
+
+    /**
+     * 송금 취소 시 주문 생성 단계에서 선점했던 연간 송금 한도를 복구한다.
+     */
+    private void releaseReservedAnnualLimit(Long userId, BigDecimal amountUsd) {
+        int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+
+        userAnnualUsageRepository
+                .findByUserIdAndYearForUpdate(userId, currentYear)
+                .ifPresent(usage -> usage.subtractUsage(amountUsd));
     }
 
     /**
@@ -375,6 +409,15 @@ public class RemittanceTransactionService {
     private void validatePendingTransfer(RemittanceTransaction remittanceTransaction) {
         if (remittanceTransaction.getStatus() != TransferStatus.PENDING) {
             throw new BusinessException(RemittanceTransactionErrorCode.INVALID_REMITTANCE_TRANSACTION_STATUS);
+        }
+    }
+
+    /**
+     * 가상계좌 입금 전 상태의 송금만 사용자가 취소할 수 있다.
+     */
+    private void validateCancelableTransfer(RemittanceTransaction remittanceTransaction) {
+        if (remittanceTransaction.getStatus() != TransferStatus.PENDING) {
+            throw new BusinessException(RemittanceTransactionErrorCode.REMITTANCE_CANCEL_NOT_ALLOWED);
         }
     }
 

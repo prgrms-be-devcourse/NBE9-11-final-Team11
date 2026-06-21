@@ -37,6 +37,7 @@ const statusLabels: Record<TxStatus | "all", string> = {
   processing: "처리중",
   failed: "실패",
   refunded: "환불됨",
+  canceled: "취소",
 }
 
 function formatDateTime(iso: string) {
@@ -135,8 +136,10 @@ export default function TransactionsPage() {
             let status: TxStatus = "completed"
             if (tx.status === "PENDING" || tx.status === "FUNDED" || tx.status === "PROCESSING") {
               status = "processing"
-            } else if (tx.status === "FAILED" || tx.status === "REFUND_FAILED" || tx.status === "CANCELED") {
+            } else if (tx.status === "FAILED" || tx.status === "REFUND_FAILED") {
               status = "failed"
+            } else if (tx.status === "CANCELED") {
+              status = "canceled"
             } else if (tx.status === "REFUNDED") {
               status = "refunded"
             }
@@ -235,6 +238,7 @@ export default function TransactionsPage() {
                   <SelectItem value="processing">처리중</SelectItem>
                   <SelectItem value="failed">실패</SelectItem>
                   <SelectItem value="refunded">환불됨</SelectItem>
+                  <SelectItem value="canceled">취소</SelectItem>
                 </SelectContent>
               </Select>
             </div>

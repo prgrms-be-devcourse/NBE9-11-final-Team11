@@ -88,6 +88,20 @@ public class RemittanceTransactionController {
     }
 
     /**
+     * 입금 대기 중인 해외송금 주문을 취소한다.
+     */
+    @PatchMapping("/transfers/{transferId}/cancel")
+    public ResponseEntity<RemittanceCancelResponse> cancelTransfer(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long transferId
+    ) {
+        RemittanceCancelResponse response =
+                remittanceTransactionService.cancelTransfer(userId, transferId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 수취인과 송금 금액을 기준으로 해외송금 견적을 산출한다.
      */
     @PostMapping("/transfers/quote")

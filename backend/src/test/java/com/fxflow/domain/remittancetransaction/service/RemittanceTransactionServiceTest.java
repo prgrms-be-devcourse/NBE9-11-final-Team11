@@ -672,6 +672,62 @@ class RemittanceTransactionServiceTest {
         verifyNoInteractions(companyPoolService);
     }
 
+    @Test
+    @DisplayName("성공: 입금 대기 중인 송금 주문을 취소하고 선점한 연간 한도를 복구한다")
+    void cancelTransfer_success() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
+        UserAnnualUsage annualUsage = createAnnualUsage(
+                userId,
+                currentYear,
+                new BigDecimal("1000.00")
+        );
+
+        when(remittanceTransactionRepository.findById(transferId))
+                .thenReturn(Optional.of(remittanceTransaction));
+        when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
+                .thenReturn(Optional.of(virtualAccount));
+        when(userAnnualUsageRepository.findByUserIdAndYearForUpdate(userId, currentYear))
+                .thenReturn(Optional.of(annualUsage));
+
+        // when
+        RemittanceCancelResponse response = remittanceTransactionService.cancelTransfer(userId, transferId);
+
+        // then
+        assertThat(response.transferId()).isEqualTo(transferId);
+        assertThat(response.status()).isEqualTo(TransferStatus.CANCELED);
+        assertThat(response.virtualAccountStatus()).isEqualTo(VirtualAccountStatus.CANCELED);
+        assertThat(remittanceTransaction.getStatus()).isEqualTo(TransferStatus.CANCELED);
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountStatus.CANCELED);
+        assertThat(annualUsage.getAnnualUsedUsd()).isEqualByComparingTo(new BigDecimal("263.48"));
+    }
+
+    @Test
+    @DisplayName("실패: 입금 대기 상태가 아니면 송금 주문을 취소할 수 없다")
+    void cancelTransfer_fail_notPending() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        remittanceTransaction.fund(30L);
+
+        when(remittanceTransactionRepository.findById(transferId))
+                .thenReturn(Optional.of(remittanceTransaction));
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.cancelTransfer(userId, transferId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RemittanceTransactionErrorCode.REMITTANCE_CANCEL_NOT_ALLOWED);
+
+        verifyNoInteractions(virtualAccountRepository);
+        verifyNoInteractions(userAnnualUsageRepository);
+    }
+
     private RemittanceTransactionCreateRequest createRequest() {
         return new RemittanceTransactionCreateRequest(
                 "TQUOTE-001",
