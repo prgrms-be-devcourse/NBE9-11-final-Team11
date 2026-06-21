@@ -31,6 +31,9 @@ const periodOptions = [
   { value: "90", label: "최근 90일" },
 ]
 
+const PAGE_SIZE = 20
+const PAGE_GROUP_SIZE = 5
+
 const statusLabels: Record<TxStatus | "all", string> = {
   all: "전체 상태",
   completed: "완료",
@@ -56,6 +59,7 @@ export default function TransactionsPage() {
   const [type, setType] = useState<TxType | "all">("all")
   const [status, setStatus] = useState<TxStatus | "all">("all")
   const [detail, setDetail] = useState<Transaction | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     async function load() {
@@ -186,6 +190,26 @@ export default function TransactionsPage() {
     })
   }, [transactions, status])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [period, type, status])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pagedTransactions = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const currentPageGroup = Math.floor((currentPage - 1) / PAGE_GROUP_SIZE)
+  const firstPageInGroup = currentPageGroup * PAGE_GROUP_SIZE + 1
+  const lastPageInGroup = Math.min(firstPageInGroup + PAGE_GROUP_SIZE - 1, totalPages)
+  const visiblePages = Array.from(
+    { length: lastPageInGroup - firstPageInGroup + 1 },
+    (_, index) => firstPageInGroup + index
+  )
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   const received = (tx: Transaction) =>
     tx.rate ? Math.abs(tx.amountKRW) / (tx.rate / (tx.toCurrency === "JPY" ? 100 : 1)) : 0
 
@@ -249,7 +273,9 @@ export default function TransactionsPage() {
         <Card className="overflow-hidden p-0">
           <div className="flex items-center justify-between px-5 py-4">
             <h2 className="text-base font-bold">거래 내역</h2>
-            <span className="text-sm text-muted-foreground">{filtered.length}건</span>
+            <span className="text-sm text-muted-foreground">
+              {filtered.length}건 · {currentPage}/{totalPages}페이지
+            </span>
           </div>
           <Separator />
           {loading ? (
@@ -270,7 +296,7 @@ export default function TransactionsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((t) => {
+                  {pagedTransactions.map((t) => {
                     const Icon = typeMeta[t.type].icon
                     const positive = t.amountKRW >= 0
                     return (
@@ -306,6 +332,43 @@ export default function TransactionsPage() {
                   })}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          {!loading && filtered.length > PAGE_SIZE && (
+            <div className="relative border-t px-5 py-3">
+              <p className="mb-3 text-sm text-muted-foreground sm:absolute sm:left-5 sm:top-1/2 sm:mb-0 sm:-translate-y-1/2">
+                최근순 {Math.min((currentPage - 1) * PAGE_SIZE + 1, filtered.length)}-
+                {Math.min(currentPage * PAGE_SIZE, filtered.length)}건 표시
+              </p>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={firstPageInGroup === 1}
+                  onClick={() => setCurrentPage(Math.max(1, firstPageInGroup - PAGE_GROUP_SIZE))}
+                >
+                  이전
+                </Button>
+                {visiblePages.map((page) => (
+                  <Button
+                    key={page}
+                    variant={page === currentPage ? "default" : "outline"}
+                    size="sm"
+                    className="min-w-9"
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </Button>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={lastPageInGroup === totalPages}
+                  onClick={() => setCurrentPage(Math.min(totalPages, lastPageInGroup + 1))}
+                >
+                  다음
+                </Button>
+              </div>
             </div>
           )}
         </Card>
