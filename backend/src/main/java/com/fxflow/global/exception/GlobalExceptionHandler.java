@@ -6,6 +6,7 @@ import jakarta.validation.Path;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -59,6 +60,15 @@ public class GlobalExceptionHandler {
             field = node.getName();
         }
         return field;
+    }
+
+    // 필수 요청 헤더 누락(예: Idempotency-Key) — 클라이언트 입력 오류이므로 400으로 응답한다.
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException e) {
+        log.warn("Missing request header: {}", e.getHeaderName());
+        return ResponseEntity
+                .badRequest()
+                .body(ErrorResponse.of("MISSING_HEADER", e.getHeaderName() + " 헤더가 필요합니다.", null));
     }
 
     @ExceptionHandler(Exception.class)
