@@ -79,16 +79,11 @@ public class MockBankAccountService {
     //사용자에게 보는 방법
     @Transactional(readOnly = true)
     public UsdMockAccountInquiryResponse inquireUsdMockAccount(UsdMockAccountInquiryRequest request, Pageable pageable) {
-        // 1. 유저 검증
-        User user = userRepository.findByNameAndEmail(request.name(), request.email())
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        MockBankAccount mockAccount = mockBankAccountRepository
+                .findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+                        request.accountNumber(), request.bankName(), request.name(), "USD"
+                ).orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
-        // 2. 모의계좌 검증
-        MockBankAccount mockAccount = mockBankAccountRepository.findByAccountNumberAndBankNameAndUserIdAndCurrencyCode(
-                request.accountNumber(), request.bankName(), user.getId(), "USD"
-        ).orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
-
-        // 3. 송금 내역 조회 (메서드명 언더스코어 제거)
         Page<RemittanceTransaction> remittances = remittanceTransactionRepository
                 .findByRecipientAccountNumberAndStatus(
                         mockAccount.getAccountNumber(),
@@ -100,8 +95,6 @@ public class MockBankAccountService {
             String senderName = userRepository.findById(rt.getUserId())
                     .map(User::getName)
                     .orElse("알 수 없는 송금인");
-
-            // new 대신 RemittanceReceiptDto.of(...) 사용
             return RemittanceReceiptDto.of(
                     rt.getId(),
                     senderName,
@@ -116,14 +109,13 @@ public class MockBankAccountService {
                 receiptsList, pageable, remittances.getTotalElements()
         );
 
-        // 5. 최종 반환 시 .of() 메서드 사용
         return UsdMockAccountInquiryResponse.of(
                 mockAccount.getBalance(),
                 mockAccount.getCurrencyCode(),
                 receiptsPage
         );
-    }
 
+    }
 
 
     @Transactional
@@ -193,7 +185,7 @@ public class MockBankAccountService {
      * 계좌번호 가용성(형식 + 전역 중복) 사전 확인
      * - 인증 전(회원가입 KYC 단계)에서도 호출 가능해야 하므로 userId를 받지 않는다.
      * - 실제 연결(linkAccount) 시점에 동일한 계좌번호가 다른 요청에 의해 선점될 수 있으므로,
-     *   이 메서드는 "사전 확인"용일 뿐 최종 검증은 linkAccount에서 다시 수행된다.
+     * 이 메서드는 "사전 확인"용일 뿐 최종 검증은 linkAccount에서 다시 수행된다.
      */
     @Transactional(readOnly = true)
     public MockBankAccountCheckResponse checkAccountNumber(String accountNumber) {
@@ -216,12 +208,12 @@ public class MockBankAccountService {
     }
 
     /*
-    * 모의계좌에 연결된 잔액을 조회하는 메서드
-    */
+     * 모의계좌에 연결된 잔액을 조회하는 메서드
+     */
     @Transactional(readOnly = true)
     public MockBankAccountResponse getMyAccount(Long userId) {
         MockBankAccount account = mockBankAccountRepository
-                .findFirstByUser_IdAndCurrencyCodeAndDeletedAtIsNull(userId,KRW)
+                .findFirstByUser_IdAndCurrencyCodeAndDeletedAtIsNull(userId, KRW)
                 .orElseThrow(() -> {
                     log.warn("[모의계좌 조회 실패] 연결된 계좌 없음 — userId={}", userId);
                     return new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND);

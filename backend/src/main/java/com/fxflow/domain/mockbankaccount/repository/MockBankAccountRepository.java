@@ -74,4 +74,24 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
             String currencyCode
     );
 
+    /**
+     * 수취인 USD 모의계좌 조회 — 이름·은행명·계좌번호로 직접 조회
+     * 수취인은 가짜 이메일로 생성된 User이므로 User 경유 없이 MockBankAccount를 직접 찾는다.
+     */
+    @Query("""
+            SELECT m
+            FROM MockBankAccount m
+            JOIN m.user u
+            WHERE m.accountNumber = :accountNumber
+              AND m.bankName = :bankName
+              AND u.name = :name
+              AND m.currencyCode = :currencyCode
+              AND m.deletedAt IS NULL
+            """)
+    Optional<MockBankAccount> findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+            @Param("accountNumber") String accountNumber,
+            @Param("bankName") String bankName,
+            @Param("name") String name,
+            @Param("currencyCode") String currencyCode
+    );
 }
