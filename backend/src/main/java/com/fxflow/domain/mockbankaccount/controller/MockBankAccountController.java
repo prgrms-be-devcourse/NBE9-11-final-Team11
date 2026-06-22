@@ -60,6 +60,7 @@ class MockBankAccountController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        int safeSize = Math.min(size, 50); //사비즈 최대값 50으로 고정하여 메모리 터지는거 방지
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         UsdMockAccountInquiryResponse res = mockBankAccountService.inquireUsdMockAccount(request, pageable);
 

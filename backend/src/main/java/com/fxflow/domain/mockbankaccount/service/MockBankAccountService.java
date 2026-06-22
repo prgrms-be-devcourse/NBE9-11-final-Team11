@@ -30,7 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -91,10 +93,18 @@ public class MockBankAccountService {
                         pageable
                 );
 
+        // N+1 개선: userId 모아서 한 번에 조회
+        List<Long> userIds = remittances.stream()
+                .map(RemittanceTransaction::getUserId)
+                .distinct()
+                .toList();
+
+        Map<Long, String> userNameMap = userRepository.findAllById(userIds)
+                .stream()
+                .collect(Collectors.toMap(User::getId, User::getName));
+
         List<RemittanceReceiptDto> receiptsList = remittances.stream().map(rt -> {
-            String senderName = userRepository.findById(rt.getUserId())
-                    .map(User::getName)
-                    .orElse("알 수 없는 송금인");
+            String senderName = userNameMap.getOrDefault(rt.getUserId(), "알 수 없는 송금인");
             return RemittanceReceiptDto.of(
                     rt.getId(),
                     senderName,
@@ -114,7 +124,6 @@ public class MockBankAccountService {
                 mockAccount.getCurrencyCode(),
                 receiptsPage
         );
-
     }
 
 
