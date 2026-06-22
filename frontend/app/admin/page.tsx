@@ -50,7 +50,7 @@ const STATUS_META: Record<string, { label: string; cls: string; icon: typeof Che
   ABOVE_CEILING: { label: "초과", cls: "bg-chart-3/15 text-chart-3", icon: AlertTriangle },
 }
 
-function PoolCard({ pool, isSellSource, showRecommended, sellAmount }: { pool: PoolStatusRes; isSellSource: boolean; showRecommended: boolean; sellAmount?: number | null }) {
+function PoolCard({ pool, isSellSource, showRecommended, sellAmount, bothBelowFloor }: { pool: PoolStatusRes; isSellSource: boolean; showRecommended: boolean; sellAmount?: number | null; bothBelowFloor?: boolean }) {
   const meta = STATUS_META[pool.status] ?? STATUS_META.NORMAL
   const Icon = meta.icon
   const color = STATUS_COLOR[pool.status]
@@ -89,7 +89,12 @@ function PoolCard({ pool, isSellSource, showRecommended, sellAmount }: { pool: P
       </p>
 
       {/* 권장 조치 */}
-      {action && (
+      {bothBelowFloor ? (
+        <p className="mt-1 flex items-center gap-1 text-sm font-medium text-destructive">
+          <AlertTriangle className="size-3.5" />
+          두 풀 모두 부족 — 관리자 개입 필요
+        </p>
+      ) : action ? (
         <div className="mt-1 text-sm tabular-nums">
           <span className="font-medium" style={{ color }}>
             {action.type === "BUY" ? "권장 매입" : "권장 매도"}{" "}
@@ -108,10 +113,7 @@ function PoolCard({ pool, isSellSource, showRecommended, sellAmount }: { pool: P
             </span>
           )}
         </div>
-      )}
-
-      {/* 재원 풀 */}
-      {isSellSource && !action && (
+      ) : isSellSource ? (
         <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
           <ArrowDownRight className="size-3.5" />
           리밸런싱 재원
@@ -119,7 +121,7 @@ function PoolCard({ pool, isSellSource, showRecommended, sellAmount }: { pool: P
             <span> — {formatCurrency(pool.currencyCode, sellAmount)} 매도 예정</span>
           )}
         </p>
-      )}
+      ) : null}
 
       {/* 바 영역 */}
       <div className="mt-5">
@@ -214,7 +216,6 @@ function RebalanceCard({ onDone, onHoverChange }: { onDone: () => void; onHoverC
         setResultMsg(msg)
         setResultType("success")
         toast.success("리밸런싱 실행됨")
-        onDone()
       } else if (res.reason === "BOTH_BELOW_FLOOR") {
         setResultMsg("KRW/USD 모두 부족 — 환전 불가. 관리자 수동 개입이 필요합니다.")
         setResultType("warning")
@@ -224,6 +225,7 @@ function RebalanceCard({ onDone, onHoverChange }: { onDone: () => void; onHoverC
         setResultType("info")
         toast.info("리밸런싱 불필요")
       }
+      onDone()
     } catch (e) {
       const err = e as ApiError
       if (err?.code === "REBALANCE_IN_PROGRESS") {
@@ -377,6 +379,7 @@ export default function AdminPage() {
   }, [fetchDashboard, fetchHistory])
 
   const buyPool = dashboard?.pools.find((p) => p.recommendedAction?.type === "BUY")
+  const bothBelowFloor = dashboard?.pools.every((p) => p.status === "BELOW_FLOOR") ?? false
 
   return (
     <AdminShell title="유동성 풀 현황" active="/admin">
@@ -393,13 +396,14 @@ export default function AdminPage() {
                 <PoolCard
                   key={p.currencyCode}
                   pool={p}
-                  isSellSource={buyPool !== undefined && p.currencyCode !== buyPool.currencyCode}
+                  isSellSource={!bothBelowFloor && buyPool !== undefined && p.currencyCode !== buyPool.currencyCode}
                   showRecommended={rebalanceHover}
                   sellAmount={
-                    buyPool !== undefined && p.currencyCode !== buyPool.currencyCode
+                    !bothBelowFloor && buyPool !== undefined && p.currencyCode !== buyPool.currencyCode
                       ? (buyPool.recommendedAction?.counterAmount ?? null)
                       : null
                   }
+                  bothBelowFloor={bothBelowFloor && p.status === "BELOW_FLOOR"}
                 />
               ))}
             </div>
