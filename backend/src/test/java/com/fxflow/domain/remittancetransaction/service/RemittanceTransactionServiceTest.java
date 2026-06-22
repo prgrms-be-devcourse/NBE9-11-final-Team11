@@ -928,6 +928,33 @@ class RemittanceTransactionServiceTest {
     }
 
     @Test
+    @DisplayName("성공: 삭제된 수취인도 과거 송금 내역에서는 조회된다")
+    void getTransfer_success_deletedRecipientForHistory() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        Recipient recipient = createRecipient(userId);
+        recipient.delete(LocalDateTime.now(ZoneId.of("Asia/Seoul")));
+
+        when(remittanceTransactionRepository.findByIdAndUserId(transferId, userId))
+                .thenReturn(Optional.of(remittanceTransaction));
+        when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
+                .thenReturn(Optional.of(recipient));
+        when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
+                .thenReturn(Optional.empty());
+
+        // when
+        RemittanceTransactionDetailResponse response =
+                remittanceTransactionService.getTransfer(userId, transferId);
+
+        // then
+        assertThat(response.transferId()).isEqualTo(transferId);
+        assertThat(response.recipient().name()).isEqualTo("John Doe");
+        assertThat(response.recipient().accountNumber()).isEqualTo("1234567890");
+    }
+
+    @Test
     @DisplayName("실패: 특정 송금 내역을 찾을 수 없으면 예외가 발생한다")
     void getTransfer_fail_notFound() {
         // given

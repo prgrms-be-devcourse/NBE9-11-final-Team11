@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeftRight, Check, ChevronRight, UserPlus } from "lucide-react"
+import { ArrowLeftRight, Check, ChevronRight, Trash2, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -12,6 +12,14 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   COUNTRIES,
   CURRENCY_META,
@@ -75,9 +83,11 @@ export default function RemittancePage() {
   const [loadingRecipients, setLoadingRecipients] = useState(true)
   const [loadingQuote, setLoadingQuote] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [deletingRecipient, setDeletingRecipient] = useState(false)
   const [quote, setQuote] = useState<QuoteResponse | null>(null)
 
   const [recipientId, setRecipientId] = useState("")
+  const [deleteTarget, setDeleteTarget] = useState<Recipient | null>(null)
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ name: "", country: COUNTRIES[0].name, bank: "", account: "" })
 
@@ -169,6 +179,31 @@ export default function RemittancePage() {
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || "수취인 등록에 실패했습니다.")
+    }
+  }
+
+  async function deleteRecipient() {
+    if (!deleteTarget) return
+
+    setDeletingRecipient(true)
+    try {
+      await apiRequest("DELETE", `/api/v1/recipients/${deleteTarget.id}`)
+      setRecipients((prev) => {
+        const nextRecipients = prev.filter((item) => item.id !== deleteTarget.id)
+        if (recipientId === deleteTarget.id) {
+          setRecipientId(nextRecipients[0]?.id ?? "")
+          setQuote(null)
+          setAdding(nextRecipients.length === 0)
+        }
+        return nextRecipients
+      })
+      setDeleteTarget(null)
+      toast.success("수취인이 삭제되었습니다.")
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "수취인 삭제에 실패했습니다.")
+    } finally {
+      setDeletingRecipient(false)
     }
   }
 
@@ -273,24 +308,39 @@ export default function RemittancePage() {
             {!loadingRecipients && !adding && recipients.length > 0 && (
               <div className="mt-4 space-y-2">
                 {recipients.map((r) => (
-                  <button
+                  <div
                     key={r.id}
-                    onClick={() => setRecipientId(r.id)}
                     className={cn(
-                      "flex w-full items-center justify-between rounded-2xl border p-4 text-left transition-all",
+                      "flex w-full items-center gap-2 rounded-2xl border p-2 transition-all",
                       recipientId === r.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40",
                     )}
                   >
-                    <div>
-                      <p className="font-semibold">{r.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {r.country} · {r.bank} · {r.account}
-                      </p>
-                    </div>
-                    <span className="text-lg" aria-hidden>
-                      {CURRENCY_META[r.currency].flag}
-                    </span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setRecipientId(r.id)}
+                      className="flex min-w-0 flex-1 items-center justify-between rounded-xl px-2 py-2 text-left"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{r.name}</p>
+                        <p className="truncate text-sm text-muted-foreground">
+                          {r.country} · {r.bank} · {r.account}
+                        </p>
+                      </div>
+                      <span className="ml-3 shrink-0 text-lg" aria-hidden>
+                        {CURRENCY_META[r.currency].flag}
+                      </span>
+                    </button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteTarget(r)}
+                      aria-label={`${r.name} 수취인 삭제`}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 ))}
                 <Button variant="outline" className="w-full" onClick={() => setAdding(true)}>
                   <UserPlus className="size-4" /> 새 수취인 추가
@@ -478,6 +528,24 @@ export default function RemittancePage() {
           )}
         </div>
       </div>
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !deletingRecipient && !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>수취인 삭제</DialogTitle>
+            <DialogDescription>
+              {deleteTarget?.name} 수취인을 삭제합니다. 삭제 후에도 기존 송금 내역에서는 해당 수취인 정보가 유지됩니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deletingRecipient}>
+              취소
+            </Button>
+            <Button variant="destructive" onClick={deleteRecipient} disabled={deletingRecipient}>
+              {deletingRecipient ? "삭제 중..." : "삭제"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   )
 }
