@@ -96,8 +96,6 @@ public class WalletService {
 
     @Transactional
     public TransactionResponse charge(Long userId, ChargeRequest request) {
-        Long bankAccountId = request.bankAccountId();
-
         BigDecimal amount = request.amount();
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
@@ -118,7 +116,7 @@ public class WalletService {
         String journalId = LedgerEntry.generateJournalId();
 
         // mock bank account debit
-        mockBankAccountService.withdraw(userId, journalId, bankAccountId, amount, "KRW");
+        mockBankAccountService.withdraw(userId, journalId, amount, "KRW");
 
         // wallet credit
         wallet.deposit(amount);
@@ -149,7 +147,6 @@ public class WalletService {
 
     @Transactional
     public TransactionResponse withdraw(Long userId, WithdrawRequest request) {
-        Long bankAccountId = request.bankAccountId();
 
         BigDecimal amount = request.amount();
         if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(WalletPolicy.MAX_KRW_BALANCE) > 0) {
@@ -173,7 +170,7 @@ public class WalletService {
         String journalId = LedgerEntry.generateJournalId();
 
         // mock bank account credit
-        mockBankAccountService.deposit(userId, journalId, bankAccountId, amount, "KRW");
+        mockBankAccountService.deposit(userId, journalId, amount, "KRW");
 
         // wallet credit
         wallet.withdraw(amount);

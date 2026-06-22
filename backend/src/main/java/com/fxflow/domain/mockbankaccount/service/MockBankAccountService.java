@@ -41,7 +41,7 @@ public class MockBankAccountService {
     private static final int ACCOUNT_NUMBER_DIGIT_LENGTH = 12;
 
     @Transactional
-    public void withdraw(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
+    public void withdraw(Long userId, String journalId, BigDecimal amount, String currencyCode) {
         MockBankAccount bankAccount = mockBankAccountRepository.findByUserIdAndCurrencyCode(userId, currencyCode)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
@@ -70,7 +70,7 @@ public class MockBankAccountService {
     }
 
     @Transactional
-    public void deposit(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
+    public void deposit(Long userId, String journalId, BigDecimal amount, String currencyCode) {
         MockBankAccount bankAccount = mockBankAccountRepository.findByUserIdAndCurrencyCode(userId, currencyCode)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
