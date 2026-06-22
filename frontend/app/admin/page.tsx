@@ -122,7 +122,7 @@ function PoolCard({ pool, isSellSource, showRecommended, sellAmount, bothBelowFl
           <ArrowDownRight className="size-3.5" />
           리밸런싱 재원
           {sellAmount != null && (
-            <span> — {formatCurrency(pool.currencyCode, sellAmount)} 매도 예정</span>
+            <span> — <span className="font-medium text-accent">{formatCurrency(pool.currencyCode, sellAmount)}</span> 매도 예정</span>
           )}
         </p>
       ) : null}
