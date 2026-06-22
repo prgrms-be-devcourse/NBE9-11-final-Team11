@@ -2,6 +2,8 @@ package com.fxflow.domain.reservation.entity;
 
 import com.fxflow.domain.reservation.enums.ReservationAction;
 import com.fxflow.domain.reservation.enums.ReservationStatus;
+import com.fxflow.domain.reservation.enums.ReservationType;
+import com.fxflow.domain.remittancetransaction.enums.RemittanceReason;
 import com.fxflow.global.exception.BusinessException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,7 @@ class ReservationTest {
 
         assertThat(r.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
         assertThat(r.getAction()).isEqualTo(ReservationAction.EXCHANGE);
+        assertThat(r.getType()).isEqualTo(ReservationType.TARGET_RATE);
         assertThat(r.getRecipientId()).isNull();
     }
 
@@ -32,12 +35,23 @@ class ReservationTest {
     @DisplayName("예약 송금은 recipientId가 있어야 생성된다")
     void createRemittance_requiresRecipient() {
         assertThatThrownBy(() ->
-                Reservation.createRemittance(1L, "KRW", "USD", AMOUNT, TARGET, EXPIRES, null, "key-2"))
+                Reservation.createRemittance(1L, "KRW", "USD", AMOUNT, TARGET, EXPIRES,
+                        null, null, null, "key-2"))
                 .isInstanceOf(BusinessException.class);
 
-        Reservation r = Reservation.createRemittance(1L, "KRW", "USD", AMOUNT, TARGET, EXPIRES, 99L, "key-3");
+        Reservation r = Reservation.createRemittance(1L, "KRW", "USD", AMOUNT, TARGET, EXPIRES,
+                99L, RemittanceReason.TUITION, null, "key-3");
         assertThat(r.getRecipientId()).isEqualTo(99L);
         assertThat(r.getAction()).isEqualTo(ReservationAction.REMITTANCE);
+    }
+
+    @Test
+    @DisplayName("예약 송금은 remittanceReason이 있어야 생성된다")
+    void createRemittance_requiresReason() {
+        assertThatThrownBy(() ->
+                Reservation.createRemittance(1L, "KRW", "USD", AMOUNT, TARGET, EXPIRES,
+                        99L, null, null, "key-r1"))
+                .isInstanceOf(BusinessException.class);
     }
 
     @Test
@@ -63,13 +77,17 @@ class ReservationTest {
     @DisplayName("정상 상태 전이: ACTIVE → TRIGGERED → COMPLETED")
     void transition_triggerThenComplete() {
         Reservation r = Reservation.createExchange(1L, "KRW", "USD", AMOUNT, TARGET, EXPIRES, "key-4");
+        LocalDateTime triggeredAt = LocalDateTime.of(2026, 1, 1, 10, 0);
+        LocalDateTime executedAt = LocalDateTime.of(2026, 1, 1, 10, 1);
 
-        r.markTriggered();
+        r.markTriggered(triggeredAt);
         assertThat(r.getStatus()).isEqualTo(ReservationStatus.TRIGGERED);
+        assertThat(r.getTriggeredAt()).isEqualTo(triggeredAt);
 
-        r.markCompletedAsExchange(500L);
+        r.markCompletedAsExchange(500L, executedAt);
         assertThat(r.getStatus()).isEqualTo(ReservationStatus.COMPLETED);
         assertThat(r.getResultExchangeTransactionId()).isEqualTo(500L);
+        assertThat(r.getExecutedAt()).isEqualTo(executedAt);
     }
 
     @Test
@@ -90,6 +108,16 @@ class ReservationTest {
         r.fail("잔액 부족");
         assertThat(r.getStatus()).isEqualTo(ReservationStatus.FAILED);
         assertThat(r.getFailureReason()).isEqualTo("잔액 부족");
+    }
+
+    @Test
+    @DisplayName("결과 거래 ID가 없으면 완료 상태로 전이하지 않는다")
+    void markCompleted_requiresResultId() {
+        Reservation r = Reservation.createExchange(1L, "KRW", "USD", AMOUNT, TARGET, EXPIRES, "key-9");
+        r.markTriggered();
+
+        assertThatThrownBy(() -> r.markCompletedAsExchange(null))
+                .isInstanceOf(BusinessException.class);
     }
 
     @Test
