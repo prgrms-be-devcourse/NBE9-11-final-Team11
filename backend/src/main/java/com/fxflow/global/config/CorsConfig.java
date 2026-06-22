@@ -24,7 +24,9 @@ public class CorsConfig implements WebMvcConfigurer {
 
         configuration.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
-                "https://*.vercel.app"
+                "https://*.vercel.app",
+                "https://www.fxflow.xyz",
+                "https://fxflow.xyz"
         ));
         configuration.setAllowedMethods(List.of(
                 "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
@@ -46,7 +48,9 @@ public class CorsConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
                 .allowedOriginPatterns(
                         "http://localhost:*",
-                        "https://*.vercel.app"
+                        "https://*.vercel.app",
+                        "https://www.fxflow.xyz",
+                        "https://fxflow.xyz"
                 )
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
