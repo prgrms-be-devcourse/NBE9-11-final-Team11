@@ -33,7 +33,9 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -77,18 +79,20 @@ class MockBankAccountInquiryTest {
             Pageable pageable = PageRequest.of(0, 20);
             Page<RemittanceTransaction> txPage = new PageImpl<>(List.of(tx1, tx2), pageable, 2);
 
+            User sender1 = User.create("sender1@fxflow.app", "encoded", "김철수");
+            User sender2 = User.create("sender2@fxflow.app", "encoded", "이영희");
+            ReflectionTestUtils.setField(sender1, "id", 1L);
+            ReflectionTestUtils.setField(sender2, "id", 2L);
+
             given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
                     ACCOUNT_NUMBER, BANK_NAME, NAME, USD
             )).willReturn(Optional.of(account));
             given(remittanceTransactionRepository.findByRecipientAccountNumberAndStatus(
                     ACCOUNT_NUMBER, TransferStatus.COMPLETED, pageable
             )).willReturn(txPage);
-            given(userRepository.findById(1L)).willReturn(Optional.of(
-                    User.create("sender1@fxflow.app", "encoded", "김철수")
-            ));
-            given(userRepository.findById(2L)).willReturn(Optional.of(
-                    User.create("sender2@fxflow.app", "encoded", "이영희")
-            ));
+            // N+1 개선: findAllById로 한 번에 조회
+            given(userRepository.findAllById(List.of(1L, 2L)))
+                    .willReturn(List.of(sender1, sender2));
 
             // when
             UsdMockAccountInquiryResponse response =
@@ -101,9 +105,10 @@ class MockBankAccountInquiryTest {
             assertThat(response.remittanceReceipts().totalElements()).isEqualTo(2);
             assertThat(response.remittanceReceipts().currentPage()).isZero();
 
-            verify(mockBankAccountRepository).findByAccountNumberAndBankNameAndNameAndCurrencyCode(
-                    ACCOUNT_NUMBER, BANK_NAME, NAME, USD
-            );
+            // findById가 아닌 findAllById 한 번만 호출됐는지 검증
+            verify(userRepository).findAllById(List.of(1L, 2L));
+            verify(userRepository, never()).findById(1L);
+            verify(userRepository, never()).findById(2L);
         }
 
         @Test
@@ -147,15 +152,17 @@ class MockBankAccountInquiryTest {
             Pageable pageable = PageRequest.of(1, 1);
             Page<RemittanceTransaction> txPage = new PageImpl<>(List.of(tx), pageable, 2);
 
+            User sender = User.create("sender3@fxflow.app", "encoded", "박민준");
+            ReflectionTestUtils.setField(sender, "id", 3L);
+
             given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
                     ACCOUNT_NUMBER, BANK_NAME, NAME, USD
             )).willReturn(Optional.of(account));
             given(remittanceTransactionRepository.findByRecipientAccountNumberAndStatus(
                     ACCOUNT_NUMBER, TransferStatus.COMPLETED, pageable
             )).willReturn(txPage);
-            given(userRepository.findById(3L)).willReturn(Optional.of(
-                    User.create("sender3@fxflow.app", "encoded", "박민준")
-            ));
+            given(userRepository.findAllById(List.of(3L)))
+                    .willReturn(List.of(sender));
 
             // when
             UsdMockAccountInquiryResponse response =
@@ -166,6 +173,47 @@ class MockBankAccountInquiryTest {
             assertThat(response.remittanceReceipts().totalPages()).isEqualTo(2);
             assertThat(response.remittanceReceipts().content()).hasSize(1);
             assertThat(response.remittanceReceipts().content().get(0).senderName()).isEqualTo("박민준");
+        }
+
+        @Test
+        @DisplayName("같은 송금인이 여러 번 보낸 경우 유저 조회를 1번만 한다 (distinct 검증)")
+        void inquire_success_distinctUserQuery() {
+            // given
+            UsdMockAccountInquiryRequest request = new UsdMockAccountInquiryRequest(
+                    BANK_NAME, ACCOUNT_NUMBER, NAME
+            );
+            MockBankAccount account = createMockBankAccount(new BigDecimal("2000.00"));
+            // 같은 userId(1L)로 3번 송금
+            RemittanceTransaction tx1 = createCompletedTransaction(1L, "500000.00", "370.00");
+            RemittanceTransaction tx2 = createCompletedTransaction(1L, "500000.00", "370.00");
+            RemittanceTransaction tx3 = createCompletedTransaction(1L, "500000.00", "370.00");
+
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<RemittanceTransaction> txPage = new PageImpl<>(List.of(tx1, tx2, tx3), pageable, 3);
+
+            User sender = User.create("sender1@fxflow.app", "encoded", "김철수");
+            ReflectionTestUtils.setField(sender, "id", 1L);
+
+            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+                    ACCOUNT_NUMBER, BANK_NAME, NAME, USD
+            )).willReturn(Optional.of(account));
+            given(remittanceTransactionRepository.findByRecipientAccountNumberAndStatus(
+                    ACCOUNT_NUMBER, TransferStatus.COMPLETED, pageable
+            )).willReturn(txPage);
+            // distinct로 중복 제거 → userId 1L 하나만 조회
+            given(userRepository.findAllById(List.of(1L)))
+                    .willReturn(List.of(sender));
+
+            // when
+            UsdMockAccountInquiryResponse response =
+                    mockBankAccountService.inquireUsdMockAccount(request, pageable);
+
+            // then
+            assertThat(response.remittanceReceipts().content()).hasSize(3);
+            assertThat(response.remittanceReceipts().content())
+                    .allMatch(r -> r.senderName().equals("김철수"));
+            // 3건이지만 유저 조회는 1번만 (distinct 효과)
+            verify(userRepository).findAllById(List.of(1L));
         }
 
         @Test
@@ -187,7 +235,9 @@ class MockBankAccountInquiryTest {
             given(remittanceTransactionRepository.findByRecipientAccountNumberAndStatus(
                     ACCOUNT_NUMBER, TransferStatus.COMPLETED, pageable
             )).willReturn(txPage);
-            given(userRepository.findById(99L)).willReturn(Optional.empty());
+            // userId=99 유저가 없는 경우 → 빈 리스트 반환
+            given(userRepository.findAllById(List.of(99L)))
+                    .willReturn(List.of());
 
             // when
             UsdMockAccountInquiryResponse response =
@@ -211,15 +261,17 @@ class MockBankAccountInquiryTest {
             Pageable pageable = PageRequest.of(0, 20);
             Page<RemittanceTransaction> txPage = new PageImpl<>(List.of(tx), pageable, 1);
 
+            User sender = User.create("sender@fxflow.app", "encoded", "홍길동");
+            ReflectionTestUtils.setField(sender, "id", 1L);
+
             given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
                     ACCOUNT_NUMBER, BANK_NAME, NAME, USD
             )).willReturn(Optional.of(account));
             given(remittanceTransactionRepository.findByRecipientAccountNumberAndStatus(
                     ACCOUNT_NUMBER, TransferStatus.COMPLETED, pageable
             )).willReturn(txPage);
-            given(userRepository.findById(1L)).willReturn(Optional.of(
-                    User.create("sender@fxflow.app", "encoded", "홍길동")
-            ));
+            given(userRepository.findAllById(List.of(1L)))
+                    .willReturn(List.of(sender));
 
             // when
             UsdMockAccountInquiryResponse response =
@@ -339,7 +391,7 @@ class MockBankAccountInquiryTest {
                 new BigDecimal(receiveAmount),
                 RemittanceReason.LIVING_EXPENSES.name(),
                 null,
-                "idempotency-key-" + userId
+                "idempotency-key-" + userId + "-" + System.nanoTime()
         );
         ReflectionTestUtils.setField(tx, "id", userId);
         tx.fund(10L);
