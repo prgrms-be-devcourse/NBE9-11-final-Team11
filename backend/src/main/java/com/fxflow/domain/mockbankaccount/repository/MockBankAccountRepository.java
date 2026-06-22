@@ -67,5 +67,11 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
             """)
     Optional<MockBankAccount> findByIdAndDeletedAtIsNullForUpdate(@Param("id") Long id);
 
-    Long user(User user);
+    Optional<MockBankAccount> findByAccountNumberAndBankNameAndUserIdAndCurrencyCode(
+            String accountNumber,
+            String bankName,
+            Long userId,
+            String currencyCode
+    );
+
 }

@@ -5,20 +5,25 @@ import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.mockbankaccount.dto.request.UsdMockAccountInquiryRequest;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankAccountCheckResponse;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankAccountResponse;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankLinkResponse;
+import com.fxflow.domain.mockbankaccount.dto.response.UsdMockAccountInquiryResponse;
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
 import com.fxflow.domain.mockbankaccount.repository.MockBankAccountRepository;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.errorcode.UserErrorCode;
 import com.fxflow.domain.user.repository.UserRepository;
+import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,6 +73,30 @@ public class MockBankAccountService {
         ledgerEntryRepository.save(entry);
         mockBankAccountRepository.save(bankAccount);
     }
+
+
+    @Transactional(readOnly = true)
+    public UsdMockAccountInquiryResponse inquireUsdMockAccount(UsdMockAccountInquiryRequest request, Pageable pageable) {
+        // 1. 유저 정보 검증
+        User user = userRepository.findByNameAndEmail(request.name(), request.email())
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        // 2. 모의계좌 검증 및 조회 (계좌번호 + 은행명 + 유저 소유 + USD 통화 확인)
+        MockBankAccount mockAccount = mockBankAccountRepository.findByAccountNumberAndBankNameAndUserIdAndCurrencyCode(
+                request.accountNumber(),
+                request.bankName(),
+                user.getId(),
+                "USD"
+        ).orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+
+        // 3. 모의계좌의 거래 내역 조회
+        Page<LedgerEntry> entries = ledgerEntryRepository.findByMockBankAccountId(mockAccount.getId(), pageable);
+        TransactionHistoryResponse historyResponse = TransactionHistoryResponse.from(entries);
+
+        // 4. 최종 결과 반환
+        return new UsdMockAccountInquiryResponse(mockAccount.getBalance(), mockAccount.getCurrencyCode(), historyResponse);
+    }
+
 
     @Transactional
     public void deposit(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
@@ -300,6 +329,7 @@ public class MockBankAccountService {
 
         return depositToMockAccount(journalId, bankAccount, amount, currencyCode, refId);
     }
+
 
     /**
      * 해외송금 지급 및 환불에서 공통으로 사용하는 모의계좌 입금 처리 메서드다.
