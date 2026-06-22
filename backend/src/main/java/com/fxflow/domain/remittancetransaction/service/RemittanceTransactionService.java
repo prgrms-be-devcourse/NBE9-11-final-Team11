@@ -33,6 +33,9 @@ import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.ExchangeRateProvider;
 import com.fxflow.global.fx.FxRateSnapshot;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -75,6 +78,7 @@ public class RemittanceTransactionService {
     private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("3000.00000000");
     private static final BigDecimal PERCENT_FEE_RATE = new BigDecimal("0.005");
     private static final long QUOTE_EXPIRATION_MINUTES = 5L;
+    private static final long VIRTUAL_ACCOUNT_EXPIRATION_MINUTES = 10L;
     private static final String REMITTANCE_QUOTE_KEY_PREFIX = "remittance:quote:";
 
     private final ExchangeRateProvider exchangeRateProvider;
@@ -104,14 +108,19 @@ public class RemittanceTransactionService {
     /**
      * 로그인한 사용자의 해외송금 내역 목록을 최신순으로 조회한다.
      */
-    public List<RemittanceTransactionSummaryResponse> getTransfers(Long userId) {
-        return remittanceTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId)
-                .stream()
+    public RemittanceTransactionPageResponse getTransfers(Long userId, int page, int size) {
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<RemittanceTransaction> remittanceTransactions =
+                remittanceTransactionRepository.findByUserId(userId, pageRequest);
+
+        List<RemittanceTransactionSummaryResponse> data = remittanceTransactions
                 .map(remittanceTransaction -> RemittanceTransactionSummaryResponse.from(
                         remittanceTransaction,
                         getRecipientForHistory(remittanceTransaction.getRecipientId())
                 ))
                 .toList();
+
+        return RemittanceTransactionPageResponse.from(remittanceTransactions, data);
     }
 
     /**
@@ -274,6 +283,30 @@ public class RemittanceTransactionService {
         return RemittanceMockFundedResponse.of(remittanceTransaction, virtualAccount);
     }
 
+    /**
+     * 사용자가 입금 대기 중인 송금 주문을 취소한다.
+     */
+    @Transactional
+    public RemittanceCancelResponse cancelTransfer(Long userId, Long transferId) {
+        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findById(transferId)
+                .orElseThrow(() -> new BusinessException(
+                        RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
+                ));
+
+        validateTransferOwner(userId, remittanceTransaction);
+        validateCancelableTransfer(remittanceTransaction);
+
+        VirtualAccount virtualAccount = getVirtualAccount(remittanceTransaction.getId());
+        validateIssuedVirtualAccount(virtualAccount);
+
+        int reservedYear = getReservedAnnualLimitYear(remittanceTransaction);
+        releaseReservedAnnualLimit(userId, remittanceTransaction.getAmountUsd(), reservedYear);
+        remittanceTransaction.cancel();
+        virtualAccount.cancel();
+
+        return RemittanceCancelResponse.of(remittanceTransaction, virtualAccount);
+    }
+
     private void validateIdempotencyKey(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new BusinessException(RemittanceTransactionErrorCode.IDEMPOTENCY_KEY_REQUIRED);
@@ -317,6 +350,26 @@ public class RemittanceTransactionService {
         }
 
         usage.addUsage(amountUsd);
+    }
+
+    /**
+     * 송금 취소 시 주문 생성 단계에서 선점했던 연간 송금 한도를 복구한다.
+     */
+    private void releaseReservedAnnualLimit(Long userId, BigDecimal amountUsd, int year) {
+        userAnnualUsageRepository
+                .findByUserIdAndYearForUpdate(userId, year)
+                .ifPresent(usage -> usage.subtractUsage(amountUsd));
+    }
+
+    /**
+     * 한도 선점은 송금 주문 생성 연도 기준이므로 취소 시에도 같은 연도 사용량을 복구한다.
+     */
+    private int getReservedAnnualLimitYear(RemittanceTransaction remittanceTransaction) {
+        if (remittanceTransaction.getCreatedAt() == null) {
+            return LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+        }
+
+        return remittanceTransaction.getCreatedAt().getYear();
     }
 
     /**
@@ -379,6 +432,15 @@ public class RemittanceTransactionService {
     }
 
     /**
+     * 가상계좌 입금 전 상태의 송금만 사용자가 취소할 수 있다.
+     */
+    private void validateCancelableTransfer(RemittanceTransaction remittanceTransaction) {
+        if (remittanceTransaction.getStatus() != TransferStatus.PENDING) {
+            throw new BusinessException(RemittanceTransactionErrorCode.REMITTANCE_CANCEL_NOT_ALLOWED);
+        }
+    }
+
+    /**
      * 발급 완료 상태의 가상계좌만 입금 확인을 허용한다.
      */
     private void validateIssuedVirtualAccount(VirtualAccount virtualAccount) {
@@ -405,7 +467,7 @@ public class RemittanceTransactionService {
             BigDecimal expectedAmount
     ) {
         LocalDateTime issuedAt = LocalDateTime.now();
-        LocalDateTime expiredAt = issuedAt.plusHours(1);
+        LocalDateTime expiredAt = issuedAt.plusMinutes(VIRTUAL_ACCOUNT_EXPIRATION_MINUTES);
 
         return VirtualAccount.create(
                 userId,

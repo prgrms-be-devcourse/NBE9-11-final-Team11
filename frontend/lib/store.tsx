@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import type { CurrencyCode } from "./fx-data"
 
 export type TxType = "deposit" | "withdraw" | "exchange" | "transfer" | "remittance"
-export type TxStatus = "completed" | "processing" | "failed" | "refunded"
+export type TxStatus = "completed" | "processing" | "failed" | "refunded" | "canceled"
 
 export interface Transaction {
   id: string
