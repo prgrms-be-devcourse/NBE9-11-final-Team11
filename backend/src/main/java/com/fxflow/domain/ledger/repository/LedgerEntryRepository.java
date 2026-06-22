@@ -28,5 +28,4 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
             Pageable pageable
     );
 
-    Page<LedgerEntry> findByMockBankAccountId(Long mockBankAccountId, Pageable pageable);
 }

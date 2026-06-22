@@ -2,6 +2,8 @@ package com.fxflow.domain.remittancetransaction.repository;
 
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -30,4 +32,11 @@ public interface RemittanceTransactionRepository extends JpaRepository<Remittanc
      * 특정 유저의 진행중인 거래가 있는지 조회한다.
      */
     boolean existsByUserIdAndStatusIn(Long userId, List<TransferStatus> statuses);
+
+    // 수취인 계좌번호와 상태로 완료된 송금 내역 조회 쿼리 추가
+    Page<RemittanceTransaction> findByRecipientAccountNumberAndStatus(
+            String accountNumber,
+            TransferStatus status,
+            Pageable pageable
+    );
 }
