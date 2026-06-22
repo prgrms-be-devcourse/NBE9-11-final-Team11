@@ -66,6 +66,10 @@ function PoolCard({ pool, isSellSource, showRecommended, sellAmount, bothBelowFl
     ? Math.min((action.amount / ref) * 100, 100 - balancePct)
     : 0
 
+  // 매도 재원 풀: hover 시 팔릴 부분(연한) / 남을 부분(진한) 분리
+  const sellPct = sellAmount != null ? Math.min((sellAmount / ref) * 100, balancePct) : 0
+  const afterSellPct = balancePct - sellPct
+
   const afterBalance = action
     ? action.type === "BUY"
       ? pool.balance + action.amount
@@ -129,11 +133,21 @@ function PoolCard({ pool, isSellSource, showRecommended, sellAmount, bothBelowFl
         <div className="relative py-1.5">
           {/* 얇은 바 */}
           <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
-            {/* 현재 보유 (진한) */}
+            {/* 현재 보유 (진한) — 매도 재원 hover 시 남을 부분만 진하게 */}
             <div
               className="absolute inset-y-0 left-0 rounded-l-full"
-              style={{ width: `${balancePct}%`, background: color }}
+              style={{
+                width: `${showRecommended && isSellSource && sellPct > 0 ? afterSellPct : balancePct}%`,
+                background: color,
+              }}
             />
+            {/* 매도 재원 hover: 팔릴 부분 연한색 */}
+            {showRecommended && isSellSource && sellPct > 0 && (
+              <div
+                className="absolute inset-y-0"
+                style={{ left: `${afterSellPct}%`, width: `${sellPct}%`, background: color, opacity: 0.3 }}
+              />
+            )}
             {/* BUY 권장 (연한, 오른쪽 연장) — 버튼 hover 시에만 표시 */}
             {showRecommended && action?.type === "BUY" && actionPct > 0 && (
               <div
