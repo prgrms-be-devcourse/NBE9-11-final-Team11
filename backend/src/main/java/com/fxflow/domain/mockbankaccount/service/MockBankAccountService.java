@@ -337,4 +337,9 @@ public class MockBankAccountService {
 
         return bankAccount.getId();
     }
+
+    public MockBankAccount getMockAccount(Long userId, String currencyCode) {
+        return mockBankAccountRepository.findFirstByUser_IdAndCurrencyCodeAndDeletedAtIsNull(userId, currencyCode)
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+    }
 }

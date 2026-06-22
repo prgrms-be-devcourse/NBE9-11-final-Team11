@@ -6,6 +6,7 @@ import com.fxflow.domain.ledger.entity.LedgerEntry;
 import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
 import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
 import com.fxflow.domain.user.entity.User;
@@ -96,8 +97,6 @@ public class WalletService {
 
     @Transactional
     public TransactionResponse charge(Long userId, ChargeRequest request) {
-        Long bankAccountId = request.bankAccountId();
-
         BigDecimal amount = request.amount();
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
@@ -118,7 +117,8 @@ public class WalletService {
         String journalId = LedgerEntry.generateJournalId();
 
         // mock bank account debit
-        mockBankAccountService.withdraw(userId, journalId, bankAccountId, amount, "KRW");
+        MockBankAccount bankAccount = mockBankAccountService.getMockAccount(userId, "KRW");
+        mockBankAccountService.withdraw(userId, journalId, bankAccount.getId() , amount, "KRW");
 
         // wallet credit
         wallet.deposit(amount);
@@ -149,8 +149,6 @@ public class WalletService {
 
     @Transactional
     public TransactionResponse withdraw(Long userId, WithdrawRequest request) {
-        Long bankAccountId = request.bankAccountId();
-
         BigDecimal amount = request.amount();
         if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(WalletPolicy.MAX_KRW_BALANCE) > 0) {
             throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
@@ -173,7 +171,8 @@ public class WalletService {
         String journalId = LedgerEntry.generateJournalId();
 
         // mock bank account credit
-        mockBankAccountService.deposit(userId, journalId, bankAccountId, amount, "KRW");
+        MockBankAccount bankAccount = mockBankAccountService.getMockAccount(userId, "KRW");
+        mockBankAccountService.deposit(userId, journalId, bankAccount.getId(), amount, "KRW");
 
         // wallet credit
         wallet.withdraw(amount);

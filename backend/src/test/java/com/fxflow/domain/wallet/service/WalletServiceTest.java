@@ -8,6 +8,7 @@ import com.fxflow.domain.ledger.entity.LedgerEntry;
 import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
 import com.fxflow.domain.transactionlimit.errorcode.TransactionLimitErrorCode;
@@ -73,6 +74,7 @@ class WalletServiceTest {
     private UserDailyUsageService userDailyUsageService;
     @Mock
     private TransactionLimitValidator transactionLimitValidator;
+
 
     @InjectMocks
     private WalletService walletService;
@@ -255,8 +257,15 @@ class WalletServiceTest {
     void charge_success() {
         // given
         Long userId = 1L;
-        ChargeRequest request = new ChargeRequest(10L, new BigDecimal("5000"));
+        ChargeRequest request = new ChargeRequest(new BigDecimal("5000"));
         when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+
+        MockBankAccount mockAccount = mock(MockBankAccount.class);
+        when(mockAccount.getId())
+                .thenReturn(10L);
+        when(mockBankAccountService.getMockAccount(userId, "KRW"))
+                .thenReturn(mockAccount);
+
         when(companyPoolService.deposit(anyString(), eq("KRW"), any(BigDecimal.class))).thenReturn(mock(CompanyPool.class));
         User mockUser = mock(User.class);
         when(userService.getUser(userId)).thenReturn(mockUser);
@@ -302,7 +311,7 @@ class WalletServiceTest {
         Long userId = 1L;
 
         ChargeRequest request = new ChargeRequest(
-                10L,
+
                 BigDecimal.ZERO
         );
 
@@ -340,7 +349,7 @@ class WalletServiceTest {
         when(walletRepository.findByUserIdAndCurrencyCode(userId, currency))
                 .thenReturn(Optional.of(wallet));
 
-        ChargeRequest request = new ChargeRequest(wallet.getId(), chargeAmount);
+        ChargeRequest request = new ChargeRequest(chargeAmount);
 
         willThrow(new BusinessException(TransactionLimitErrorCode.WALLET_HOLDING_LIMIT_EXCEEDED))
                 .given(transactionLimitValidator)
@@ -363,22 +372,35 @@ class WalletServiceTest {
         // given
         Long userId = 1L;
         Long otherUsersBankAccountId = 99L;
-        ChargeRequest request = new ChargeRequest(otherUsersBankAccountId, new BigDecimal("5000"));
 
-        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet)); // add this
+        ChargeRequest request = new ChargeRequest(new BigDecimal("5000"));
 
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW"))
+                .thenReturn(Optional.of(krwWallet));
+
+        // mock bank account returned from service
+        MockBankAccount mockAccount = mock(MockBankAccount.class);
+
+        when(mockAccount.getId())
+                .thenReturn(otherUsersBankAccountId);
+
+        when(mockBankAccountService.getMockAccount(userId, "KRW"))
+                .thenReturn(mockAccount);
+
+        // when charge tries to withdraw -> throw because account doesn't belong to user
         doThrow(new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND))
                 .when(mockBankAccountService)
                 .withdraw(
                         eq(userId),
                         anyString(),
                         eq(otherUsersBankAccountId),
-                        any(BigDecimal.class),
+                        eq(new BigDecimal("5000")),
                         eq("KRW")
                 );
 
         User mockUser = mock(User.class);
-        when(userService.getUser(userId)).thenReturn(mockUser);
+        when(userService.getUser(userId))
+                .thenReturn(mockUser);
 
         // when & then
         assertThatThrownBy(() ->
@@ -389,7 +411,8 @@ class WalletServiceTest {
 
         verify(walletRepository, never()).save(any());
         verify(ledgerEntryRepository, never()).save(any());
-        verify(companyPoolService, never()).deposit(anyString(), anyString(), any(BigDecimal.class));
+        verify(companyPoolService, never())
+                .deposit(anyString(), anyString(), any(BigDecimal.class));
     }
 
     // -- Withdraw --
@@ -400,6 +423,13 @@ class WalletServiceTest {
         Long userId = 1L;
         WithdrawRequest request = new WithdrawRequest(10L, new BigDecimal("5000"));
         when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+
+        MockBankAccount mockAccount = mock(MockBankAccount.class);
+        when(mockAccount.getId())
+                .thenReturn(10L);
+        when(mockBankAccountService.getMockAccount(userId, "KRW"))
+                .thenReturn(mockAccount);
+
         User mockUser = mock(User.class);
         when(userService.getUser(userId)).thenReturn(mockUser);
 
@@ -502,9 +532,20 @@ class WalletServiceTest {
         // given
         Long userId = 1L;
         Long otherUsersBankAccountId = 99L;
-        WithdrawRequest request = new WithdrawRequest(otherUsersBankAccountId, new BigDecimal("5000"));
 
-        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+        WithdrawRequest request =
+                new WithdrawRequest(otherUsersBankAccountId, new BigDecimal("5000"));
+
+        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW"))
+                .thenReturn(Optional.of(krwWallet));
+
+        MockBankAccount mockAccount = mock(MockBankAccount.class);
+
+        when(mockAccount.getId())
+                .thenReturn(otherUsersBankAccountId);
+
+        when(mockBankAccountService.getMockAccount(userId, "KRW"))
+                .thenReturn(mockAccount);
 
         doThrow(new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND))
                 .when(mockBankAccountService)
@@ -512,7 +553,7 @@ class WalletServiceTest {
                         eq(userId),
                         anyString(),
                         eq(otherUsersBankAccountId),
-                        any(BigDecimal.class),
+                        eq(new BigDecimal("5000")),
                         eq("KRW")
                 );
 
@@ -525,6 +566,7 @@ class WalletServiceTest {
 
         verify(walletRepository, never()).save(any());
         verify(ledgerEntryRepository, never()).save(any());
-        verify(companyPoolService, never()).withdraw(anyString(), anyString(), any(BigDecimal.class));
+        verify(companyPoolService, never())
+                .withdraw(anyString(), anyString(), any(BigDecimal.class));
     }
 }
