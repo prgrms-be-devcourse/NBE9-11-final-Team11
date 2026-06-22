@@ -36,7 +36,7 @@ interface UsdInquiryResponse {
   remittanceReceipts: PagedReceiptResponse
 }
 
-// ── 헬퍼 (프로젝트에 없는 것만 유지) ────────────────────────────
+// ── 헬퍼 ────────────────────────────────────────────────────────
 
 function formatUSD(amount: number) {
   return "$" + Number(amount).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -57,7 +57,6 @@ export default function UsdInquiryPage() {
   const [bankName, setBankName] = useState("")
   const [accountNumber, setAccountNumber] = useState("")
   const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
 
   const [result, setResult] = useState<UsdInquiryResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -67,7 +66,7 @@ export default function UsdInquiryPage() {
   const [pageLoading, setPageLoading] = useState(false)
   const PAGE_SIZE = 10
 
-  const [lastQuery, setLastQuery] = useState({ bankName: "", accountNumber: "", name: "", email: "" })
+  const [lastQuery, setLastQuery] = useState({ bankName: "", accountNumber: "", name: "" })
 
   async function fetchPage(targetPage: number, query = lastQuery) {
     const isInitial = targetPage === 0 && query !== lastQuery
@@ -78,7 +77,7 @@ export default function UsdInquiryPage() {
       const data = await apiRequest<UsdInquiryResponse>(
         "POST",
         `/api/v1/mockbank/inquiry/usd?page=${targetPage}&size=${PAGE_SIZE}`,
-        { bankName: query.bankName, accountNumber: query.accountNumber, name: query.name, email: query.email }
+        { bankName: query.bankName, accountNumber: query.accountNumber, name: query.name }
       )
       setResult(data)
       setPage(targetPage)
@@ -93,11 +92,11 @@ export default function UsdInquiryPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!bankName.trim() || !accountNumber.trim() || !name.trim() || !email.trim()) {
+    if (!bankName.trim() || !accountNumber.trim() || !name.trim()) {
       setError("모든 항목을 입력해주세요.")
       return
     }
-    const query = { bankName: bankName.trim(), accountNumber: accountNumber.trim(), name: name.trim(), email: email.trim() }
+    const query = { bankName: bankName.trim(), accountNumber: accountNumber.trim(), name: name.trim() }
     setLastQuery(query)
     setPage(0)
     setResult(null)
@@ -123,15 +122,11 @@ export default function UsdInquiryPage() {
         {/* 조회 폼 */}
         <Card className="p-5">
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">이름</Label>
+              <Input id="name" placeholder="홍길동" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="name">이름</Label>
-                <Input id="name" placeholder="홍길동" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">이메일</Label>
-                <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="bankName">은행명</Label>
                 <Input id="bankName" placeholder="Chase Bank" value={bankName} onChange={(e) => setBankName(e.target.value)} />
