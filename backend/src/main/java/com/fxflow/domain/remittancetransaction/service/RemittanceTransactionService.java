@@ -307,6 +307,44 @@ public class RemittanceTransactionService {
         return RemittanceCancelResponse.of(remittanceTransaction, virtualAccount);
     }
 
+    /**
+     * 입금 기한이 지난 가상계좌를 만료시키고 연결된 송금 주문을 취소 처리한다.
+     * 사용자가 돈을 입금하지 않은 주문이므로 환불은 발생하지 않고, 선점한 연간 한도만 복구한다.
+     */
+    @Transactional
+    public int expirePendingTransfers(LocalDateTime now) {
+        List<VirtualAccount> expiredVirtualAccounts = virtualAccountRepository
+                .findByStatusAndExpiredAtLessThanEqual(VirtualAccountStatus.ISSUED, now);
+
+        int expiredCount = 0;
+        for (VirtualAccount virtualAccount : expiredVirtualAccounts) {
+            boolean expired = expirePendingTransfer(virtualAccount);
+            if (expired) {
+                expiredCount++;
+            }
+        }
+
+        return expiredCount;
+    }
+
+    private boolean expirePendingTransfer(VirtualAccount virtualAccount) {
+        return remittanceTransactionRepository
+                .findById(virtualAccount.getRemittanceTransactionId())
+                .filter(remittanceTransaction -> remittanceTransaction.getStatus() == TransferStatus.PENDING)
+                .map(remittanceTransaction -> {
+                    int reservedYear = getReservedAnnualLimitYear(remittanceTransaction);
+                    releaseReservedAnnualLimit(
+                            remittanceTransaction.getUserId(),
+                            remittanceTransaction.getAmountUsd(),
+                            reservedYear
+                    );
+                    remittanceTransaction.cancel();
+                    virtualAccount.expire();
+                    return true;
+                })
+                .orElse(false);
+    }
+
     private void validateIdempotencyKey(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new BusinessException(RemittanceTransactionErrorCode.IDEMPOTENCY_KEY_REQUIRED);

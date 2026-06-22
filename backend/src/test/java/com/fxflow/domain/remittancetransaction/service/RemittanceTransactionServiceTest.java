@@ -768,6 +768,39 @@ class RemittanceTransactionServiceTest {
         verifyNoInteractions(userAnnualUsageRepository);
     }
 
+    @Test
+    @DisplayName("성공: 입금 기한이 지난 송금 주문을 자동 취소하고 선점한 한도를 복구한다")
+    void expirePendingTransfers_success() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        LocalDateTime now = LocalDateTime.now();
+        int reservedYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, now.minusMinutes(1));
+        UserAnnualUsage annualUsage = createAnnualUsage(
+                userId,
+                reservedYear,
+                new BigDecimal("1000.00")
+        );
+
+        when(virtualAccountRepository.findByStatusAndExpiredAtLessThanEqual(VirtualAccountStatus.ISSUED, now))
+                .thenReturn(List.of(virtualAccount));
+        when(remittanceTransactionRepository.findById(transferId))
+                .thenReturn(Optional.of(remittanceTransaction));
+        when(userAnnualUsageRepository.findByUserIdAndYearForUpdate(userId, reservedYear))
+                .thenReturn(Optional.of(annualUsage));
+
+        // when
+        int expiredCount = remittanceTransactionService.expirePendingTransfers(now);
+
+        // then
+        assertThat(expiredCount).isEqualTo(1);
+        assertThat(remittanceTransaction.getStatus()).isEqualTo(TransferStatus.CANCELED);
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountStatus.EXPIRED);
+        assertThat(annualUsage.getAnnualUsedUsd()).isEqualByComparingTo(new BigDecimal("263.48"));
+    }
+
     private RemittanceTransactionCreateRequest createRequest() {
         return new RemittanceTransactionCreateRequest(
                 "TQUOTE-001",

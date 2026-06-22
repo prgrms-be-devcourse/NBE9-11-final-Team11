@@ -2,9 +2,11 @@ package com.fxflow.domain.remittancetransaction.repository;
 
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -27,6 +29,12 @@ public interface RemittanceTransactionRepository extends JpaRepository<Remittanc
      * 특정 송금 거래가 로그인한 사용자의 거래인지 확인하며 조회한다.
      */
     Optional<RemittanceTransaction> findByIdAndUserId(Long id, Long userId);
+
+    /**
+     * 상태 변경 대상 송금 거래를 잠금 조회한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<RemittanceTransaction> findById(Long id);
 
     /**
      * 동일 Idempotency-Key 송금 주문을 조회한다.
