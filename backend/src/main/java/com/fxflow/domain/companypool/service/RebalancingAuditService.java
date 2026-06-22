@@ -25,7 +25,7 @@ public class RebalancingAuditService {
 
     // 메인 트랜잭션이 롤백돼도 기록은 독립적으로 커밋됨
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void saveRetryRequired(Long buyPoolId, Long sellPoolId,
+    public void saveFailed(Long buyPoolId, Long sellPoolId,
                                    BigDecimal buyAmount, BigDecimal sellAmount,
                                    BigDecimal buyBalanceBefore, BigDecimal sellBalanceBefore,
                                    BigDecimal midRate, BigDecimal appliedRate,
@@ -39,7 +39,7 @@ public class RebalancingAuditService {
                 buyPool, sellPool, buyAmount, sellAmount,
                 buyBalanceBefore, sellBalanceBefore,
                 midRate, appliedRate,
-                RebalancingStatus.RETRY_REQUIRED, cappedBy,
+                RebalancingStatus.FAILED, cappedBy,
                 triggerType, reason, idempotencyKey
         ));
     }

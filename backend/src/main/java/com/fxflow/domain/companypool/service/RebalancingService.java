@@ -111,8 +111,8 @@ public class RebalancingService {
         try {
             applyBalanceChanges(buyPool, sellPool, amounts);
         } catch (BusinessException e) {
-            // 잔액 변경 실패 → 메인 트랜잭션 롤백 전에 RETRY_REQUIRED 기록 저장 (별도 트랜잭션)
-            auditService.saveRetryRequired(
+            // 잔액 변경 실패 → 메인 트랜잭션 롤백 전에 FAILED 기록 저장 (별도 트랜잭션)
+            auditService.saveFailed(
                     buyPool.getId(), sellPool.getId(),
                     amounts.buyAmount(), amounts.sellAmount(),
                     buyBalanceBefore, sellBalanceBefore,
@@ -139,7 +139,11 @@ public class RebalancingService {
     private boolean isBothBelowFloor(CompanyPool krwPool, CompanyPool usdPool,
                                       TriggerType triggerType, String reason) {
         if (krwPool.isBelowFloor() && usdPool.isBelowFloor()) {
-            adminAlertService.sendBothBelowFloorAlert(krwPool.getBalance(), usdPool.getBalance());
+            try {
+                adminAlertService.sendBothBelowFloorAlert(krwPool.getBalance(), usdPool.getBalance());
+            } catch (Exception e) {
+                log.error("관리자 알림 전송 실패 — audit 기록은 정상 저장됨", e);
+            }
             auditService.saveManualRequired(triggerType, reason, UUID.randomUUID().toString());
             return true;
         }

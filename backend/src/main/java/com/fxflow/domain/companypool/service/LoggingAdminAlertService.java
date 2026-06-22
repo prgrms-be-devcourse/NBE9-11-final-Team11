@@ -2,10 +2,8 @@ package com.fxflow.domain.companypool.service;
 
 import java.math.BigDecimal;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 @Slf4j
-@Service
 public class LoggingAdminAlertService implements AdminAlertService {
 
     @Override
