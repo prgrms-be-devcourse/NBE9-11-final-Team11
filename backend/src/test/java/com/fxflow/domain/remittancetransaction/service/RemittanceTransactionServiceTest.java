@@ -40,6 +40,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -513,7 +515,7 @@ class RemittanceTransactionServiceTest {
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
         VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
                 .thenReturn(Optional.of(virtualAccount));
@@ -565,7 +567,7 @@ class RemittanceTransactionServiceTest {
         Long userId = 1L;
         Long transferId = 10L;
 
-        when(remittanceTransactionRepository.findById(transferId)).thenReturn(Optional.empty());
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId)).thenReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> remittanceTransactionService.mockFundTransfer(userId, transferId))
@@ -587,7 +589,7 @@ class RemittanceTransactionServiceTest {
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
         remittanceTransaction.fund(30L);
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
 
         // when & then
@@ -609,7 +611,7 @@ class RemittanceTransactionServiceTest {
         Long transferId = 10L;
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId)).thenReturn(Optional.empty());
 
@@ -633,7 +635,7 @@ class RemittanceTransactionServiceTest {
         VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
         virtualAccount.pay(LocalDateTime.now());
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
                 .thenReturn(Optional.of(virtualAccount));
@@ -657,7 +659,7 @@ class RemittanceTransactionServiceTest {
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
         VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, LocalDateTime.now().minusMinutes(1));
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
                 .thenReturn(Optional.of(virtualAccount));
@@ -670,6 +672,133 @@ class RemittanceTransactionServiceTest {
 
         verifyNoInteractions(mockBankAccountService);
         verifyNoInteractions(companyPoolService);
+    }
+
+    @Test
+    @DisplayName("성공: 입금 대기 중인 송금 주문을 취소하고 선점한 연간 한도를 복구한다")
+    void cancelTransfer_success() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
+        UserAnnualUsage annualUsage = createAnnualUsage(
+                userId,
+                currentYear,
+                new BigDecimal("1000.00")
+        );
+
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
+                .thenReturn(Optional.of(remittanceTransaction));
+        when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
+                .thenReturn(Optional.of(virtualAccount));
+        when(userAnnualUsageRepository.findByUserIdAndYearForUpdate(userId, currentYear))
+                .thenReturn(Optional.of(annualUsage));
+
+        // when
+        RemittanceCancelResponse response = remittanceTransactionService.cancelTransfer(userId, transferId);
+
+        // then
+        assertThat(response.transferId()).isEqualTo(transferId);
+        assertThat(response.status()).isEqualTo(TransferStatus.CANCELED);
+        assertThat(response.virtualAccountStatus()).isEqualTo(VirtualAccountStatus.CANCELED);
+        assertThat(remittanceTransaction.getStatus()).isEqualTo(TransferStatus.CANCELED);
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountStatus.CANCELED);
+        assertThat(annualUsage.getAnnualUsedUsd()).isEqualByComparingTo(new BigDecimal("263.48"));
+    }
+
+    @Test
+    @DisplayName("성공: 송금 생성 연도 기준으로 선점한 연간 한도를 복구한다")
+    void cancelTransfer_success_releaseLimitByCreatedYear() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+        int reservedYear = currentYear - 1;
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        ReflectionTestUtils.setField(
+                remittanceTransaction,
+                "createdAt",
+                LocalDateTime.of(reservedYear, 12, 31, 23, 50)
+        );
+        VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
+        UserAnnualUsage annualUsage = createAnnualUsage(
+                userId,
+                reservedYear,
+                new BigDecimal("1000.00")
+        );
+
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
+                .thenReturn(Optional.of(remittanceTransaction));
+        when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
+                .thenReturn(Optional.of(virtualAccount));
+        when(userAnnualUsageRepository.findByUserIdAndYearForUpdate(userId, reservedYear))
+                .thenReturn(Optional.of(annualUsage));
+
+        // when
+        RemittanceCancelResponse response = remittanceTransactionService.cancelTransfer(userId, transferId);
+
+        // then
+        assertThat(response.status()).isEqualTo(TransferStatus.CANCELED);
+        assertThat(annualUsage.getAnnualUsedUsd()).isEqualByComparingTo(new BigDecimal("263.48"));
+        verify(userAnnualUsageRepository).findByUserIdAndYearForUpdate(userId, reservedYear);
+        verify(userAnnualUsageRepository, never()).findByUserIdAndYearForUpdate(userId, currentYear);
+    }
+
+    @Test
+    @DisplayName("실패: 입금 대기 상태가 아니면 송금 주문을 취소할 수 없다")
+    void cancelTransfer_fail_notPending() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        remittanceTransaction.fund(30L);
+
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
+                .thenReturn(Optional.of(remittanceTransaction));
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.cancelTransfer(userId, transferId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RemittanceTransactionErrorCode.REMITTANCE_CANCEL_NOT_ALLOWED);
+
+        verifyNoInteractions(virtualAccountRepository);
+        verifyNoInteractions(userAnnualUsageRepository);
+    }
+
+    @Test
+    @DisplayName("성공: 입금 기한이 지난 송금 주문을 자동 취소하고 선점한 한도를 복구한다")
+    void expirePendingTransfers_success() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        LocalDateTime now = LocalDateTime.now();
+        int reservedYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, now.minusMinutes(1));
+        UserAnnualUsage annualUsage = createAnnualUsage(
+                userId,
+                reservedYear,
+                new BigDecimal("1000.00")
+        );
+
+        when(virtualAccountRepository.findByStatusAndExpiredAtLessThanEqual(VirtualAccountStatus.ISSUED, now))
+                .thenReturn(List.of(virtualAccount));
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
+                .thenReturn(Optional.of(remittanceTransaction));
+        when(userAnnualUsageRepository.findByUserIdAndYearForUpdate(userId, reservedYear))
+                .thenReturn(Optional.of(annualUsage));
+
+        // when
+        int expiredCount = remittanceTransactionService.expirePendingTransfers(now);
+
+        // then
+        assertThat(expiredCount).isEqualTo(1);
+        assertThat(remittanceTransaction.getStatus()).isEqualTo(TransferStatus.CANCELED);
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountStatus.EXPIRED);
+        assertThat(annualUsage.getAnnualUsedUsd()).isEqualByComparingTo(new BigDecimal("263.48"));
     }
 
     private RemittanceTransactionCreateRequest createRequest() {
@@ -707,29 +836,33 @@ class RemittanceTransactionServiceTest {
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
         Recipient recipient = createRecipient(userId);
 
-        when(remittanceTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId))
-                .thenReturn(List.of(remittanceTransaction));
+        when(remittanceTransactionRepository.findByUserId(eq(userId), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(remittanceTransaction), PageRequest.of(0, 20), 1));
         when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
                 .thenReturn(Optional.of(recipient));
 
         // when
-        List<RemittanceTransactionSummaryResponse> responses =
-                remittanceTransactionService.getTransfers(userId);
+        RemittanceTransactionPageResponse response =
+                remittanceTransactionService.getTransfers(userId, 0, 20);
 
         // then
-        assertThat(responses).hasSize(1);
-        assertThat(responses.getFirst().transferId()).isEqualTo(transferId);
-        assertThat(responses.getFirst().recipientName()).isEqualTo("John Doe");
-        assertThat(responses.getFirst().recipientCountryCode()).isEqualTo("US");
-        assertThat(responses.getFirst().recipientCurrencyCode()).isEqualTo("USD");
-        assertThat(responses.getFirst().recipientBankName()).isEqualTo("Chase Bank");
-        assertThat(responses.getFirst().sendAmount()).isEqualByComparingTo(new BigDecimal("1000000"));
-        assertThat(responses.getFirst().sendCurrency()).isEqualTo("KRW");
-        assertThat(responses.getFirst().receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
-        assertThat(responses.getFirst().receiveCurrency()).isEqualTo("USD");
-        assertThat(responses.getFirst().appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
-        assertThat(responses.getFirst().feeAmount()).isEqualByComparingTo(new BigDecimal("8000"));
-        assertThat(responses.getFirst().status()).isEqualTo(TransferStatus.PENDING);
+        assertThat(response.data()).hasSize(1);
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(20);
+        assertThat(response.totalElements()).isEqualTo(1);
+        assertThat(response.totalPages()).isEqualTo(1);
+        assertThat(response.data().getFirst().transferId()).isEqualTo(transferId);
+        assertThat(response.data().getFirst().recipientName()).isEqualTo("John Doe");
+        assertThat(response.data().getFirst().recipientCountryCode()).isEqualTo("US");
+        assertThat(response.data().getFirst().recipientCurrencyCode()).isEqualTo("USD");
+        assertThat(response.data().getFirst().recipientBankName()).isEqualTo("Chase Bank");
+        assertThat(response.data().getFirst().sendAmount()).isEqualByComparingTo(new BigDecimal("1000000"));
+        assertThat(response.data().getFirst().sendCurrency()).isEqualTo("KRW");
+        assertThat(response.data().getFirst().receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
+        assertThat(response.data().getFirst().receiveCurrency()).isEqualTo("USD");
+        assertThat(response.data().getFirst().appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
+        assertThat(response.data().getFirst().feeAmount()).isEqualByComparingTo(new BigDecimal("8000"));
+        assertThat(response.data().getFirst().status()).isEqualTo(TransferStatus.PENDING);
     }
 
     @Test

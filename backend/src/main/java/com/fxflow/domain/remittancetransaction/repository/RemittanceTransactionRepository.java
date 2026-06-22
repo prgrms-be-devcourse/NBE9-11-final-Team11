@@ -2,7 +2,13 @@ package com.fxflow.domain.remittancetransaction.repository;
 
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,6 +23,11 @@ public interface RemittanceTransactionRepository extends JpaRepository<Remittanc
     List<RemittanceTransaction> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     /**
+     * 특정 유저의 해외송금 거래 이력을 최신순으로 페이지 조회한다.
+     */
+    Page<RemittanceTransaction> findByUserId(Long userId, Pageable pageable);
+
+    /**
      * 특정 송금 거래가 로그인한 사용자의 거래인지 확인하며 조회한다.
      */
     Optional<RemittanceTransaction> findByIdAndUserId(Long id, Long userId);
@@ -25,6 +36,13 @@ public interface RemittanceTransactionRepository extends JpaRepository<Remittanc
      * 동일 Idempotency-Key 송금 주문을 조회한다.
      */
     Optional<RemittanceTransaction> findByIdempotencyKey(String idempotencyKey);
+
+    /**
+     * 상태 변경 대상 송금 거래를 잠금 조회한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from RemittanceTransaction r where r.id = :id")
+    Optional<RemittanceTransaction> findByIdForUpdate(@Param("id") Long id);
 
     /**
      * 특정 유저의 진행중인 거래가 있는지 조회한다.

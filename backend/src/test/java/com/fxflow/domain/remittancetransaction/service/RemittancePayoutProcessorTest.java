@@ -50,7 +50,7 @@ class RemittancePayoutProcessorTest {
         RemittanceTransaction remittanceTransaction = createFundedTransaction(transferId);
         Recipient recipient = createRecipient();
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
                 .thenReturn(Optional.of(recipient));

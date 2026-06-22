@@ -4,6 +4,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { rateHistory, type CurrencyCode } from "@/lib/fx-data"
 
 export function RateChart({ code }: { code: Exclude<CurrencyCode, "KRW"> }) {
+  // TODO: 환율 이력 조회 API가 추가되면 mock rateHistory 대신 실데이터로 교체한다. (현재는 샘플 데이터)
   const data = rateHistory(code)
   const values = data.map((d) => d.rate)
   const min = Math.floor(Math.min(...values) * 0.998)

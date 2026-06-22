@@ -18,6 +18,7 @@ public enum RemittanceTransactionErrorCode implements ErrorCode {
     INVALID_REMITTANCE_REASON(HttpStatus.BAD_REQUEST, "INVALID_REMITTANCE_REASON", "송금 사유가 올바르지 않습니다."),
     REMITTANCE_TRANSACTION_NOT_FOUND(HttpStatus.NOT_FOUND, "REMITTANCE_TRANSACTION_NOT_FOUND", "송금 거래를 찾을 수 없습니다."),
     INVALID_REMITTANCE_TRANSACTION_STATUS(HttpStatus.CONFLICT, "INVALID_REMITTANCE_TRANSACTION_STATUS", "현재 상태에서는 입금 확인 처리를 할 수 없습니다."),
+    REMITTANCE_CANCEL_NOT_ALLOWED(HttpStatus.CONFLICT, "REMITTANCE_CANCEL_NOT_ALLOWED", "입금 대기 상태에서만 송금을 취소할 수 있습니다."),
     IDEMPOTENCY_KEY_REQUIRED(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key 헤더가 필요합니다."),
     IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_CONFLICT", "이미 사용된 Idempotency-Key입니다."),
     INVALID_IDEMPOTENCY_REQUEST(HttpStatus.CONFLICT, "INVALID_IDEMPOTENCY_REQUEST", "동일 Idempotency-Key로 다른 송금 요청을 처리할 수 없습니다."),

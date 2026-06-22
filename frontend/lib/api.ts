@@ -76,6 +76,21 @@ export const triggerRebalance = (reason?: string) =>
 export const getRebalanceHistory = () =>
   apiRequest<RebalanceHistoryItem[]>("GET", "/api/v1/admin/pools/rebalance/history")
 
+// ── FxRate (환율) API ────────────────────────────────────────────
+
+export interface FxRateLatest {
+  baseCurrency: string
+  quoteCurrency: string
+  midRate: number
+  buyRate: number
+  sellRate: number
+  fetchedAt: string // ISO-8601 LocalDateTime (예: "2026-06-21T12:34:56")
+}
+
+// 최신 매매기준율 조회 (기본 USD/KRW). 데이터가 없으면 404를 던진다.
+export const getLatestRate = (base = "USD", quote = "KRW") =>
+  apiRequest<FxRateLatest>("GET", `/api/v1/fxrates/latest?base=${base}&quote=${quote}`)
+
 export async function apiRequest<T>(
   method: string,
   path: string,

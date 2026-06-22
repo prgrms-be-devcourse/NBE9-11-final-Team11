@@ -152,4 +152,88 @@ class UserServiceTest {
             verify(passwordEncoder, never()).matches(anyString(), anyString());
         }
     }
+    // ── 비밀번호 변경 ───────────────────────────────────────────────────────
+    @Nested
+    @DisplayName("비밀번호 변경")
+    class ChangePassword {
+
+        private static final Long USER_ID = 1L;
+        private static final String CURRENT_RAW = "OldPass123!";
+        private static final String CURRENT_HASH = "encodedOldPassword";
+        private static final String NEW_RAW = "NewPass456!";
+        private static final String NEW_HASH = "encodedNewPassword";
+
+        @Test
+        @DisplayName("성공: 현재 비밀번호가 일치하고 새 비밀번호가 다르면 비밀번호 해시가 갱신된다")
+        void success() {
+            // given
+            User user = User.create("hong@example.com", CURRENT_HASH, "홍길동");
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches(CURRENT_RAW, CURRENT_HASH)).thenReturn(true);
+            when(passwordEncoder.matches(NEW_RAW, CURRENT_HASH)).thenReturn(false);
+            when(passwordEncoder.encode(NEW_RAW)).thenReturn(NEW_HASH);
+
+            // when
+            userService.changePassword(USER_ID, CURRENT_RAW, NEW_RAW);
+
+            // then
+            assertThat(user.getPasswordHash()).isEqualTo(NEW_HASH);
+        }
+
+        @Test
+        @DisplayName("실패: 존재하지 않는 유저면 USER_NOT_FOUND 예외가 발생한다")
+        void fail_userNotFound() {
+            // given
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> userService.changePassword(USER_ID, CURRENT_RAW, NEW_RAW))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(UserErrorCode.USER_NOT_FOUND);
+
+            verify(passwordEncoder, never()).encode(anyString());
+        }
+
+        @Test
+        @DisplayName("실패: 현재 비밀번호가 일치하지 않으면 PASSWORD_MISMATCH 예외가 발생한다")
+        void fail_currentPasswordMismatch() {
+            // given
+            User user = User.create("hong@example.com", CURRENT_HASH, "홍길동");
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches(CURRENT_RAW, CURRENT_HASH)).thenReturn(false);
+
+            // when & then
+            assertThatThrownBy(() -> userService.changePassword(USER_ID, CURRENT_RAW, NEW_RAW))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(UserErrorCode.PASSWORD_MISMATCH);
+
+            verify(passwordEncoder, never()).encode(anyString());
+            assertThat(user.getPasswordHash()).isEqualTo(CURRENT_HASH);
+        }
+
+        @Test
+        @DisplayName("실패: 새 비밀번호가 기존 비밀번호와 동일하면 SAME_AS_OLD_PASSWORD 예외가 발생한다")
+        void fail_sameAsOldPassword() {
+            // given
+            User user = User.create("hong@example.com", CURRENT_HASH, "홍길동");
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches(CURRENT_RAW, CURRENT_HASH)).thenReturn(true);
+            when(passwordEncoder.matches(NEW_RAW, CURRENT_HASH)).thenReturn(true);
+
+            // when & then
+            assertThatThrownBy(() -> userService.changePassword(USER_ID, CURRENT_RAW, NEW_RAW))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(UserErrorCode.SAME_AS_OLD_PASSWORD);
+
+            verify(passwordEncoder, never()).encode(anyString());
+            assertThat(user.getPasswordHash()).isEqualTo(CURRENT_HASH);
+        }
+    }
+
 }

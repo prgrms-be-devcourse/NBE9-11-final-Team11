@@ -21,12 +21,13 @@ import {
 } from "@/components/ui/dialog"
 import { useStore } from "@/lib/store"
 import { apiRequest } from "@/lib/api"
-import { useLogout } from "@/hooks/use-logout"
+
+// 백엔드 ChangePasswordRequest와 동일한 정책 — 대소문자, 숫자, 특수문자 포함 8자 이상
+const PASSWORD_POLICY_REGEX = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/
 
 export default function SettingsPage() {
   const router = useRouter()
   const { user, logout } = useStore()
-  const handleLogout = useLogout()
 
   const [name, setName] = useState(user?.name ?? "")
   const [email, setEmail] = useState(user?.email ?? "")
@@ -42,32 +43,48 @@ export default function SettingsPage() {
   const [current, setCurrent] = useState("")
   const [next, setNext] = useState("")
   const [confirm, setConfirm] = useState("")
+  const [changingPassword, setChangingPassword] = useState(false)
 
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deletePassword, setDeletePassword] = useState("")
   const [deleteError, setDeleteError] = useState("")
   const [deleting, setDeleting] = useState(false)
 
-  function saveProfile() {
-    if (!name.trim()) return toast.error("이름을 입력하세요.")
-    toast.success("프로필이 저장되었습니다.")
-  }
-
-  function changePassword() {
+  async function changePassword() {
     if (!current || !next) return toast.error("비밀번호를 입력하세요.")
-    if (next.length < 8) return toast.error("새 비밀번호는 8자 이상이어야 합니다.")
+    if (!PASSWORD_POLICY_REGEX.test(next)) {
+      return toast.error("새 비밀번호는 8자 이상, 대소문자, 숫자, 특수문자를 포함해야 합니다.")
+    }
     if (next !== confirm) return toast.error("새 비밀번호가 일치하지 않습니다.")
-    setPwOpen(false)
-    setCurrent("")
-    setNext("")
-    setConfirm("")
-    toast.success("비밀번호가 변경되었습니다.")
+
+    setChangingPassword(true)
+    try {
+      await apiRequest("PATCH", "/api/v1/auth/me/password", {
+        currentPassword: current,
+        newPassword: next,
+      })
+
+      setPwOpen(false)
+      setCurrent("")
+      setNext("")
+      setConfirm("")
+      toast.success("비밀번호가 변경되었습니다. 다시 로그인해주세요.")
+
+      // 비밀번호 변경 성공 시 서버 측 세션(쿠키)이 이미 무효화되므로
+      // 클라이언트 상태도 함께 정리하고 로그인 화면으로 이동한다.
+      logout()
+      router.push("/login")
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "비밀번호 변경에 실패했습니다.")
+    } finally {
+      setChangingPassword(false)
+    }
   }
 
-  function openDeleteDialog() {
-    setDeletePassword("")
-    setDeleteError("")
-    setDeleteOpen(true)
+  function handleLogout() {
+    logout()
+    router.push("/login")
   }
 
   async function handleDelete() {
@@ -80,13 +97,6 @@ export default function SettingsPage() {
     setDeleteError("")
     try {
       await apiRequest("DELETE", "/api/v1/auth/me", { password: deletePassword })
-
-      // 백엔드가 탈퇴 처리 시 JWT 쿠키를 이미 무효화하고,
-      // store.tsx의 logout()이 잔액/거래내역 등 전체 상태를 defaultState()로
-      // 리셋하므로 별도로 localStorage의 fxflow-store-v1을 지울 필요는 없다.
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("fxflow-userId")
-      }
       logout()
       setDeleteOpen(false)
       toast.success("회원 탈퇴가 완료되었습니다.")
@@ -129,17 +139,19 @@ export default function SettingsPage() {
               <Label htmlFor="name">이름</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="pl-9" />
+                <Input id="name" value={name} disabled className="pl-9" />
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">이메일</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-9" />
+                <Input id="email" type="email" value={email} disabled className="pl-9" />
               </div>
             </div>
-            <Button onClick={saveProfile}>변경사항 저장</Button>
+            <p className="text-xs text-muted-foreground">
+              이름과 이메일은 본인확인(KYC) 정보와 연결되어 있어 직접 변경할 수 없습니다.
+            </p>
           </div>
         </Card>
 
@@ -172,7 +184,7 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               className="w-full justify-start border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
-              onClick={openDeleteDialog}
+              onClick={() => setDeleteOpen(true)}
             >
               <Trash2 className="size-4" /> 회원 탈퇴
             </Button>
@@ -185,37 +197,69 @@ export default function SettingsPage() {
       </div>
 
       {/* Change password dialog */}
-      <Dialog open={pwOpen} onOpenChange={setPwOpen}>
+      <Dialog open={pwOpen} onOpenChange={(o) => !changingPassword && setPwOpen(o)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>비밀번호 변경</DialogTitle>
-            <DialogDescription>새 비밀번호는 8자 이상이어야 합니다.</DialogDescription>
+            <DialogDescription>
+              새 비밀번호는 8자 이상, 대소문자·숫자·특수문자를 포함해야 합니다. 변경 후 다시 로그인해야 합니다.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="current">현재 비밀번호</Label>
-              <Input id="current" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+              <Input
+                id="current"
+                type="password"
+                value={current}
+                onChange={(e) => setCurrent(e.target.value)}
+                disabled={changingPassword}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="next">새 비밀번호</Label>
-              <Input id="next" type="password" value={next} onChange={(e) => setNext(e.target.value)} />
+              <Input
+                id="next"
+                type="password"
+                value={next}
+                onChange={(e) => setNext(e.target.value)}
+                disabled={changingPassword}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-pw">새 비밀번호 확인</Label>
-              <Input id="confirm-pw" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+              <Input
+                id="confirm-pw"
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                disabled={changingPassword}
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPwOpen(false)}>
+            <Button variant="outline" onClick={() => setPwOpen(false)} disabled={changingPassword}>
               취소
             </Button>
-            <Button onClick={changePassword}>변경하기</Button>
+            <Button onClick={changePassword} disabled={changingPassword}>
+              {changingPassword ? "변경 중..." : "변경하기"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete account dialog */}
-      <Dialog open={deleteOpen} onOpenChange={(o) => !deleting && setDeleteOpen(o)}>
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(o) => {
+          if (deleting) return
+          setDeleteOpen(o)
+          if (!o) {
+            setDeletePassword("")
+            setDeleteError("")
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>회원 탈퇴</DialogTitle>

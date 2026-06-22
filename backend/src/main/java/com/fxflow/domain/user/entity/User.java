@@ -76,4 +76,8 @@ public class User extends BaseEntity {
         this.limitTier = LimitTier.ENHANCED;
         this.walletLimitKrw = new BigDecimal("3000000");
     }
+    //비밀번호 변경
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+    }
 }

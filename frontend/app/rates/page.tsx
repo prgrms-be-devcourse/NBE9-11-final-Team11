@@ -1,19 +1,49 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { ArrowUpRight, ArrowDownRight, TrendingUp, ArrowLeft } from "lucide-react"
+import { TrendingUp, ArrowLeft, RefreshCw } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { RateChart } from "@/components/app/rate-chart"
-import { RATES, type CurrencyCode } from "@/lib/fx-data"
-import { cn } from "@/lib/utils"
+import { getLatestRate, type FxRateLatest } from "@/lib/api"
+import { CURRENCY_META } from "@/lib/fx-data"
+import { formatFetchedAt } from "@/lib/utils"
 
-const FX_CODES: Exclude<CurrencyCode, "KRW">[] = ["USD", "JPY", "EUR", "CNY"]
+const POLL_INTERVAL_MS = 60_000 // 60초마다 최신 환율 폴링
 
 export default function RatesPage() {
-  const [selected, setSelected] = useState<Exclude<CurrencyCode, "KRW">>("USD")
-  const info = RATES[selected]
+  const [rate, setRate] = useState<FxRateLatest | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    let timerId: ReturnType<typeof setTimeout> | undefined
+
+    // 이전 요청이 끝난 뒤 다음 폴링을 예약(재귀 setTimeout) — 요청 중첩 방지
+    const load = async () => {
+      try {
+        const data = await getLatestRate("USD", "KRW")
+        if (!active) return
+        setRate(data)
+      } catch {
+        // 실패(404 등) 시 마지막 정상값을 유지한다. 한 번도 못 받았으면 rate === null → 안내 표시.
+      } finally {
+        if (active) {
+          setLoading(false)
+          timerId = setTimeout(load, POLL_INTERVAL_MS)
+        }
+      }
+    }
+
+    load()
+    return () => {
+      active = false
+      clearTimeout(timerId)
+    }
+  }, [])
+
+  const usd = CURRENCY_META.USD
 
   return (
     <div className="min-h-screen bg-secondary/20">
@@ -39,68 +69,54 @@ export default function RatesPage() {
           <ArrowLeft className="size-4" /> 홈으로
         </Link>
         <h1 className="text-2xl font-bold tracking-tight">실시간 환율</h1>
-        <p className="mt-1 text-sm text-muted-foreground">시뮬레이션용 환율 데이터입니다. 매매기준율 기준.</p>
+        <p className="mt-1 text-sm text-muted-foreground">USD/KRW 매매기준율 · 60초마다 자동 갱신</p>
 
-        {/* Rate cards */}
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {FX_CODES.map((c) => {
-            const r = RATES[c]
-            const up = r.change >= 0
-            return (
-              <button
-                key={c}
-                onClick={() => setSelected(c)}
-                className={cn(
-                  "rounded-2xl border bg-card p-4 text-left transition-all hover:border-primary/40",
-                  selected === c ? "border-primary ring-2 ring-primary/20" : "border-border",
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl" aria-hidden>
-                    {r.flag}
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {c}
-                      {r.unit > 1 ? `/${r.unit}` : ""}/KRW
-                    </p>
-                    <p className="text-xs text-muted-foreground">{r.name}</p>
-                  </div>
-                </div>
-                <p className="mt-3 text-xl font-bold tabular-nums">₩{r.rate.toLocaleString("ko-KR")}</p>
-                <p
-                  className={cn(
-                    "mt-1 inline-flex items-center gap-1 text-xs font-medium",
-                    up ? "text-accent" : "text-destructive",
-                  )}
-                >
-                  {up ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
-                  {up ? "+" : ""}
-                  {r.change}%
-                </p>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Chart */}
+        {/* 현재가 카드 */}
         <Card className="mt-6 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl" aria-hidden>
-                {info.flag}
-              </span>
-              <div>
-                <h2 className="text-lg font-bold">
-                  {info.code}/KRW {info.unit > 1 ? `(${info.unit}단위)` : ""}
-                </h2>
-                <p className="text-sm text-muted-foreground">최근 30일 추이</p>
+          {loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <RefreshCw className="size-4 animate-spin" /> 환율을 불러오는 중...
+            </div>
+          ) : rate ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl" aria-hidden>
+                  {usd.flag}
+                </span>
+                <div>
+                  <h2 className="text-lg font-bold">USD/KRW</h2>
+                  <p className="text-sm text-muted-foreground">{usd.name} · 매매기준율</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-3xl font-bold tabular-nums">
+                  ₩{rate.midRate.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{formatFetchedAt(rate.fetchedAt)} 기준</p>
               </div>
             </div>
-            <p className="text-2xl font-bold tabular-nums">₩{info.rate.toLocaleString("ko-KR")}</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <p className="text-base font-semibold">환율 정보를 불러올 수 없습니다</p>
+              <p className="text-sm text-muted-foreground">
+                잠시 후 다시 시도해 주세요. (환율 데이터가 아직 수집되지 않았을 수 있습니다)
+              </p>
+            </div>
+          )}
+        </Card>
+
+        {/* 추이 차트 (샘플 데이터 — 이력 API 연동 전까지 시뮬레이션) */}
+        <Card className="mt-6 p-5">
+          <div>
+            <h2 className="text-lg font-bold">USD/KRW 추이</h2>
+            <p className="text-sm text-muted-foreground">최근 30일 (샘플 데이터)</p>
           </div>
+          {/*
+            TODO: 환율 이력 조회 API가 추가되면 mock(rateHistory) 대신 실데이터로 교체한다.
+            현재는 이력 엔드포인트가 없어 RateChart가 시뮬레이션 데이터를 사용한다.
+          */}
           <div className="mt-4 h-72 w-full">
-            <RateChart code={selected} />
+            <RateChart code="USD" />
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button render={<Link href="/exchange" />} className="flex-1 sm:flex-none">
