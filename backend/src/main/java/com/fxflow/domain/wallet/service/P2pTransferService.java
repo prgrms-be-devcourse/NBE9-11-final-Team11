@@ -63,8 +63,10 @@ public class P2pTransferService {
         BigDecimal recipientAfterBalance = recipientWallet.deposit(amount);
 
         // p2p transfer 기록
+        String transferId = P2pTransfer.generateTransferId();
         P2pTransfer transfer = P2pTransfer.create(
-            senderWallet,
+                transferId,
+                senderWallet,
                 recipientWallet,
                 request.currency(),
                 amount,
@@ -73,7 +75,6 @@ public class P2pTransferService {
         p2pTransferRepository.save(transfer);
 
         // ledger transaction 기록
-        String transferId = P2pTransfer.generateTransferId();
         String journalId = LedgerEntry.generateJournalId();
         LedgerEntry debit = LedgerEntry.create(
                 journalId,

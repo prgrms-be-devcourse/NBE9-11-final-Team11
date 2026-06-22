@@ -15,6 +15,9 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class P2pTransfer extends BaseEntity {
 
+    @Column(name = "transfer_id", length = 50, nullable = false, unique = true)
+    private String transferId;
+
     @ManyToOne
     @JoinColumn(name = "from_wallet_id", nullable = false)
     private Wallet fromWallet;
@@ -32,7 +35,8 @@ public class P2pTransfer extends BaseEntity {
     @Column(length = 255)
     private String memo;
 
-    private P2pTransfer(Wallet fromWallet, Wallet toWallet, String currencyCode, BigDecimal amount, String memo) {
+    private P2pTransfer(String transferId, Wallet fromWallet, Wallet toWallet, String currencyCode, BigDecimal amount, String memo) {
+        this.transferId = transferId;
         this.fromWallet = fromWallet;
         this.toWallet = toWallet;
         this.currencyCode = currencyCode;
@@ -41,6 +45,7 @@ public class P2pTransfer extends BaseEntity {
     }
 
     public static P2pTransfer create(
+            String transferId,
             Wallet fromWallet,
             Wallet toWallet,
             String currencyCode,
@@ -48,12 +53,12 @@ public class P2pTransfer extends BaseEntity {
             String memo
     ) {
         return new P2pTransfer(
+                transferId,
                 fromWallet,
                 toWallet,
                 currencyCode,
                 amount,
-                memo
-        );
+                memo);
     }
 
     public static String generateTransferId() {
