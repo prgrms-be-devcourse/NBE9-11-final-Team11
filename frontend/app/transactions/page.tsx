@@ -43,6 +43,14 @@ const statusLabels: Record<TxStatus | "all", string> = {
   canceled: "취소",
 }
 
+interface RemittancePageResponse {
+  data: any[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
 function formatDateTime(iso: string) {
   const d = new Date(iso)
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
@@ -60,6 +68,9 @@ export default function TransactionsPage() {
   const [status, setStatus] = useState<TxStatus | "all">("all")
   const [detail, setDetail] = useState<Transaction | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [serverTotalElements, setServerTotalElements] = useState(0)
+  const [serverTotalPages, setServerTotalPages] = useState(1)
+  const [hasWalletTransactions, setHasWalletTransactions] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -133,10 +144,16 @@ export default function TransactionsPage() {
             }
           })
         }
+        setHasWalletTransactions(walletList.length > 0)
 
         if (fetchRemittances) {
-          const res = await apiRequest<any[]>("GET", "/api/v1/transfers")
-          remittanceList = (res || []).map((tx) => {
+          const res = await apiRequest<RemittancePageResponse>(
+            "GET",
+            `/api/v1/transfers?page=${currentPage - 1}&size=${PAGE_SIZE}`
+          )
+          setServerTotalElements(res.totalElements)
+          setServerTotalPages(Math.max(1, res.totalPages))
+          remittanceList = (res.data || []).map((tx) => {
             let status: TxStatus = "completed"
             if (tx.status === "PENDING" || tx.status === "FUNDED" || tx.status === "PROCESSING") {
               status = "processing"
@@ -176,12 +193,14 @@ export default function TransactionsPage() {
         setTransactions(merged)
       } catch (err) {
         console.error("Failed to load transactions:", err)
+        setServerTotalElements(0)
+        setServerTotalPages(1)
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [type, period])
+  }, [type, period, currentPage])
 
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
@@ -194,8 +213,15 @@ export default function TransactionsPage() {
     setCurrentPage(1)
   }, [period, type, status])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pagedTransactions = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const useServerPagination =
+    (type === "remittance" || (type === "all" && !hasWalletTransactions)) &&
+    period === "all" &&
+    status === "all"
+  const totalElements = useServerPagination ? serverTotalElements : filtered.length
+  const totalPages = useServerPagination ? serverTotalPages : Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pagedTransactions = useServerPagination
+    ? filtered
+    : filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
   const currentPageGroup = Math.floor((currentPage - 1) / PAGE_GROUP_SIZE)
   const firstPageInGroup = currentPageGroup * PAGE_GROUP_SIZE + 1
   const lastPageInGroup = Math.min(firstPageInGroup + PAGE_GROUP_SIZE - 1, totalPages)
@@ -274,7 +300,7 @@ export default function TransactionsPage() {
           <div className="flex items-center justify-between px-5 py-4">
             <h2 className="text-base font-bold">거래 내역</h2>
             <span className="text-sm text-muted-foreground">
-              {filtered.length}건 · {currentPage}/{totalPages}페이지
+              {totalElements}건 · {currentPage}/{totalPages}페이지
             </span>
           </div>
           <Separator />
@@ -334,11 +360,11 @@ export default function TransactionsPage() {
               </Table>
             </div>
           )}
-          {!loading && filtered.length > PAGE_SIZE && (
+          {!loading && totalElements > PAGE_SIZE && (
             <div className="relative border-t px-5 py-3">
               <p className="mb-3 text-sm text-muted-foreground sm:absolute sm:left-5 sm:top-1/2 sm:mb-0 sm:-translate-y-1/2">
-                최근순 {Math.min((currentPage - 1) * PAGE_SIZE + 1, filtered.length)}-
-                {Math.min(currentPage * PAGE_SIZE, filtered.length)}건 표시
+                최근순 {Math.min((currentPage - 1) * PAGE_SIZE + 1, totalElements)}-
+                {Math.min(currentPage * PAGE_SIZE, totalElements)}건 표시
               </p>
               <div className="flex flex-wrap justify-center gap-1.5">
                 <Button

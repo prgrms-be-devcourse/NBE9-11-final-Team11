@@ -40,6 +40,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -801,29 +803,33 @@ class RemittanceTransactionServiceTest {
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
         Recipient recipient = createRecipient(userId);
 
-        when(remittanceTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId))
-                .thenReturn(List.of(remittanceTransaction));
+        when(remittanceTransactionRepository.findByUserId(eq(userId), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(remittanceTransaction), PageRequest.of(0, 20), 1));
         when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
                 .thenReturn(Optional.of(recipient));
 
         // when
-        List<RemittanceTransactionSummaryResponse> responses =
-                remittanceTransactionService.getTransfers(userId);
+        RemittanceTransactionPageResponse response =
+                remittanceTransactionService.getTransfers(userId, 0, 20);
 
         // then
-        assertThat(responses).hasSize(1);
-        assertThat(responses.getFirst().transferId()).isEqualTo(transferId);
-        assertThat(responses.getFirst().recipientName()).isEqualTo("John Doe");
-        assertThat(responses.getFirst().recipientCountryCode()).isEqualTo("US");
-        assertThat(responses.getFirst().recipientCurrencyCode()).isEqualTo("USD");
-        assertThat(responses.getFirst().recipientBankName()).isEqualTo("Chase Bank");
-        assertThat(responses.getFirst().sendAmount()).isEqualByComparingTo(new BigDecimal("1000000"));
-        assertThat(responses.getFirst().sendCurrency()).isEqualTo("KRW");
-        assertThat(responses.getFirst().receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
-        assertThat(responses.getFirst().receiveCurrency()).isEqualTo("USD");
-        assertThat(responses.getFirst().appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
-        assertThat(responses.getFirst().feeAmount()).isEqualByComparingTo(new BigDecimal("8000"));
-        assertThat(responses.getFirst().status()).isEqualTo(TransferStatus.PENDING);
+        assertThat(response.data()).hasSize(1);
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(20);
+        assertThat(response.totalElements()).isEqualTo(1);
+        assertThat(response.totalPages()).isEqualTo(1);
+        assertThat(response.data().getFirst().transferId()).isEqualTo(transferId);
+        assertThat(response.data().getFirst().recipientName()).isEqualTo("John Doe");
+        assertThat(response.data().getFirst().recipientCountryCode()).isEqualTo("US");
+        assertThat(response.data().getFirst().recipientCurrencyCode()).isEqualTo("USD");
+        assertThat(response.data().getFirst().recipientBankName()).isEqualTo("Chase Bank");
+        assertThat(response.data().getFirst().sendAmount()).isEqualByComparingTo(new BigDecimal("1000000"));
+        assertThat(response.data().getFirst().sendCurrency()).isEqualTo("KRW");
+        assertThat(response.data().getFirst().receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
+        assertThat(response.data().getFirst().receiveCurrency()).isEqualTo("USD");
+        assertThat(response.data().getFirst().appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
+        assertThat(response.data().getFirst().feeAmount()).isEqualByComparingTo(new BigDecimal("8000"));
+        assertThat(response.data().getFirst().status()).isEqualTo(TransferStatus.PENDING);
     }
 
     @Test

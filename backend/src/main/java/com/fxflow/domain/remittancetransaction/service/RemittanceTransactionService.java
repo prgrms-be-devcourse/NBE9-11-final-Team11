@@ -33,6 +33,9 @@ import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.ExchangeRateProvider;
 import com.fxflow.global.fx.FxRateSnapshot;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -105,14 +108,19 @@ public class RemittanceTransactionService {
     /**
      * 로그인한 사용자의 해외송금 내역 목록을 최신순으로 조회한다.
      */
-    public List<RemittanceTransactionSummaryResponse> getTransfers(Long userId) {
-        return remittanceTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId)
-                .stream()
+    public RemittanceTransactionPageResponse getTransfers(Long userId, int page, int size) {
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<RemittanceTransaction> remittanceTransactions =
+                remittanceTransactionRepository.findByUserId(userId, pageRequest);
+
+        List<RemittanceTransactionSummaryResponse> data = remittanceTransactions
                 .map(remittanceTransaction -> RemittanceTransactionSummaryResponse.from(
                         remittanceTransaction,
                         getRecipientForHistory(remittanceTransaction.getRecipientId())
                 ))
                 .toList();
+
+        return RemittanceTransactionPageResponse.from(remittanceTransactions, data);
     }
 
     /**

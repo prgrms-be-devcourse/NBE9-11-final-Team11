@@ -11,8 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1")
@@ -35,11 +33,13 @@ public class RemittanceTransactionController {
      * 로그인한 사용자의 해외송금 내역 목록을 조회한다.
      */
     @GetMapping("/transfers")
-    public ResponseEntity<List<RemittanceTransactionSummaryResponse>> getTransfers(
-            @AuthenticationPrincipal Long userId
+    public ResponseEntity<RemittanceTransactionPageResponse> getTransfers(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
     ) {
-        List<RemittanceTransactionSummaryResponse> response =
-                remittanceTransactionService.getTransfers(userId);
+        RemittanceTransactionPageResponse response =
+                remittanceTransactionService.getTransfers(userId, page, size);
 
         return ResponseEntity.ok(response);
     }
