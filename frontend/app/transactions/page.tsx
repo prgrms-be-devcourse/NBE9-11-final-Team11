@@ -91,7 +91,7 @@ export default function TransactionsPage() {
           const res = await apiRequest<{ totalCount: number; transactionResponseList: any[] }>("GET", url)
           setTotalCount(res.totalCount || 0)
           
-          const rawList = res.transactionResponseList || []
+          const rawList = (res.transactionResponseList || []).filter(Boolean)
           const exchangeCounts: Record<string, number> = {}
 
           const mapped = rawList.map((tx) => {
