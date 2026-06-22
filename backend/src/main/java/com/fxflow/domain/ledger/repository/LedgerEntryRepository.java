@@ -27,4 +27,5 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
             @Param("to") LocalDateTime to,
             Pageable pageable
     );
+
 }

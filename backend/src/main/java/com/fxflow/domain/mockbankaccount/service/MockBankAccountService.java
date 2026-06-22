@@ -5,26 +5,34 @@ import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
-import com.fxflow.domain.mockbankaccount.dto.response.MockBankAccountCheckResponse;
-import com.fxflow.domain.mockbankaccount.dto.response.MockBankAccountResponse;
-import com.fxflow.domain.mockbankaccount.dto.response.MockBankLinkResponse;
+import com.fxflow.domain.mockbankaccount.dto.request.UsdMockAccountInquiryRequest;
+import com.fxflow.domain.mockbankaccount.dto.response.*;
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
 import com.fxflow.domain.mockbankaccount.repository.MockBankAccountRepository;
+import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
+import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
+import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.errorcode.UserErrorCode;
 import com.fxflow.domain.user.repository.UserRepository;
+import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -37,11 +45,12 @@ public class MockBankAccountService {
     private final LedgerEntryRepository ledgerEntryRepository;
     private final UserRepository userRepository;
     private final WalletRepository walletRepository;
+    private final RemittanceTransactionRepository remittanceTransactionRepository;
     private static final Pattern ACCOUNT_NUMBER_PATTERN = Pattern.compile("^[0-9]+$");
     private static final int ACCOUNT_NUMBER_DIGIT_LENGTH = 12;
 
     @Transactional
-    public void withdraw(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
+    public void withdraw(Long userId, String journalId, BigDecimal amount, String currencyCode) {
         MockBankAccount bankAccount = mockBankAccountRepository.findByUserIdAndCurrencyCode(userId, currencyCode)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
@@ -69,8 +78,57 @@ public class MockBankAccountService {
         mockBankAccountRepository.save(bankAccount);
     }
 
+    //사용자에게 보는 방법
+    @Transactional(readOnly = true)
+    public UsdMockAccountInquiryResponse inquireUsdMockAccount(UsdMockAccountInquiryRequest request, Pageable pageable) {
+        MockBankAccount mockAccount = mockBankAccountRepository
+                .findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+                        request.accountNumber(), request.bankName(), request.name(), "USD"
+                ).orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
+
+        Page<RemittanceTransaction> remittances = remittanceTransactionRepository
+                .findByRecipientAccountNumberAndStatus(
+                        mockAccount.getAccountNumber(),
+                        TransferStatus.COMPLETED,
+                        pageable
+                );
+
+        // N+1 개선: userId 모아서 한 번에 조회
+        List<Long> userIds = remittances.stream()
+                .map(RemittanceTransaction::getUserId)
+                .distinct()
+                .toList();
+
+        Map<Long, String> userNameMap = userRepository.findAllById(userIds)
+                .stream()
+                .collect(Collectors.toMap(User::getId, User::getName));
+
+        List<RemittanceReceiptDto> receiptsList = remittances.stream().map(rt -> {
+            String senderName = userNameMap.getOrDefault(rt.getUserId(), "알 수 없는 송금인");
+            return RemittanceReceiptDto.of(
+                    rt.getId(),
+                    senderName,
+                    rt.getSendAmount(),
+                    rt.getReceiveAmount(),
+                    rt.getAppliedRate(),
+                    rt.getCreatedAt()
+            );
+        }).toList();
+
+        Page<RemittanceReceiptDto> receiptsPage = new PageImpl<>(
+                receiptsList, pageable, remittances.getTotalElements()
+        );
+
+        return UsdMockAccountInquiryResponse.of(
+                mockAccount.getBalance(),
+                mockAccount.getCurrencyCode(),
+                receiptsPage
+        );
+    }
+
+
     @Transactional
-    public void deposit(Long userId, String journalId, Long bankAccountId, BigDecimal amount, String currencyCode) {
+    public void deposit(Long userId, String journalId, BigDecimal amount, String currencyCode) {
         MockBankAccount bankAccount = mockBankAccountRepository.findByUserIdAndCurrencyCode(userId, currencyCode)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
@@ -136,7 +194,7 @@ public class MockBankAccountService {
      * 계좌번호 가용성(형식 + 전역 중복) 사전 확인
      * - 인증 전(회원가입 KYC 단계)에서도 호출 가능해야 하므로 userId를 받지 않는다.
      * - 실제 연결(linkAccount) 시점에 동일한 계좌번호가 다른 요청에 의해 선점될 수 있으므로,
-     *   이 메서드는 "사전 확인"용일 뿐 최종 검증은 linkAccount에서 다시 수행된다.
+     * 이 메서드는 "사전 확인"용일 뿐 최종 검증은 linkAccount에서 다시 수행된다.
      */
     @Transactional(readOnly = true)
     public MockBankAccountCheckResponse checkAccountNumber(String accountNumber) {
@@ -159,12 +217,12 @@ public class MockBankAccountService {
     }
 
     /*
-    * 모의계좌에 연결된 잔액을 조회하는 메서드
-    */
+     * 모의계좌에 연결된 잔액을 조회하는 메서드
+     */
     @Transactional(readOnly = true)
     public MockBankAccountResponse getMyAccount(Long userId) {
         MockBankAccount account = mockBankAccountRepository
-                .findFirstByUser_IdAndCurrencyCodeAndDeletedAtIsNull(userId,KRW)
+                .findFirstByUser_IdAndCurrencyCodeAndDeletedAtIsNull(userId, KRW)
                 .orElseThrow(() -> {
                     log.warn("[모의계좌 조회 실패] 연결된 계좌 없음 — userId={}", userId);
                     return new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND);
@@ -300,6 +358,7 @@ public class MockBankAccountService {
 
         return depositToMockAccount(journalId, bankAccount, amount, currencyCode, refId);
     }
+
 
     /**
      * 해외송금 지급 및 환불에서 공통으로 사용하는 모의계좌 입금 처리 메서드다.

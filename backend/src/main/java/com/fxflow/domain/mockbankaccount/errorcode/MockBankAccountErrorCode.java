@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum MockBankAccountErrorCode implements ErrorCode {
 
+
     // 연결 관련
     MOCK_ACCOUNT_NOT_FOUND(
             HttpStatus.NOT_FOUND,
