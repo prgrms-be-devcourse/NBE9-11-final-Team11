@@ -247,6 +247,17 @@ export default function TransactionsPage() {
   const received = (tx: Transaction) =>
     tx.rate ? Math.abs(tx.amountKRW) / (tx.rate / (tx.toCurrency === "JPY" ? 100 : 1)) : 0
 
+  // 금액 표시 헬퍼: 해외송금은 항상 KRW로 표시
+  function displayAmount(tx: Transaction) {
+    if (tx.type === "remittance") {
+      return formatKRW(Math.abs(tx.amountKRW))
+    }
+    if (tx.toCurrency && tx.toCurrency !== "KRW") {
+      return formatCurrency(Math.abs(tx.amountKRW), tx.toCurrency)
+    }
+    return formatKRW(Math.abs(tx.amountKRW))
+  }
+
   return (
     <AppShell title="거래내역">
       <div className="space-y-6">
@@ -391,9 +402,7 @@ export default function TransactionsPage() {
                           className={`text-right font-semibold tabular-nums whitespace-nowrap ${positive ? "text-accent" : "text-foreground"}`}
                         >
                           {positive ? "+" : "-"}
-                          {t.toCurrency && t.toCurrency !== "KRW"
-                            ? formatCurrency(Math.abs(t.amountKRW), t.toCurrency)
-                            : formatKRW(Math.abs(t.amountKRW))}
+                          {displayAmount(t)}
                         </TableCell>
                         <TableCell className="text-right text-sm tabular-nums">
                           {t.rate ? formatRate(t.rate) : "—"}
@@ -468,9 +477,7 @@ export default function TransactionsPage() {
                   className={`mt-1 text-3xl font-bold tabular-nums ${detail.amountKRW >= 0 ? "text-accent" : "text-foreground"}`}
                 >
                   {detail.amountKRW >= 0 ? "+" : "-"}
-                  {detail.toCurrency && detail.toCurrency !== "KRW"
-                    ? formatCurrency(Math.abs(detail.amountKRW), detail.toCurrency)
-                    : formatKRW(Math.abs(detail.amountKRW))}
+                  {displayAmount(detail)}
                 </p>
                 <div className="mt-2 flex justify-center">
                   <TxStatusBadge status={detail.status} />
@@ -481,7 +488,7 @@ export default function TransactionsPage() {
               <section>
                 <h3 className="mb-2 text-sm font-semibold">거래 정보</h3>
                 <dl className="space-y-2.5 text-sm">
-                  <Row label="거래번호" value={(detail.journalId || detail.id).toUpperCase()} mono />
+                <Row label="거래번호" value={String(detail.journalId || detail.id).toUpperCase()} mono />
                   <Row label="유형" value={typeMeta[detail.type].label} />
                   <Row label="일시" value={formatDateTime(detail.createdAt)} />
                   <Row label="경과" value={timeAgo(detail.createdAt)} />
@@ -517,11 +524,7 @@ export default function TransactionsPage() {
                   <Row label="수수료" value={detail.fee ? formatKRW(detail.fee) : "무료"} />
                   <Row
                     label="총 금액"
-                    value={
-                      detail.toCurrency && detail.toCurrency !== "KRW"
-                        ? formatCurrency(Math.abs(detail.amountKRW), detail.toCurrency)
-                        : formatKRW(Math.abs(detail.amountKRW))
-                    }
+                    value={displayAmount(detail)}
                     bold
                   />
                 </dl>
