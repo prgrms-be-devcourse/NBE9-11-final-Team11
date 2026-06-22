@@ -291,7 +291,8 @@ public class RemittanceTransactionService {
         VirtualAccount virtualAccount = getVirtualAccount(remittanceTransaction.getId());
         validateIssuedVirtualAccount(virtualAccount);
 
-        releaseReservedAnnualLimit(userId, remittanceTransaction.getAmountUsd());
+        int reservedYear = getReservedAnnualLimitYear(remittanceTransaction);
+        releaseReservedAnnualLimit(userId, remittanceTransaction.getAmountUsd(), reservedYear);
         remittanceTransaction.cancel();
         virtualAccount.cancel();
 
@@ -346,12 +347,21 @@ public class RemittanceTransactionService {
     /**
      * 송금 취소 시 주문 생성 단계에서 선점했던 연간 송금 한도를 복구한다.
      */
-    private void releaseReservedAnnualLimit(Long userId, BigDecimal amountUsd) {
-        int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
-
+    private void releaseReservedAnnualLimit(Long userId, BigDecimal amountUsd, int year) {
         userAnnualUsageRepository
-                .findByUserIdAndYearForUpdate(userId, currentYear)
+                .findByUserIdAndYearForUpdate(userId, year)
                 .ifPresent(usage -> usage.subtractUsage(amountUsd));
+    }
+
+    /**
+     * 한도 선점은 송금 주문 생성 연도 기준이므로 취소 시에도 같은 연도 사용량을 복구한다.
+     */
+    private int getReservedAnnualLimitYear(RemittanceTransaction remittanceTransaction) {
+        if (remittanceTransaction.getCreatedAt() == null) {
+            return LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+        }
+
+        return remittanceTransaction.getCreatedAt().getYear();
     }
 
     /**
