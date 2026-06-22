@@ -35,6 +35,7 @@ class DiscordAdminAlertServiceTest {
 
     @BeforeEach
     void setUp() {
+        given(restClientBuilder.requestFactory(any())).willReturn(restClientBuilder);
         given(restClientBuilder.build()).willReturn(restClient);
         discordAdminAlertService = new DiscordAdminAlertService(WEBHOOK_URL, restClientBuilder);
 

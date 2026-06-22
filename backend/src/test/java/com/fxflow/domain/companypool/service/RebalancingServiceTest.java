@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -166,6 +167,20 @@ class RebalancingServiceTest {
 
         assertThat(result.action().buyCurrency()).isEqualTo("KRW");
         assertThat(result.action().sellCurrency()).isEqualTo("USD");
+    }
+
+    @Test
+    @DisplayName("둘 다 floor 미만 — 관리자 알림 실패해도 MANUAL_REQUIRED audit 기록은 저장됨")
+    void execute_bothBelowFloor_alertFails_auditStillSaved() {
+        givenPools(new BigDecimal("7000000000"), new BigDecimal("5000000"));
+        doThrow(new RuntimeException("알림 전송 실패"))
+                .when(adminAlertService).sendBothBelowFloorAlert(any(), any());
+
+        RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
+
+        assertThat(result.executed()).isFalse();
+        assertThat(result.reason()).isEqualTo("BOTH_BELOW_FLOOR");
+        verify(auditService).saveManualRequired(eq(TriggerType.MANUAL), any(), anyString());
     }
 
     @Test

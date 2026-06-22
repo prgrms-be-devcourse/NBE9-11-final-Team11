@@ -139,7 +139,11 @@ public class RebalancingService {
     private boolean isBothBelowFloor(CompanyPool krwPool, CompanyPool usdPool,
                                       TriggerType triggerType, String reason) {
         if (krwPool.isBelowFloor() && usdPool.isBelowFloor()) {
-            adminAlertService.sendBothBelowFloorAlert(krwPool.getBalance(), usdPool.getBalance());
+            try {
+                adminAlertService.sendBothBelowFloorAlert(krwPool.getBalance(), usdPool.getBalance());
+            } catch (Exception e) {
+                log.error("관리자 알림 전송 실패 — audit 기록은 정상 저장됨", e);
+            }
             auditService.saveManualRequired(triggerType, reason, UUID.randomUUID().toString());
             return true;
         }
