@@ -112,6 +112,10 @@ public sealed interface TransactionResponse
     ) implements TransactionResponse {
         public static Transfer from(LedgerEntry entry, P2pTransfer transfer){
 
+            if (transfer == null) {
+                return null;
+            }
+
             // DEBIT이면 받는 사람의 이메일을, CREDIT이면 보낸 사람의 이메일
             String counterpartyEmail = (entry.getLedgerDirection() == LedgerDirection.DEBIT)
                     ? transfer.getToWallet().getUser().getEmail()
