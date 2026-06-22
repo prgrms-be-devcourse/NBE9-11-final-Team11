@@ -47,7 +47,7 @@ export default function DashboardPage() {
           "GET",
           "/api/v1/wallets/transactions?size=5"
         )
-        const rawList = txData.transactionResponseList || []
+        const rawList = (txData.transactionResponseList || []).filter(Boolean)
         const exchangeCounts: Record<string, number> = {}
 
         const mapped: Transaction[] = rawList.map((tx) => {
