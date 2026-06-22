@@ -515,7 +515,7 @@ class RemittanceTransactionServiceTest {
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
         VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
                 .thenReturn(Optional.of(virtualAccount));
@@ -567,7 +567,7 @@ class RemittanceTransactionServiceTest {
         Long userId = 1L;
         Long transferId = 10L;
 
-        when(remittanceTransactionRepository.findById(transferId)).thenReturn(Optional.empty());
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId)).thenReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> remittanceTransactionService.mockFundTransfer(userId, transferId))
@@ -589,7 +589,7 @@ class RemittanceTransactionServiceTest {
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
         remittanceTransaction.fund(30L);
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
 
         // when & then
@@ -611,7 +611,7 @@ class RemittanceTransactionServiceTest {
         Long transferId = 10L;
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId)).thenReturn(Optional.empty());
 
@@ -635,7 +635,7 @@ class RemittanceTransactionServiceTest {
         VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, LocalDateTime.now().plusMinutes(30));
         virtualAccount.pay(LocalDateTime.now());
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
                 .thenReturn(Optional.of(virtualAccount));
@@ -659,7 +659,7 @@ class RemittanceTransactionServiceTest {
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
         VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, LocalDateTime.now().minusMinutes(1));
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
                 .thenReturn(Optional.of(virtualAccount));
@@ -689,7 +689,7 @@ class RemittanceTransactionServiceTest {
                 new BigDecimal("1000.00")
         );
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
                 .thenReturn(Optional.of(virtualAccount));
@@ -729,7 +729,7 @@ class RemittanceTransactionServiceTest {
                 new BigDecimal("1000.00")
         );
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
                 .thenReturn(Optional.of(virtualAccount));
@@ -755,7 +755,7 @@ class RemittanceTransactionServiceTest {
         RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
         remittanceTransaction.fund(30L);
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
 
         // when & then
@@ -766,6 +766,39 @@ class RemittanceTransactionServiceTest {
 
         verifyNoInteractions(virtualAccountRepository);
         verifyNoInteractions(userAnnualUsageRepository);
+    }
+
+    @Test
+    @DisplayName("성공: 입금 기한이 지난 송금 주문을 자동 취소하고 선점한 한도를 복구한다")
+    void expirePendingTransfers_success() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        LocalDateTime now = LocalDateTime.now();
+        int reservedYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        VirtualAccount virtualAccount = createVirtualAccount(userId, transferId, now.minusMinutes(1));
+        UserAnnualUsage annualUsage = createAnnualUsage(
+                userId,
+                reservedYear,
+                new BigDecimal("1000.00")
+        );
+
+        when(virtualAccountRepository.findByStatusAndExpiredAtLessThanEqual(VirtualAccountStatus.ISSUED, now))
+                .thenReturn(List.of(virtualAccount));
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
+                .thenReturn(Optional.of(remittanceTransaction));
+        when(userAnnualUsageRepository.findByUserIdAndYearForUpdate(userId, reservedYear))
+                .thenReturn(Optional.of(annualUsage));
+
+        // when
+        int expiredCount = remittanceTransactionService.expirePendingTransfers(now);
+
+        // then
+        assertThat(expiredCount).isEqualTo(1);
+        assertThat(remittanceTransaction.getStatus()).isEqualTo(TransferStatus.CANCELED);
+        assertThat(virtualAccount.getStatus()).isEqualTo(VirtualAccountStatus.EXPIRED);
+        assertThat(annualUsage.getAnnualUsedUsd()).isEqualByComparingTo(new BigDecimal("263.48"));
     }
 
     private RemittanceTransactionCreateRequest createRequest() {
@@ -892,6 +925,33 @@ class RemittanceTransactionServiceTest {
         // then
         assertThat(response.transferId()).isEqualTo(transferId);
         assertThat(response.virtualAccount()).isNull();
+    }
+
+    @Test
+    @DisplayName("성공: 삭제된 수취인도 과거 송금 내역에서는 조회된다")
+    void getTransfer_success_deletedRecipientForHistory() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        Recipient recipient = createRecipient(userId);
+        recipient.delete(LocalDateTime.now(ZoneId.of("Asia/Seoul")));
+
+        when(remittanceTransactionRepository.findByIdAndUserId(transferId, userId))
+                .thenReturn(Optional.of(remittanceTransaction));
+        when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
+                .thenReturn(Optional.of(recipient));
+        when(virtualAccountRepository.findByRemittanceTransactionId(transferId))
+                .thenReturn(Optional.empty());
+
+        // when
+        RemittanceTransactionDetailResponse response =
+                remittanceTransactionService.getTransfer(userId, transferId);
+
+        // then
+        assertThat(response.transferId()).isEqualTo(transferId);
+        assertThat(response.recipient().name()).isEqualTo("John Doe");
+        assertThat(response.recipient().accountNumber()).isEqualTo("1234567890");
     }
 
     @Test
