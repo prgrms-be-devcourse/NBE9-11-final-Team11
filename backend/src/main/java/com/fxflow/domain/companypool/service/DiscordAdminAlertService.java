@@ -1,19 +1,22 @@
 package com.fxflow.domain.companypool.service;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
 @Primary
 @Service
-@ConditionalOnProperty(name = "discord.webhook.url")
+@ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${discord.webhook.url:}')")
 public class DiscordAdminAlertService implements AdminAlertService {
 
     private final String webhookUrl;
@@ -22,9 +25,13 @@ public class DiscordAdminAlertService implements AdminAlertService {
     public DiscordAdminAlertService(@Value("${discord.webhook.url}") String webhookUrl,
                                     RestClient.Builder restClientBuilder) {
         this.webhookUrl = webhookUrl;
-        this.restClient = restClientBuilder.build();
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(3));
+        factory.setReadTimeout(Duration.ofSeconds(5));
+        this.restClient = restClientBuilder.requestFactory(factory).build();
     }
 
+    @Async("discordAlertExecutor")
     @Override
     public void sendBothBelowFloorAlert(BigDecimal krwBalance, BigDecimal usdBalance) {
         String message = String.format(
