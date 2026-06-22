@@ -29,8 +29,6 @@ public sealed interface TransactionResponse
         TransactionResponse.Exchange,
         TransactionResponse.Transfer {
 
-    LedgerEntryType type(); // 공통 식별자 (Discriminator)
-
     static TransactionResponse from(LedgerEntry entry) {
         return Simple.from(entry);
     }
@@ -43,7 +41,6 @@ public sealed interface TransactionResponse
         return Transfer.from(entry, transferTx);
     }
 
-    // 1. 단순 입출금 (CHARGE, WITHDRAW)
     record Simple(
             String journalId,
             LedgerEntryType type,
@@ -68,7 +65,7 @@ public sealed interface TransactionResponse
         }
     }
 
-    // 2. 환전 (EXCHANGE)
+    // 환전
     record Exchange(
             String journalId,
             LedgerEntryType type,
@@ -99,7 +96,7 @@ public sealed interface TransactionResponse
         }
     }
 
-    // 3. P2P 이체 (TRANSFER)
+    // P2P 이체
     record Transfer(
             String journalId,
             LedgerEntryType type,
@@ -112,8 +109,7 @@ public sealed interface TransactionResponse
     ) implements TransactionResponse {
         public static Transfer from(LedgerEntry entry, P2pTransfer transfer){
 
-            // 내 원장 기록이 DEBIT(출금)이면 받는 사람의 이메일을,
-            // CREDIT(입금)이면 보낸 사람의 이메일을 가져옵니다.
+            // DEBIT이면 받는 사람의 이메일을, CREDIT이면 보낸 사람의 이메일
             String counterpartyEmail = (entry.getLedgerDirection() == LedgerDirection.DEBIT)
                     ? transfer.getToWallet().getUser().getEmail()
                     : transfer.getFromWallet().getUser().getEmail();
