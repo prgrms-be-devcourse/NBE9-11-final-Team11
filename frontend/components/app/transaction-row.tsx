@@ -2,7 +2,7 @@
 
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Send } from "lucide-react"
 import type { Transaction, TxType } from "@/lib/store"
-import { formatKRW } from "@/lib/fx-data"
+import { formatKRW, formatCurrency } from "@/lib/fx-data"
 import { TxStatusBadge } from "./status-badges"
 
 const iconMap: Record<TxType, typeof ArrowDownLeft> = {
@@ -45,7 +45,9 @@ export function TransactionRow({ tx, onClick }: { tx: Transaction; onClick?: () 
       <div className="flex flex-col items-end gap-1">
         <span className={`text-sm font-semibold tabular-nums ${positive ? "text-accent" : "text-foreground"}`}>
           {positive ? "+" : "-"}
-          {formatKRW(Math.abs(tx.amountKRW))}
+          {tx.toCurrency && tx.toCurrency !== "KRW"
+            ? formatCurrency(Math.abs(tx.amountKRW), tx.toCurrency)
+            : formatKRW(Math.abs(tx.amountKRW))}
         </span>
         <TxStatusBadge status={tx.status} />
       </div>

@@ -47,32 +47,75 @@ export default function DashboardPage() {
           "GET",
           "/api/v1/wallets/transactions?size=5"
         )
-        const mapped: Transaction[] = (txData.transactionResponseList || []).map((tx) => {
-          const isCredit = tx.direction === "CREDIT"
-          const txType: TxType = 
-            tx.type === "CHARGE" ? "deposit" :
-            tx.type === "WITHDRAW" ? "withdraw" :
-            tx.type === "EXCHANGE" ? "exchange" :
-            "transfer"
+        const rawList = (txData.transactionResponseList || []).filter(Boolean)
+        const exchangeCounts: Record<string, number> = {}
+
+        const mapped: Transaction[] = rawList.map((tx) => {
+          let direction = tx.direction
+          let currency = tx.currency
+
+          // Fallback for exchanges if backend has not been restarted
+          if (tx.type === "EXCHANGE" && (!direction || !currency)) {
+            const count = exchangeCounts[tx.journalId] || 0
+            exchangeCounts[tx.journalId] = count + 1
             
+            if (count % 2 === 0) {
+              direction = "DEBIT"
+              currency = tx.fromCurrency || "KRW"
+            } else {
+              direction = "CREDIT"
+              currency = tx.toCurrency || "USD"
+            }
+          }
+
+          const isCredit = direction === "CREDIT"
           const amountSign = isCredit ? 1 : -1
           
+          let txType: TxType = "transfer"
+          let title = ""
+          let amountKRW = Number(tx.amount || 0) * amountSign
+          let fromCurrency: CurrencyCode | undefined = undefined
+          let toCurrency: CurrencyCode | undefined = currency as CurrencyCode
+          let rate: number | undefined = undefined
+          let fee: number | undefined = undefined
+          let detailStr = tx.memo || undefined
+
+          if (tx.type === "CHARGE") {
+            txType = "deposit"
+            title = "KRW 입금"
+            detailStr = "모의계좌 입금"
+          } else if (tx.type === "WITHDRAW") {
+            txType = "withdraw"
+            title = "KRW 출금"
+            detailStr = "모의계좌 출금"
+          } else if (tx.type === "EXCHANGE") {
+            txType = "exchange"
+            title = `${tx.fromCurrency} → ${tx.toCurrency} 환전`
+            
+            amountKRW = direction === "CREDIT" ? Number(tx.toAmount) : -Number(tx.fromAmount)
+            fromCurrency = tx.fromCurrency as CurrencyCode
+            toCurrency = (direction === "CREDIT" ? tx.toCurrency : tx.fromCurrency) as CurrencyCode
+            rate = Number(tx.exchangeRate)
+            fee = Number(tx.feeAmount)
+          } else if (tx.type === "TRANSFER") {
+            txType = "transfer"
+            title = `이체 (${isCredit ? "받음" : "보냄"})`
+            detailStr = tx.counterpartyEmail ? `${isCredit ? "보낸이" : "받는이"}: ${tx.counterpartyEmail}` : tx.memo
+          }
+
           return {
-            id: String(tx.transactionId),
+            id: `w-${tx.journalId || Math.random()}-${currency || "KRW"}`,
+            journalId: tx.journalId,
             type: txType,
-            title: tx.type === "CHARGE" ? "KRW 입금" :
-                   tx.type === "WITHDRAW" ? "KRW 출금" :
-                   tx.type === "EXCHANGE" ? `${tx.currency} 환전` :
-                   `이체 (${isCredit ? "받음" : "보냄"})`,
-            amountKRW: Number(tx.amount) * amountSign,
-            fromCurrency: tx.type === "EXCHANGE" && !isCredit ? "KRW" : undefined,
-            toCurrency: tx.currency,
-            rate: tx.type === "EXCHANGE" ? 1380 : undefined,
-            fee: 0,
+            title,
+            amountKRW,
+            fromCurrency,
+            toCurrency,
+            rate,
+            fee,
             status: "completed" as TxStatus,
             createdAt: tx.createdAt,
-            detail: tx.type === "CHARGE" ? "모의계좌 입금" :
-                    tx.type === "WITHDRAW" ? "모의계좌 출금" : undefined
+            detail: detailStr
           }
         })
         setTransactions(mapped)
