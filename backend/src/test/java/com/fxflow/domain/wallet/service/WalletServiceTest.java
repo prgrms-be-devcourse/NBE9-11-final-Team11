@@ -493,11 +493,10 @@ class WalletServiceTest {
     }
 
     @Test
-    @DisplayName("월렛 출금 - 다른 유저의 모의계좌로 출금 시도")
-    void withdraw_fail_bankAccountNotOwned() {
+    @DisplayName("월렛 출금 - 모의계좌가 존재하지 않음")
+    void withdraw_fail_bankAccountNotFound() {
         // given
         Long userId = 1L;
-        Long otherUsersBankAccountId = 99L;
         WithdrawRequest request = new WithdrawRequest(new BigDecimal("5000"));
 
         when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
