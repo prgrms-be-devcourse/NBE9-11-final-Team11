@@ -57,7 +57,7 @@ class RemittanceRefundServiceTest {
         BusinessException exception = new BusinessException(PoolErrorCode.POOL_INSUFFICIENT_BALANCE);
         int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(userAnnualUsageRepository.findByUserIdAndYearForUpdate(remittanceTransaction.getUserId(), currentYear))
                 .thenReturn(Optional.of(annualUsage));
@@ -95,7 +95,7 @@ class RemittanceRefundServiceTest {
         RuntimeException exception = new RuntimeException("환불 처리 실패");
         int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
 
-        when(remittanceTransactionRepository.findById(transferId))
+        when(remittanceTransactionRepository.findByIdForUpdate(transferId))
                 .thenReturn(Optional.of(remittanceTransaction));
         when(userAnnualUsageRepository.findByUserIdAndYearForUpdate(remittanceTransaction.getUserId(), currentYear))
                 .thenReturn(Optional.of(annualUsage));
