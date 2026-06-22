@@ -111,8 +111,8 @@ public class RebalancingService {
         try {
             applyBalanceChanges(buyPool, sellPool, amounts);
         } catch (BusinessException e) {
-            // 잔액 변경 실패 → 메인 트랜잭션 롤백 전에 RETRY_REQUIRED 기록 저장 (별도 트랜잭션)
-            auditService.saveRetryRequired(
+            // 잔액 변경 실패 → 메인 트랜잭션 롤백 전에 FAILED 기록 저장 (별도 트랜잭션)
+            auditService.saveFailed(
                     buyPool.getId(), sellPool.getId(),
                     amounts.buyAmount(), amounts.sellAmount(),
                     buyBalanceBefore, sellBalanceBefore,
