@@ -80,6 +80,9 @@ public sealed interface TransactionResponse
             LocalDateTime createdAt
     ) implements TransactionResponse {
         public static Exchange from(LedgerEntry entry, ExchangeTransaction exchangeTx) {
+            if (exchangeTx == null) {
+                return null;
+            }
             return new Exchange(
                     entry.getJournalId(),
                     entry.getEntryType(),
