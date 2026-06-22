@@ -45,6 +45,7 @@ services:
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-Lax}
       COOKIE_MAX_AGE: 1800
       TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     depends_on:
       postgres:
         condition: service_healthy
