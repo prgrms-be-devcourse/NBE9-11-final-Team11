@@ -31,12 +31,24 @@ const periodOptions = [
   { value: "90", label: "최근 90일" },
 ]
 
+const PAGE_SIZE = 20
+const PAGE_GROUP_SIZE = 5
+
 const statusLabels: Record<TxStatus | "all", string> = {
   all: "전체 상태",
   completed: "완료",
   processing: "처리중",
   failed: "실패",
   refunded: "환불됨",
+  canceled: "취소",
+}
+
+interface RemittancePageResponse {
+  data: any[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
 }
 
 function formatDateTime(iso: string) {
@@ -55,6 +67,10 @@ export default function TransactionsPage() {
   const [type, setType] = useState<TxType | "all">("all")
   const [status, setStatus] = useState<TxStatus | "all">("all")
   const [detail, setDetail] = useState<Transaction | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [serverTotalElements, setServerTotalElements] = useState(0)
+  const [serverTotalPages, setServerTotalPages] = useState(1)
+  const [hasWalletTransactions, setHasWalletTransactions] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -128,15 +144,23 @@ export default function TransactionsPage() {
             }
           })
         }
+        setHasWalletTransactions(walletList.length > 0)
 
         if (fetchRemittances) {
-          const res = await apiRequest<any[]>("GET", "/api/v1/transfers")
-          remittanceList = (res || []).map((tx) => {
+          const res = await apiRequest<RemittancePageResponse>(
+            "GET",
+            `/api/v1/transfers?page=${currentPage - 1}&size=${PAGE_SIZE}`
+          )
+          setServerTotalElements(res.totalElements)
+          setServerTotalPages(Math.max(1, res.totalPages))
+          remittanceList = (res.data || []).map((tx) => {
             let status: TxStatus = "completed"
             if (tx.status === "PENDING" || tx.status === "FUNDED" || tx.status === "PROCESSING") {
               status = "processing"
-            } else if (tx.status === "FAILED" || tx.status === "REFUND_FAILED" || tx.status === "CANCELED") {
+            } else if (tx.status === "FAILED" || tx.status === "REFUND_FAILED") {
               status = "failed"
+            } else if (tx.status === "CANCELED") {
+              status = "canceled"
             } else if (tx.status === "REFUNDED") {
               status = "refunded"
             }
@@ -169,12 +193,14 @@ export default function TransactionsPage() {
         setTransactions(merged)
       } catch (err) {
         console.error("Failed to load transactions:", err)
+        setServerTotalElements(0)
+        setServerTotalPages(1)
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [type, period])
+  }, [type, period, currentPage])
 
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
@@ -182,6 +208,33 @@ export default function TransactionsPage() {
       return true
     })
   }, [transactions, status])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [period, type, status])
+
+  const useServerPagination =
+    (type === "remittance" || (type === "all" && !hasWalletTransactions)) &&
+    period === "all" &&
+    status === "all"
+  const totalElements = useServerPagination ? serverTotalElements : filtered.length
+  const totalPages = useServerPagination ? serverTotalPages : Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pagedTransactions = useServerPagination
+    ? filtered
+    : filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const currentPageGroup = Math.floor((currentPage - 1) / PAGE_GROUP_SIZE)
+  const firstPageInGroup = currentPageGroup * PAGE_GROUP_SIZE + 1
+  const lastPageInGroup = Math.min(firstPageInGroup + PAGE_GROUP_SIZE - 1, totalPages)
+  const visiblePages = Array.from(
+    { length: lastPageInGroup - firstPageInGroup + 1 },
+    (_, index) => firstPageInGroup + index
+  )
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   const received = (tx: Transaction) =>
     tx.rate ? Math.abs(tx.amountKRW) / (tx.rate / (tx.toCurrency === "JPY" ? 100 : 1)) : 0
@@ -235,6 +288,7 @@ export default function TransactionsPage() {
                   <SelectItem value="processing">처리중</SelectItem>
                   <SelectItem value="failed">실패</SelectItem>
                   <SelectItem value="refunded">환불됨</SelectItem>
+                  <SelectItem value="canceled">취소</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -245,7 +299,9 @@ export default function TransactionsPage() {
         <Card className="overflow-hidden p-0">
           <div className="flex items-center justify-between px-5 py-4">
             <h2 className="text-base font-bold">거래 내역</h2>
-            <span className="text-sm text-muted-foreground">{filtered.length}건</span>
+            <span className="text-sm text-muted-foreground">
+              {totalElements}건 · {currentPage}/{totalPages}페이지
+            </span>
           </div>
           <Separator />
           {loading ? (
@@ -266,7 +322,7 @@ export default function TransactionsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((t) => {
+                  {pagedTransactions.map((t) => {
                     const Icon = typeMeta[t.type].icon
                     const positive = t.amountKRW >= 0
                     return (
@@ -302,6 +358,43 @@ export default function TransactionsPage() {
                   })}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          {!loading && totalElements > PAGE_SIZE && (
+            <div className="relative border-t px-5 py-3">
+              <p className="mb-3 text-sm text-muted-foreground sm:absolute sm:left-5 sm:top-1/2 sm:mb-0 sm:-translate-y-1/2">
+                최근순 {Math.min((currentPage - 1) * PAGE_SIZE + 1, totalElements)}-
+                {Math.min(currentPage * PAGE_SIZE, totalElements)}건 표시
+              </p>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={firstPageInGroup === 1}
+                  onClick={() => setCurrentPage(Math.max(1, firstPageInGroup - PAGE_GROUP_SIZE))}
+                >
+                  이전
+                </Button>
+                {visiblePages.map((page) => (
+                  <Button
+                    key={page}
+                    variant={page === currentPage ? "default" : "outline"}
+                    size="sm"
+                    className="min-w-9"
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </Button>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={lastPageInGroup === totalPages}
+                  onClick={() => setCurrentPage(Math.min(totalPages, lastPageInGroup + 1))}
+                >
+                  다음
+                </Button>
+              </div>
             </div>
           )}
         </Card>

@@ -19,6 +19,11 @@ public interface RemittanceTransactionRepository extends JpaRepository<Remittanc
     List<RemittanceTransaction> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     /**
+     * 특정 유저의 해외송금 거래 이력을 최신순으로 페이지 조회한다.
+     */
+    Page<RemittanceTransaction> findByUserId(Long userId, Pageable pageable);
+
+    /**
      * 특정 송금 거래가 로그인한 사용자의 거래인지 확인하며 조회한다.
      */
     Optional<RemittanceTransaction> findByIdAndUserId(Long id, Long userId);

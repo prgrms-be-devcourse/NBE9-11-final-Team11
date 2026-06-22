@@ -67,7 +67,7 @@ export default function AdminTransactionsPage() {
             <Select value={status} onValueChange={(v) => setStatus((v as TxStatus | "all") ?? "all")}>
               <SelectTrigger className="w-36">
                 <SelectValue>
-                  {{ all: "전체 상태", completed: "완료", processing: "처리중", failed: "실패", refunded: "환불됨" }[status]}
+                  {{ all: "전체 상태", completed: "완료", processing: "처리중", failed: "실패", refunded: "환불됨", canceled: "취소" }[status]}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -76,6 +76,7 @@ export default function AdminTransactionsPage() {
                 <SelectItem value="processing">처리중</SelectItem>
                 <SelectItem value="failed">실패</SelectItem>
                 <SelectItem value="refunded">환불됨</SelectItem>
+                <SelectItem value="canceled">취소</SelectItem>
               </SelectContent>
             </Select>
           </div>

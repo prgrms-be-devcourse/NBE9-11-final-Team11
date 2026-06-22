@@ -48,6 +48,7 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
   const [transfer, setTransfer] = useState<TransferDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [funding, setFunding] = useState(false)
+  const [canceling, setCanceling] = useState(false)
 
   async function loadTransfer(showLoading = true) {
     if (showLoading) {
@@ -96,6 +97,20 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
     }
   }
 
+  async function cancelTransfer() {
+    setCanceling(true)
+    try {
+      await apiRequest("PATCH", `/api/v1/transfers/${transferId}/cancel`)
+      toast.success("송금 신청이 취소되었습니다.")
+      await loadTransfer(false)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "송금 취소에 실패했습니다.")
+    } finally {
+      setCanceling(false)
+    }
+  }
+
   const stageIndex = useMemo(() => {
     if (transfer) {
       if (transfer.status === "COMPLETED") return STAGES.length
@@ -137,7 +152,9 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
 
   const failed = transfer?.status === "FAILED" || transfer?.status === "REFUND_FAILED" || tx?.status === "failed"
   const pendingDeposit = transfer?.status === "PENDING"
-  const completed = !failed && stageIndex >= STAGES.length
+  const canceled = transfer?.status === "CANCELED" || tx?.status === "canceled"
+  const stopped = failed || canceled
+  const completed = !stopped && stageIndex >= STAGES.length
   const title = transfer ? `해외송금 · ${transfer.recipient.name}` : tx!.title
   const amountKrw = transfer ? Number(transfer.sendAmountKrw) + Number(transfer.totalFee) : Math.abs(tx!.amountKRW)
   const receiveCurrency = (tx?.toCurrency ?? "USD") as CurrencyCode
@@ -175,6 +192,8 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
                 "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold",
                 failed
                   ? "bg-destructive/10 text-destructive"
+                  : canceled
+                    ? "bg-muted text-muted-foreground"
                   : completed
                     ? "bg-accent/15 text-accent"
                     : pendingDeposit
@@ -182,8 +201,8 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
                       : "bg-primary/10 text-primary",
               )}
             >
-              {failed ? null : completed ? <Check className="size-3.5" /> : pendingDeposit ? null : <Loader2 className="size-3.5 animate-spin" />}
-              {failed ? "실패" : completed ? "완료" : pendingDeposit ? "입금 대기" : "처리중"}
+              {failed || canceled ? null : completed ? <Check className="size-3.5" /> : pendingDeposit ? null : <Loader2 className="size-3.5 animate-spin" />}
+              {failed ? "실패" : canceled ? "취소" : completed ? "완료" : pendingDeposit ? "입금 대기" : "처리중"}
             </span>
           </div>
           {detail && <p className="mt-3 text-sm text-muted-foreground">{detail}</p>}
@@ -203,9 +222,14 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
                   <InfoRow label="입금 금액" value={formatKRW(Number(transfer.virtualAccount.amount))} bold />
                   <InfoRow label="입금 기한" value={formatDateTime(transfer.virtualAccount.expiredAt)} />
                 </dl>
-                <Button className="mt-4 w-full" onClick={mockFundTransfer} disabled={funding}>
-                  {funding ? "입금 처리 중..." : "가상계좌 입금하기"}
-                </Button>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <Button onClick={mockFundTransfer} disabled={funding || canceling}>
+                    {funding ? "입금 처리 중..." : "가상계좌 입금하기"}
+                  </Button>
+                  <Button variant="outline" onClick={cancelTransfer} disabled={funding || canceling}>
+                    {canceling ? "취소 처리 중..." : "송금 취소하기"}
+                  </Button>
+                </div>
               </div>
             </div>
           </Card>
@@ -216,8 +240,8 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
           <h2 className="text-sm font-semibold">처리 현황</h2>
           <ol className="mt-4">
             {STAGES.map((stage, i) => {
-              const done = !failed && i < stageIndex
-              const active = !failed && i === stageIndex
+              const done = !stopped && i < stageIndex
+              const active = !stopped && i === stageIndex
               const Icon = stage.icon
               return (
                 <li key={stage.key} className="flex gap-4">
