@@ -241,7 +241,7 @@ public class RemittanceTransactionService {
      */
     @Transactional
     public RemittanceMockFundedResponse mockFundTransfer(Long userId, Long transferId) {
-        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findById(transferId)
+        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findByIdForUpdate(transferId)
                 .orElseThrow(() -> new BusinessException(
                         RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
                 ));
@@ -288,7 +288,7 @@ public class RemittanceTransactionService {
      */
     @Transactional
     public RemittanceCancelResponse cancelTransfer(Long userId, Long transferId) {
-        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findById(transferId)
+        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findByIdForUpdate(transferId)
                 .orElseThrow(() -> new BusinessException(
                         RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
                 ));
@@ -329,7 +329,7 @@ public class RemittanceTransactionService {
 
     private boolean expirePendingTransfer(VirtualAccount virtualAccount) {
         return remittanceTransactionRepository
-                .findById(virtualAccount.getRemittanceTransactionId())
+                .findByIdForUpdate(virtualAccount.getRemittanceTransactionId())
                 .filter(remittanceTransaction -> remittanceTransaction.getStatus() == TransferStatus.PENDING)
                 .map(remittanceTransaction -> {
                     int reservedYear = getReservedAnnualLimitYear(remittanceTransaction);

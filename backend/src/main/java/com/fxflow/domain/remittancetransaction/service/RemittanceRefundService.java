@@ -36,7 +36,7 @@ public class RemittanceRefundService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void refundAfterPayoutFailure(Long transferId, RuntimeException cause) {
-        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findById(transferId)
+        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findByIdForUpdate(transferId)
                 .orElseThrow(() -> new BusinessException(
                         RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
                 ));
@@ -75,7 +75,7 @@ public class RemittanceRefundService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markRefundFailed(Long transferId, RuntimeException cause) {
-        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findById(transferId)
+        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findByIdForUpdate(transferId)
                 .orElseThrow(() -> new BusinessException(
                         RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
                 ));

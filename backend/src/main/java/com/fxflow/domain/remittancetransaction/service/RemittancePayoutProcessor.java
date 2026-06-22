@@ -68,7 +68,7 @@ public class RemittancePayoutProcessor {
     }
 
     private RemittanceTransaction getTransfer(Long transferId) {
-        return remittanceTransactionRepository.findById(transferId)
+        return remittanceTransactionRepository.findByIdForUpdate(transferId)
                 .orElseThrow(() -> new BusinessException(
                         RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
                 ));
