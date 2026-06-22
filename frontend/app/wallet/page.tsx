@@ -102,7 +102,7 @@ export default function WalletPage() {
       )
 
       if (historyRes.transactionResponseList) {
-        const rawList = historyRes.transactionResponseList || []
+        const rawList = (historyRes.transactionResponseList || []).filter(Boolean)
         const exchangeCounts: Record<string, number> = {}
 
         const mappedTxList = rawList.map((tx: any) => {
