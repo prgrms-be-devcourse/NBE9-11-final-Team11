@@ -138,7 +138,8 @@ public class CompanyPoolService {
 
     @Transactional
     public CompanyPool deposit(String journalId, String currencyCode, BigDecimal amount) {
-        CompanyPool pool = getPoolByCurrency(currencyCode);
+        CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
+                .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
         BigDecimal balanceBefore = pool.getBalance();
         BigDecimal balanceAfter = balanceBefore.add(amount);
 
@@ -167,7 +168,8 @@ public class CompanyPoolService {
 
     @Transactional
     public void withdraw(String journalId, String currencyCode, BigDecimal amount) {
-        CompanyPool pool = getPoolByCurrency(currencyCode);
+        CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
+                .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
         BigDecimal balanceBefore = pool.getBalance();
         BigDecimal balanceAfter = balanceBefore.subtract(amount);
         if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {

@@ -126,7 +126,7 @@ class CompanyPoolServiceTest {
     @DisplayName("deposit 성공 시 PoolChangedEvent 발행 → 리밸런싱 체크 트리거")
     void deposit_success_publishesPoolChangedEvent() {
         CompanyPool pool = mockPoolForDeposit();
-        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+        given(companyPoolRepository.findByCurrencyCodeWithLock("KRW")).willReturn(Optional.of(pool));
 
         companyPoolService.deposit("journal-001", "KRW", new BigDecimal("1000000"));
 
@@ -139,7 +139,7 @@ class CompanyPoolServiceTest {
     // 실제 풀 잔액 롤백은 통합 테스트에서 확인해야 한다.
     void deposit_ledgerSaveFails_exceptionPropagatesAndEventNotPublished() {
         CompanyPool pool = mockPoolForDeposit();
-        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+        given(companyPoolRepository.findByCurrencyCodeWithLock("KRW")).willReturn(Optional.of(pool));
         doThrow(new RuntimeException("DB 장애")).when(ledgerEntryRepository).save(any());
 
         assertThatThrownBy(() -> companyPoolService.deposit("journal-001", "KRW", new BigDecimal("1000000")))
@@ -150,7 +150,7 @@ class CompanyPoolServiceTest {
     @Test
     @DisplayName("deposit - 통화 풀이 존재하지 않으면 POOL_NOT_FOUND 예외")
     void deposit_poolNotFound_throwsPoolNotFound() {
-        given(companyPoolRepository.findByCurrencyCode("USD")).willReturn(Optional.empty());
+        given(companyPoolRepository.findByCurrencyCodeWithLock("USD")).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> companyPoolService.deposit("journal-001", "USD", new BigDecimal("1000")))
                 .isInstanceOf(BusinessException.class)
@@ -164,7 +164,7 @@ class CompanyPoolServiceTest {
     @DisplayName("withdraw 성공 시 PoolChangedEvent 발행 → 리밸런싱 체크 트리거")
     void withdraw_success_publishesPoolChangedEvent() {
         CompanyPool pool = mockPoolForWithdraw(new BigDecimal("10000000000"));
-        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+        given(companyPoolRepository.findByCurrencyCodeWithLock("KRW")).willReturn(Optional.of(pool));
 
         companyPoolService.withdraw("journal-001", "KRW", new BigDecimal("1000000"));
 
@@ -175,11 +175,10 @@ class CompanyPoolServiceTest {
     @DisplayName("withdraw - 출금 후 풀 잔액이 0 미만이면 POOL_INSUFFICIENT_BALANCE 예외")
     void withdraw_exceedsPoolBalance_throwsInsufficientBalance() {
         CompanyPool pool = mockPoolForWithdraw(new BigDecimal("500"));
-        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+        given(companyPoolRepository.findByCurrencyCodeWithLock("KRW")).willReturn(Optional.of(pool));
 
         assertThatThrownBy(() -> companyPoolService.withdraw("journal-001", "KRW", new BigDecimal("1000")))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                .isInstanceOf(BusinessException.class).satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(PoolErrorCode.POOL_INSUFFICIENT_BALANCE));
     }
 
@@ -187,7 +186,7 @@ class CompanyPoolServiceTest {
     @DisplayName("withdraw - 잔액 부족 시 이벤트 미발행 (실패 거래는 리밸런싱 미트리거)")
     void withdraw_exceedsPoolBalance_eventNotPublished() {
         CompanyPool pool = mockPoolForWithdraw(new BigDecimal("500"));
-        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+        given(companyPoolRepository.findByCurrencyCodeWithLock("KRW")).willReturn(Optional.of(pool));
 
         assertThatThrownBy(() -> companyPoolService.withdraw("journal-001", "KRW", new BigDecimal("1000")))
                 .isInstanceOf(BusinessException.class);
@@ -198,7 +197,7 @@ class CompanyPoolServiceTest {
     @DisplayName("withdraw - 출금 금액이 잔액과 정확히 같으면 성공 (경계값 0원)")
     void withdraw_exactBalance_success() {
         CompanyPool pool = mockPoolForWithdraw(new BigDecimal("1000"));
-        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+        given(companyPoolRepository.findByCurrencyCodeWithLock("KRW")).willReturn(Optional.of(pool));
 
         companyPoolService.withdraw("journal-001", "KRW", new BigDecimal("1000"));
 
