@@ -20,7 +20,6 @@ export function middleware(request: NextRequest) {
   return NextResponse.next()
 }
 
-// 미들웨어가 작동할 경로 설정
 export const config = {
   matcher: ['/login', '/signup'],
 }
