@@ -1,6 +1,8 @@
 package com.fxflow.global.security;
 
+import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.security.dto.JwtUserInfo;
+import com.fxflow.global.security.errorcode.AuthErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -21,7 +23,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("TokenBlacklistService - 로그아웃 토큰 블랙리스트")
+@DisplayName("TokenBlacklistService - Refresh Token 블랙리스트")
 class TokenBlacklistServiceTest {
 
     @Mock
@@ -34,55 +36,87 @@ class TokenBlacklistServiceTest {
     @InjectMocks
     private TokenBlacklistService tokenBlacklistService;
 
-    private static final String TOKEN = "dummy-token";
+    private static final String REFRESH_TOKEN = "dummy-refresh-token";
     private static final String JTI = "jti-1234";
+    // Access Token 블랙리스트 제거 → Refresh Token 전용 prefix
+    private static final String REFRESH_BLACKLIST_PREFIX = "auth:refresh-blacklist:";
 
     @Nested
-    @DisplayName("invalidate - 로그아웃 시 블랙리스트 등록")
-    class Invalidate {
+    @DisplayName("invalidateRefreshToken - 로그아웃 시 Refresh Token 블랙리스트 등록")
+    class InvalidateRefreshToken {
 
         @Test
         @DisplayName("성공: 남은 TTL만큼 Redis에 jti를 등록한다")
         void success() {
             // given
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
-            given(jwtTokenProvider.getJwtUserInfo(TOKEN))
-                    .willReturn(new JwtUserInfo(1L, "USER", JTI));
-            given(jwtTokenProvider.getRemainingTtl(TOKEN))
-                    .willReturn(Duration.ofMinutes(10));
+            given(jwtTokenProvider.getJwtUserInfo(REFRESH_TOKEN))
+                    .willReturn(new JwtUserInfo(1L, null, JTI)); // Refresh Token은 role 없음
+            given(jwtTokenProvider.getRemainingTtl(REFRESH_TOKEN))
+                    .willReturn(Duration.ofDays(7));
 
             // when
-            tokenBlacklistService.invalidate(TOKEN);
+            tokenBlacklistService.invalidateRefreshToken(REFRESH_TOKEN);
 
             // then
             verify(valueOperations).set(
-                    eq("auth:blacklist:" + JTI),
+                    eq(REFRESH_BLACKLIST_PREFIX + JTI),
                     eq(Boolean.TRUE),
-                    eq(Duration.ofMinutes(10))
+                    eq(Duration.ofDays(7))
             );
         }
 
         @Test
-        @DisplayName("토큰이 null이면 아무 일도 하지 않는다")
+        @DisplayName("Refresh Token이 null이면 아무 일도 하지 않는다")
         void tokenNull() {
             // when
-            tokenBlacklistService.invalidate(null);
+            tokenBlacklistService.invalidateRefreshToken(null);
 
             // then
             verify(redisTemplate, never()).opsForValue();
         }
 
         @Test
-        @DisplayName("남은 TTL이 0이면 등록하지 않는다 (이미 만료 직전)")
+        @DisplayName("남은 TTL이 0이면 등록하지 않는다 (이미 만료)")
         void zeroTtl() {
             // given
-            given(jwtTokenProvider.getJwtUserInfo(TOKEN))
-                    .willReturn(new JwtUserInfo(1L, "USER", JTI));
-            given(jwtTokenProvider.getRemainingTtl(TOKEN))
+            given(jwtTokenProvider.getJwtUserInfo(REFRESH_TOKEN))
+                    .willReturn(new JwtUserInfo(1L, null, JTI));
+            given(jwtTokenProvider.getRemainingTtl(REFRESH_TOKEN))
                     .willReturn(Duration.ZERO);
 
             // when
-            tokenBlacklistService.invalidate(TOKEN);
+            tokenBlacklistService.invalidateRefreshToken(REFRESH_TOKEN);
+
+            // then
+            verify(redisTemplate, never()).opsForValue();
+        }
+
+        @Test
+        @DisplayName("만료된 Refresh Token이면 등록하지 않는다 (BusinessException 처리)")
+        void expiredToken() {
+            // given - 만료된 토큰은 getJwtUserInfo에서 BusinessException 발생
+            given(jwtTokenProvider.getJwtUserInfo(REFRESH_TOKEN))
+                    .willThrow(new BusinessException(AuthErrorCode.UNAUTHORIZED));
+
+            // when - 예외가 밖으로 전파되지 않아야 함
+            tokenBlacklistService.invalidateRefreshToken(REFRESH_TOKEN);
+
+            // then
+            verify(redisTemplate, never()).opsForValue();
+        }
+
+        @Test
+        @DisplayName("jti가 null이면 등록하지 않는다")
+        void jtiNull() {
+            // given
+            given(jwtTokenProvider.getJwtUserInfo(REFRESH_TOKEN))
+                    .willReturn(new JwtUserInfo(1L, null, null)); // jti null
+            given(jwtTokenProvider.getRemainingTtl(REFRESH_TOKEN))
+                    .willReturn(Duration.ofDays(7));
+
+            // when
+            tokenBlacklistService.invalidateRefreshToken(REFRESH_TOKEN);
 
             // then
             verify(redisTemplate, never()).opsForValue();
@@ -90,29 +124,29 @@ class TokenBlacklistServiceTest {
     }
 
     @Nested
-    @DisplayName("isBlacklisted - 블랙리스트 조회")
-    class IsBlacklisted {
+    @DisplayName("isRefreshTokenBlacklisted - Refresh Token 블랙리스트 조회")
+    class IsRefreshTokenBlacklisted {
 
         @Test
-        @DisplayName("성공: 키가 존재하면 true")
+        @DisplayName("성공: 키가 존재하면 true (로그아웃된 토큰)")
         void found() {
-            given(redisTemplate.hasKey("auth:blacklist:" + JTI)).willReturn(true);
+            given(redisTemplate.hasKey(REFRESH_BLACKLIST_PREFIX + JTI)).willReturn(true);
 
-            assertThat(tokenBlacklistService.isBlacklisted(JTI)).isTrue();
+            assertThat(tokenBlacklistService.isRefreshTokenBlacklisted(JTI)).isTrue();
         }
 
         @Test
-        @DisplayName("성공: 키가 없으면 false")
+        @DisplayName("성공: 키가 없으면 false (유효한 토큰)")
         void notFound() {
-            given(redisTemplate.hasKey("auth:blacklist:" + JTI)).willReturn(false);
+            given(redisTemplate.hasKey(REFRESH_BLACKLIST_PREFIX + JTI)).willReturn(false);
 
-            assertThat(tokenBlacklistService.isBlacklisted(JTI)).isFalse();
+            assertThat(tokenBlacklistService.isRefreshTokenBlacklisted(JTI)).isFalse();
         }
 
         @Test
         @DisplayName("jti가 null이면 Redis를 조회하지 않고 false")
         void jtiNull() {
-            assertThat(tokenBlacklistService.isBlacklisted(null)).isFalse();
+            assertThat(tokenBlacklistService.isRefreshTokenBlacklisted(null)).isFalse();
 
             verify(redisTemplate, never()).hasKey(any());
         }
