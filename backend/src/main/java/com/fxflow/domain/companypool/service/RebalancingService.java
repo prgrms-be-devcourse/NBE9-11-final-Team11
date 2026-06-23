@@ -120,6 +120,17 @@ public class RebalancingService {
             throw e;
         }
 
+        // 리밸런싱 후에도 매입 풀이 floor 미달 → 상대 풀 여유분이 부족해 완전 복구 불가한 경우
+        BigDecimal buyBalanceAfter = buyBalanceBefore.add(amounts.buyAmount());
+        if (buyBalanceAfter.compareTo(buyPool.getFloorBalance()) < 0) {
+            try {
+                adminAlertService.sendStillBelowFloorAfterRebalancing(
+                        buyPool.getCurrencyCode(), buyBalanceAfter, buyPool.getFloorBalance());
+            } catch (Exception e) {
+                log.error("리밸런싱 후 floor 미달 알림 전송 실패", e);
+            }
+        }
+
         RebalancingOrder order = RebalancingOrder.create(
                 buyPool, sellPool, amounts.buyAmount(), amounts.sellAmount(),
                 buyBalanceBefore, sellBalanceBefore, midRate, appliedRate,
