@@ -120,7 +120,7 @@ public class JwtTokenProvider {
                 .httpOnly(true)
                 .secure(cookieSecure)
                 .sameSite(cookieSameSite)
-                .path("/api/v1/auth/refresh")
+                .path("/api/v1/auth")
                 .maxAge(cookieRefreshMaxAge)
                 .build();
     }
@@ -131,7 +131,7 @@ public class JwtTokenProvider {
                 .httpOnly(true)
                 .secure(cookieSecure)
                 .sameSite(cookieSameSite)
-                .path("/api/v1/auth/refresh")
+                .path("/api/v1/auth")
                 .maxAge(0)
                 .build();
     }

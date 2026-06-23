@@ -24,6 +24,7 @@ public class TokenBlacklistService {
      * TTL은 토큰의 남은 만료 시간으로 설정 — 자연 만료 시 Redis에서 자동 삭제.
      */
     public void invalidateRefreshToken(String refreshToken) {
+        log.info("[블랙리스트 등록 시도] refreshToken={}", refreshToken == null ? "NULL" : "존재");
         if (refreshToken == null) return;
         try {
             JwtUserInfo info = jwtTokenProvider.getJwtUserInfo(refreshToken);

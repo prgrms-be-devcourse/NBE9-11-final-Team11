@@ -18,7 +18,18 @@ public enum AuthErrorCode implements ErrorCode {
             HttpStatus.FORBIDDEN,
             "ACCESS_DENIED",
             "접근 권한이 없습니다."
+    ),
+    REFRESH_TOKEN_INVALID(
+            HttpStatus.UNAUTHORIZED,
+            "REFRESH_TOKEN_INVALID",
+            "유효하지 않은 Refresh Token입니다."
+    ),
+    REFRESH_TOKEN_EXPIRED(
+            HttpStatus.UNAUTHORIZED,
+            "REFRESH_TOKEN_EXPIRED",
+            "Refresh Token이 만료되었습니다. 다시 로그인해주세요."
     );
+
 
     private final HttpStatus status;
     private final String code;

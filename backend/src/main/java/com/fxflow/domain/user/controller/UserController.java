@@ -9,9 +9,12 @@ import com.fxflow.domain.user.dto.response.SignupResponse;
 import com.fxflow.domain.user.dto.response.WithdrawUserResponse;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.service.UserService;
+import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.security.CookieTokenExtractor;
 import com.fxflow.global.security.JwtTokenProvider;
 import com.fxflow.global.security.TokenBlacklistService;
+import com.fxflow.global.security.dto.JwtUserInfo;
+import com.fxflow.global.security.errorcode.AuthErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -20,6 +23,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -32,6 +36,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
+@Slf4j
 public class UserController {
     private final UserService userService;
     private final JwtTokenProvider jwtTokenProvider;
@@ -58,7 +63,7 @@ public class UserController {
 
     @Operation(
             summary = "로그인",
-            description = "이메일과 비밀번호로 로그인합니다. 성공 시 accessToken이 HttpOnly 쿠키로 발급됩니다."
+            description = "이메일과 비밀번호로 로그인합니다. 성공 시 accessToken,RefreshToken이 HttpOnly 쿠키로 발급됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "로그인 성공"),
@@ -68,16 +73,20 @@ public class UserController {
     public ResponseEntity<LoginResponse> login(
             @RequestBody @Valid LoginRequest loginRequest,
             HttpServletResponse response
-    ){
+    ) {
         User user = userService.login(loginRequest);
-        ResponseCookie cookie = jwtTokenProvider.generateAccessTokenCookie(user);
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        // Access Token + Refresh Token 모두 발급
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                jwtTokenProvider.generateAccessTokenCookie(user).toString());
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                jwtTokenProvider.generateRefreshTokenCookie(user).toString());
+
         return ResponseEntity.ok(LoginResponse.of(user));
     }
 
     @Operation(
             summary = "로그아웃",
-            description = "현재 토큰을 블랙리스트에 등록해 즉시 무효화하고, accessToken 쿠키를 삭제합니다."
+            description = "현재 토큰을 삭제하고, refresh토큰을 블랙리스트 처리한다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "로그아웃 성공"),
@@ -88,11 +97,16 @@ public class UserController {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
-        String token = CookieTokenExtractor.extract(request);
-        tokenBlacklistService.invalidate(token);
+        log.info("[로그아웃 요청 진입]");  // ← 추가
+        String refreshToken = CookieTokenExtractor.extractRefresh(request);
+        log.info("[로그아웃] refreshToken={}", refreshToken == null ? "NULL" : "존재");  // ← 추가
+        tokenBlacklistService.invalidateRefreshToken(refreshToken);
+        log.info("[로그아웃 완료]");
 
-        ResponseCookie cookie = jwtTokenProvider.deleteAccessTokenCookie();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                jwtTokenProvider.deleteAccessTokenCookie().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                jwtTokenProvider.deleteRefreshTokenCookie().toString());
 
         return ResponseEntity.ok().build();
     }
@@ -115,12 +129,13 @@ public class UserController {
             HttpServletResponse response
     ) {
         WithdrawUserResponse withdrawUserResponse = userService.withDrawn(id, withdrawRequest.password());
-        String token = CookieTokenExtractor.extract(httpRequest);
-        if (token != null) {
-            tokenBlacklistService.invalidate(token);
-        }
-        ResponseCookie cookie = jwtTokenProvider.deleteAccessTokenCookie();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        String refreshToken = CookieTokenExtractor.extractRefresh(httpRequest);
+        tokenBlacklistService.invalidateRefreshToken(refreshToken);
+
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                jwtTokenProvider.deleteAccessTokenCookie().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                jwtTokenProvider.deleteRefreshTokenCookie().toString());
 
         return ResponseEntity.ok(withdrawUserResponse);
     }
@@ -144,14 +159,45 @@ public class UserController {
     ) {
         userService.changePassword(userId, request.currentPassword(), request.newPassword());
 
-        String token = CookieTokenExtractor.extract(httpRequest);
-        if (token != null) {
-            tokenBlacklistService.invalidate(token);
-        }
-        ResponseCookie cookie = jwtTokenProvider.deleteAccessTokenCookie();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        // Refresh Token만 블랙리스트 등록
+        String refreshToken = CookieTokenExtractor.extractRefresh(httpRequest);
+        tokenBlacklistService.invalidateRefreshToken(refreshToken);
+
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                jwtTokenProvider.deleteAccessTokenCookie().toString());
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                jwtTokenProvider.deleteRefreshTokenCookie().toString());
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<Void> refresh(
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        String refreshToken = CookieTokenExtractor.extractRefresh(request);
+
+        if (refreshToken == null) {
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
+        // 토큰 파싱 (만료/위조 검증)
+        JwtUserInfo jwtUserInfo = jwtTokenProvider.getJwtUserInfo(refreshToken);
+
+        // 블랙리스트 확인
+        if (tokenBlacklistService.isRefreshTokenBlacklisted(jwtUserInfo.jti())) {
+            log.warn("[토큰 재발급 실패] 블랙리스트 등록된 Refresh Token — userId={}", jwtUserInfo.userId());
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
+        // 새 Access Token 발급
+        User user = userService.getUser(jwtUserInfo.userId());
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                jwtTokenProvider.generateAccessTokenCookie(user).toString());
+        log.info("[토큰 재발급 완료] userId={}", jwtUserInfo.userId());
+
+        return ResponseEntity.ok().build();
     }
 
 
