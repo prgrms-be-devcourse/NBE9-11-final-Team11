@@ -1,5 +1,7 @@
 package com.fxflow.global.security;
 
+import com.fxflow.global.exception.BusinessException;
+import com.fxflow.global.security.dto.JwtUserInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -10,33 +12,41 @@ import java.time.Duration;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-/**
- * JWT는 stateless라 토큰 자체를 무효화할 수 없으므로,
- * "이 jti는 더 이상 유효하지 않다"는 사실만 토큰의 남은 만료시간만큼 Redis에 들고 있는다.
- */
 public class TokenBlacklistService {
-    private static final String BLACKLIST_KEY_PREFIX = "auth:blacklist:";
 
-    private final RedisTemplate<String,Object> redisTemplate;
+    private static final String REFRESH_BLACKLIST_PREFIX = "auth:refresh-blacklist:";
+
+    private final RedisTemplate<String, Object> redisTemplate;
     private final JwtTokenProvider jwtTokenProvider;
-    /** 로그아웃 시 호출 — 토큰의 jti를 남은 만료시간만큼 블랙리스트에 등록한다. */
-    public void invalidate(String token){
-        if(token==null){
-            return;
+
+    /**
+     * 로그아웃·탈퇴·비밀번호 변경 시 Refresh Token을 블랙리스트에 등록한다.
+     * TTL은 토큰의 남은 만료 시간으로 설정 — 자연 만료 시 Redis에서 자동 삭제.
+     */
+    public void invalidateRefreshToken(String refreshToken) {
+        if (refreshToken == null) return;
+        try {
+            JwtUserInfo info = jwtTokenProvider.getJwtUserInfo(refreshToken);
+            Duration ttl = jwtTokenProvider.getRemainingTtl(refreshToken);
+
+            if (info.jti() == null || ttl.isZero() || ttl.isNegative()) return;
+
+            redisTemplate.opsForValue().set(
+                    REFRESH_BLACKLIST_PREFIX + info.jti(),
+                    Boolean.TRUE,
+                    ttl
+            );
+            log.info("[Refresh 블랙리스트 등록] jti={}, ttl={}s",
+                    info.jti(), ttl.getSeconds());
+        } catch (BusinessException e) {
+            log.debug("[Refresh 블랙리스트 등록 스킵] 이미 만료된 토큰");
         }
-        String jti = jwtTokenProvider.getJwtUserInfo(token).jti();
-        Duration remainingTtl = jwtTokenProvider.getRemainingTtl(token);
-        if(jti==null||remainingTtl.isZero()||remainingTtl.isNegative()){
-            return;
-        }
-        redisTemplate.opsForValue().set(BLACKLIST_KEY_PREFIX + jti, Boolean.TRUE, remainingTtl);
-        log.info("[토큰 블랙리스트 등록] jti={}, ttlSeconds={}", jti, remainingTtl.getSeconds());
     }
-    /** 매 요청마다 호출 — 로그아웃 처리된 토큰인지 확인한다. */
-    public boolean isBlacklisted(String jti) {
-        if (jti == null) {
-            return false;
-        }
-        return Boolean.TRUE.equals(redisTemplate.hasKey(BLACKLIST_KEY_PREFIX + jti));
+
+    public boolean isRefreshTokenBlacklisted(String jti) {
+        if (jti == null) return false;
+        return Boolean.TRUE.equals(
+                redisTemplate.hasKey(REFRESH_BLACKLIST_PREFIX + jti)
+        );
     }
 }
