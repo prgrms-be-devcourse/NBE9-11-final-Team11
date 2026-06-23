@@ -1,36 +1,40 @@
 # 테스트 전용 설정.
 # 주의: Spring Boot는 이 파일을 main 의 application.yaml 과 '병합'하지 않고 '대체'
-#       지금은 컨텍스트를 띄우는 테스트가 없어(FxflowApplicationTests 는 @Disabled) 스케줄러 비활성 용도로만 쓰임
-#       향후 full @SpringBootTest 를 살리려면, 그 테스트에 필요한 main 설정
-#       (datasource / jpa / profiles.include: secret 등)을 이 파일로 옮기거나 프로파일로 전환해야 함
-
+#       full @SpringBootTest(@SpringBootTest + Testcontainers) 에 필요한 설정을 여기에 포함.
+#       datasource URL은 @ServiceConnection이 런타임에 덮어쓰므로 placeholder 유지.
+#       redis host/port는 @DynamicPropertySource가 런타임에 덮어씀.
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-    database-platform: org.hibernate.dialect.H2Dialect
-    defer-datasource-initialization: false
-  sql:
-    init:
-      mode: never
+    url: jdbc:postgresql://localhost:5432/test
+    username: test
+    password: test
   data:
     redis:
       host: localhost
       port: 6379
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    defer-datasource-initialization: true
+    show-sql: false
+  sql:
+    init:
+      mode: always
 
 jwt:
-  secret: dev-only-placeholder-secret-key-32bytes-minimum-do-not-use-in-production
-  access-token-expiration: 1800000
+  # 테스트용 더미 시크릿 (운영에 사용 금지)
+  secret: test-only-jwt-secret-key-minimum-32bytes-placeholder
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
 
 cookie:
   secure: false
   same-site: Lax
-  max-age: 1800
+  max-age: 900
+  refresh-max-age: 604800
 
 exchange:
   fee:
@@ -39,9 +43,9 @@ exchange:
       USD-KRW: 0.001
   quote-expiration-minutes: 5
 
+twelvedata:
+  api-key: ""
+
 fxrate:
   scheduler:
-    enabled: false
-
-twelvedata:
-  api-key: test
+    enabled: false   # 테스트/CI 에서 스케줄러 비활성화 → 외부 TwelveData 호출·쿼터 소모 차단
