@@ -20,8 +20,11 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     // 소유권 확인 단건 조회 (조회/취소 시)
     Optional<Reservation> findByIdAndUserId(Long id, Long userId);
 
-    // 상태별 조회 (예: ACTIVE — 도달 판정·만료 스캔)
+    // 상태별 조회 (예: ACTIVE — 만료 스캔)
     List<Reservation> findByStatus(ReservationStatus status);
+
+    // 상태+동작별 조회 (체결 트리거 — ACTIVE·EXCHANGE 후보 추림)
+    List<Reservation> findByStatusAndAction(ReservationStatus status, ReservationAction action);
 
     // 생성 멱등 — 같은 키 재전송 차단 (가독성과 의도를 위해 Query로 변경)
     Optional<Reservation> findByIdempotencyKey(String idempotencyKey);
