@@ -34,27 +34,32 @@ public class ReservationTriggerListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onFxRateUpdated(FxRateUpdatedEvent event) {
-        FxRateSnapshot snapshot = event.snapshot();
-        // 현재는 USD/KRW 예약 환전만 지원
-        if (!USD.equals(snapshot.baseCurrency()) || !KRW.equals(snapshot.quoteCurrency())) {
-            return;
-        }
-
-        List<Reservation> candidates =
-                reservationRepository.findByStatusAndAction(ReservationStatus.ACTIVE, ReservationAction.EXCHANGE);
-
-        for (Reservation reservation : candidates) {
-            if (!isTargetReached(reservation, snapshot)) {
-                continue;
+        try {
+            FxRateSnapshot snapshot = event.snapshot();
+            // 현재는 USD/KRW 예약 환전만 지원
+            if (!USD.equals(snapshot.baseCurrency()) || !KRW.equals(snapshot.quoteCurrency())) {
+                return;
             }
-            try {
-                // 선점에 성공한 경우에만 체결(이중 체결 방지). 선점 실패·예외는 다음 환율 이벤트에서 재시도
-                if (reservationExecutionService.preempt(reservation.getId())) {
-                    reservationExecutionService.executeTriggered(reservation.getId());
+
+            List<Reservation> candidates =
+                    reservationRepository.findByStatusAndAction(ReservationStatus.ACTIVE, ReservationAction.EXCHANGE);
+
+            for (Reservation reservation : candidates) {
+                if (!isTargetReached(reservation, snapshot)) {
+                    continue;
                 }
-            } catch (Exception e) {
-                log.warn("예약 환전 체결 처리 중 오류. reservationId={}", reservation.getId(), e);
+                try {
+                    // 선점에 성공한 경우에만 체결(이중 체결 방지). 선점 실패·예외는 다음 환율 이벤트에서 재시도
+                    if (reservationExecutionService.preempt(reservation.getId())) {
+                        reservationExecutionService.executeTriggered(reservation.getId());
+                    }
+                } catch (Exception e) {
+                    log.warn("예약 환전 체결 처리 중 오류. reservationId={}", reservation.getId(), e);
+                }
             }
+        } catch (Exception e) {
+            // 후보 조회 등 리스너 전체가 실패해도 이벤트 처리만 중단(환율 수집 트랜잭션엔 영향 없음)
+            log.error("예약 체결 트리거 처리 실패", e);
         }
     }
 
