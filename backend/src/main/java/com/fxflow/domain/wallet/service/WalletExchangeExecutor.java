@@ -40,9 +40,13 @@ public class WalletExchangeExecutor implements ExchangeExecutor {
                 new ExchangeRequest(quote.quoteId()));
 
         // ExchangeResponse 는 비즈니스 식별자(String)만 노출하므로, 거래 PK(Long)는 조회로 확보
+        // (같은 트랜잭션에서 방금 저장한 거래라 정상 흐름에선 항상 존재 — 없으면 불변식 위반이므로 명시적으로 실패)
         return exchangeTransactionRepository
                 .findAllByTransactionIdIn(List.of(result.transactionId()))
-                .getFirst()
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "환전 거래를 찾지 못했습니다. transactionId=" + result.transactionId()))
                 .getId();
     }
 }
