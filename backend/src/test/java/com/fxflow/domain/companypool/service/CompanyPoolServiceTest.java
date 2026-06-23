@@ -17,7 +17,6 @@ import com.fxflow.domain.companypool.entity.CompanyPool;
 import com.fxflow.domain.companypool.errorcode.PoolErrorCode;
 import com.fxflow.domain.companypool.event.PoolChangedEvent;
 import com.fxflow.domain.companypool.repository.CompanyPoolRepository;
-import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.ExchangeRateProvider;
 import com.fxflow.global.fx.FxRateSnapshot;
@@ -41,7 +40,6 @@ class CompanyPoolServiceTest {
 
     @Mock private CompanyPoolRepository companyPoolRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private LedgerEntryRepository ledgerEntryRepository;
     @Mock private ExchangeRateProvider exchangeRateProvider;
 
     @InjectMocks private CompanyPoolService companyPoolService;
@@ -138,7 +136,7 @@ class CompanyPoolServiceTest {
         PoolDashboardRes result = companyPoolService.getDashboard();
 
         assertThat(result.asOf()).isNotNull();
-        PoolDashboardRes.PoolStatusRes krw = result.pools().get(0);
+        PoolDashboardRes.PoolStatusRes krw = result.pools().getFirst();
         assertThat(krw.status()).isEqualTo("BELOW_FLOOR");
         assertThat(krw.utilizationRate()).isEqualByComparingTo("0.7000");
         assertThat(krw.recommendedAction().type()).isEqualTo("BUY");
@@ -163,7 +161,7 @@ class CompanyPoolServiceTest {
 
         PoolDashboardRes result = companyPoolService.getDashboard();
 
-        PoolDashboardRes.PoolStatusRes krw = result.pools().get(0);
+        PoolDashboardRes.PoolStatusRes krw = result.pools().getFirst();
         assertThat(krw.status()).isEqualTo("ABOVE_CEILING");
         assertThat(krw.utilizationRate()).isEqualByComparingTo("1.3000");
         assertThat(krw.recommendedAction().type()).isEqualTo("SELL");
@@ -207,7 +205,7 @@ class CompanyPoolServiceTest {
 
         PoolDashboardRes result = companyPoolService.getDashboard();
 
-        PoolDashboardRes.PoolStatusRes krw = result.pools().get(0);
+        PoolDashboardRes.PoolStatusRes krw = result.pools().getFirst();
         assertThat(krw.status()).isEqualTo("BELOW_FLOOR");
         assertThat(krw.recommendedAction().amount()).isNotNull();
         assertThat(krw.recommendedAction().counterAmount()).isNull();
