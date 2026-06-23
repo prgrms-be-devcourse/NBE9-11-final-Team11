@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -119,7 +120,108 @@ class CompanyPoolServiceTest {
         verify(eventPublisher, never()).publishEvent(any());
     }
 
-    // ── getDashboard() 테스트 ────────────────────────────────────
+    // ── deposit() 테스트 ─────────────────────────────────────────
+
+    @Test
+    @DisplayName("deposit 성공 시 PoolChangedEvent 발행 → 리밸런싱 체크 트리거")
+    void deposit_success_publishesPoolChangedEvent() {
+        CompanyPool pool = mockPoolForDeposit();
+        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+
+        companyPoolService.deposit("journal-001", "KRW", new BigDecimal("1000000"));
+
+        verify(eventPublisher).publishEvent(any(PoolChangedEvent.class));
+    }
+
+    @Test
+    @DisplayName("deposit - 원장 저장 실패 시 예외 전파 + 이벤트 미발행")
+    // @Transactional AOP가 롤백을 담당하므로 단위 테스트에서는 예외 전파와 이벤트 미발행만 검증.
+    // 실제 풀 잔액 롤백은 통합 테스트에서 확인해야 한다.
+    void deposit_ledgerSaveFails_exceptionPropagatesAndEventNotPublished() {
+        CompanyPool pool = mockPoolForDeposit();
+        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+        doThrow(new RuntimeException("DB 장애")).when(ledgerEntryRepository).save(any());
+
+        assertThatThrownBy(() -> companyPoolService.deposit("journal-001", "KRW", new BigDecimal("1000000")))
+                .isInstanceOf(RuntimeException.class);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    @DisplayName("deposit - 통화 풀이 존재하지 않으면 POOL_NOT_FOUND 예외")
+    void deposit_poolNotFound_throwsPoolNotFound() {
+        given(companyPoolRepository.findByCurrencyCode("USD")).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> companyPoolService.deposit("journal-001", "USD", new BigDecimal("1000")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(PoolErrorCode.POOL_NOT_FOUND));
+    }
+
+    // ── withdraw() 테스트 ────────────────────────────────────────
+
+    @Test
+    @DisplayName("withdraw 성공 시 PoolChangedEvent 발행 → 리밸런싱 체크 트리거")
+    void withdraw_success_publishesPoolChangedEvent() {
+        CompanyPool pool = mockPoolForWithdraw(new BigDecimal("10000000000"));
+        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+
+        companyPoolService.withdraw("journal-001", "KRW", new BigDecimal("1000000"));
+
+        verify(eventPublisher).publishEvent(any(PoolChangedEvent.class));
+    }
+
+    @Test
+    @DisplayName("withdraw - 출금 후 풀 잔액이 0 미만이면 POOL_INSUFFICIENT_BALANCE 예외")
+    void withdraw_exceedsPoolBalance_throwsInsufficientBalance() {
+        CompanyPool pool = mockPoolForWithdraw(new BigDecimal("500"));
+        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+
+        assertThatThrownBy(() -> companyPoolService.withdraw("journal-001", "KRW", new BigDecimal("1000")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(PoolErrorCode.POOL_INSUFFICIENT_BALANCE));
+    }
+
+    @Test
+    @DisplayName("withdraw - 잔액 부족 시 이벤트 미발행 (실패 거래는 리밸런싱 미트리거)")
+    void withdraw_exceedsPoolBalance_eventNotPublished() {
+        CompanyPool pool = mockPoolForWithdraw(new BigDecimal("500"));
+        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+
+        assertThatThrownBy(() -> companyPoolService.withdraw("journal-001", "KRW", new BigDecimal("1000")))
+                .isInstanceOf(BusinessException.class);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    @DisplayName("withdraw - 출금 금액이 잔액과 정확히 같으면 성공 (경계값 0원)")
+    void withdraw_exactBalance_success() {
+        CompanyPool pool = mockPoolForWithdraw(new BigDecimal("1000"));
+        given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(pool));
+
+        companyPoolService.withdraw("journal-001", "KRW", new BigDecimal("1000"));
+
+        verify(eventPublisher).publishEvent(any(PoolChangedEvent.class));
+    }
+
+    private CompanyPool mockPoolForDeposit() {
+        CompanyPool pool = mock(CompanyPool.class);
+        given(pool.getId()).willReturn(1L);
+        given(pool.getCurrencyCode()).willReturn("KRW");
+        given(pool.getBalance()).willReturn(new BigDecimal("10000000000"));
+        return pool;
+    }
+
+    private CompanyPool mockPoolForWithdraw(BigDecimal balance) {
+        CompanyPool pool = mock(CompanyPool.class);
+        given(pool.getId()).willReturn(1L);
+        given(pool.getCurrencyCode()).willReturn("KRW");
+        given(pool.getBalance()).willReturn(balance);
+        return pool;
+    }
+
+    // ── getDashboard() 테스트 ─────────────────────────────────────
 
     @Test
     @DisplayName("KRW floor 미만 → amount=USD 여유분으로 cap, counterAmount=USD 여유분")

@@ -136,6 +136,7 @@ public class CompanyPoolService {
                 : amount.multiply(appliedRate).setScale(2, RoundingMode.FLOOR);
     }
 
+    @Transactional
     public CompanyPool deposit(String journalId, String currencyCode, BigDecimal amount) {
         CompanyPool pool = getPoolByCurrency(currencyCode);
         BigDecimal balanceBefore = pool.getBalance();
@@ -159,6 +160,7 @@ public class CompanyPoolService {
                 null
         );
         ledgerEntryRepository.save(poolEntry);
+        eventPublisher.publishEvent(new PoolChangedEvent(this));
 
         return pool;
     }
@@ -169,7 +171,7 @@ public class CompanyPoolService {
         BigDecimal balanceBefore = pool.getBalance();
         BigDecimal balanceAfter = balanceBefore.subtract(amount);
         if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
-            // todo: error
+            throw new BusinessException(PoolErrorCode.POOL_INSUFFICIENT_BALANCE);
         }
         pool.decrease(amount);
         companyPoolRepository.save(pool);
@@ -189,6 +191,7 @@ public class CompanyPoolService {
                 null
         );
         ledgerEntryRepository.save(poolEntry);
+        eventPublisher.publishEvent(new PoolChangedEvent(this));
     }
 
     /**
