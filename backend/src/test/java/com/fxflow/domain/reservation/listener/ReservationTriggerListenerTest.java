@@ -92,6 +92,7 @@ class ReservationTriggerListenerTest {
         // mid=1320, spread=0.01 → sellRate=1306.80 ≥ 1300
         reservationTriggerListener.onFxRateUpdated(event("USD", "KRW", "1320", "0.01"));
 
+        verify(reservationExecutionService).preempt(11L);
         verify(reservationExecutionService).executeTriggered(11L);
     }
 

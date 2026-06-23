@@ -12,8 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-
 /**
  * 즉시 환전 체결 포트({@link ExchangeExecutor})의 wallet 도메인 구현
  * 호출 시점의 시세로 견적을 만들어 그대로 체결하고, 생성된 환전 거래의 PK 를 반환
@@ -42,9 +40,7 @@ public class WalletExchangeExecutor implements ExchangeExecutor {
         // ExchangeResponse 는 비즈니스 식별자(String)만 노출하므로, 거래 PK(Long)는 조회로 확보
         // (같은 트랜잭션에서 방금 저장한 거래라 정상 흐름에선 항상 존재 — 없으면 불변식 위반이므로 명시적으로 실패)
         return exchangeTransactionRepository
-                .findAllByTransactionIdIn(List.of(result.transactionId()))
-                .stream()
-                .findFirst()
+                .findByTransactionId(result.transactionId())
                 .orElseThrow(() -> new IllegalStateException(
                         "환전 거래를 찾지 못했습니다. transactionId=" + result.transactionId()))
                 .getId();
