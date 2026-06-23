@@ -16,6 +16,7 @@ public class JacksonConfig {
         // LocalDateTime 직렬화 설정
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        objectMapper.enable(SerializationFeature.WRITE_BIGDECIMAL_AS_PLAIN);
 
         return objectMapper;
     }
