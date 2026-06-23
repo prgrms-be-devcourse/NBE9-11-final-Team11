@@ -135,6 +135,24 @@ async function tryRefresh(): Promise<boolean> {
   return refreshPromise
 }
 
+// ── 세션 만료 이벤트 중복 방지 ─────────────────────────────────
+// 동시 요청이 여러 개 실패해도 session-expired 이벤트는 1번만 발생
+
+let sessionExpiredFired = false
+
+function fireSessionExpired() {
+  if (typeof window === "undefined") return
+  if (sessionExpiredFired) return
+
+  sessionExpiredFired = true
+  window.dispatchEvent(new CustomEvent("fxflow:session-expired"))
+
+  // 5초 후 초기화 — 재로그인 후 다시 감지할 수 있도록
+  setTimeout(() => {
+    sessionExpiredFired = false
+  }, 5000)
+}
+
 // ── 응답 파싱 ──────────────────────────────────────────────────
 
 async function parseResponse<T>(res: Response): Promise<T> {
@@ -188,14 +206,13 @@ export async function apiRequest<T>(
         throw err
       }
 
-      // Refresh도 실패 → 세션 만료 이벤트 발생
-      // SessionWatcher가 감지해서 로그인 페이지로 이동
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("fxflow:session-expired"))
-      }
-      const error = new Error(errorData?.message ?? "인증이 만료되었습니다.")
-      Object.assign(error, errorData, { status: 401 })
-      throw error
+      // Refresh도 실패 → 세션 만료 이벤트 발생 (중복 방지)
+      // SessionWatcher가 감지해서 다이얼로그 표시 후 로그인 페이지로 이동
+      fireSessionExpired()
+
+      // throw하지 않고 pending 상태로 두어 각 페이지의 에러 핸들러가
+      // 토스트를 띄우지 않도록 함 — SessionWatcher가 처리
+      return new Promise(() => {})
     }
 
     // UNAUTHORIZED 외의 401 (로그인 실패 등)은 세션 만료 처리 안 함
