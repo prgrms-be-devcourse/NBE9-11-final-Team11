@@ -63,9 +63,6 @@ export default function LoginPage() {
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="password">비밀번호</Label>
-              <Link href="#" className="text-xs font-medium text-primary hover:underline">
-                비밀번호 찾기
-              </Link>
             </div>
             <Input
               id="password"
