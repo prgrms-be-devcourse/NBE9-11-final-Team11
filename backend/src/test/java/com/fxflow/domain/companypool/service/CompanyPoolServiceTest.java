@@ -18,7 +18,6 @@ import com.fxflow.domain.companypool.entity.CompanyPool;
 import com.fxflow.domain.companypool.errorcode.PoolErrorCode;
 import com.fxflow.domain.companypool.event.PoolChangedEvent;
 import com.fxflow.domain.companypool.repository.CompanyPoolRepository;
-import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.ExchangeRateProvider;
 import com.fxflow.global.fx.FxRateSnapshot;
@@ -42,7 +41,6 @@ class CompanyPoolServiceTest {
 
     @Mock private CompanyPoolRepository companyPoolRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private LedgerEntryRepository ledgerEntryRepository;
     @Mock private ExchangeRateProvider exchangeRateProvider;
 
     @InjectMocks private CompanyPoolService companyPoolService;
