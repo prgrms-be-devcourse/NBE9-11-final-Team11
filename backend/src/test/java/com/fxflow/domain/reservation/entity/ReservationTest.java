@@ -138,4 +138,37 @@ class ReservationTest {
         assertThatThrownBy(() -> r.markCompletedAsRemittance(700L))
                 .isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    @DisplayName("기한 만료: ACTIVE → EXPIRED")
+    void expire_success() {
+        Reservation r = Reservation.createExchange(1L, "KRW", "USD", AMOUNT, TARGET, EXPIRES, "key-e");
+
+        r.expire();
+
+        assertThat(r.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+    }
+
+    @Test
+    @DisplayName("취소 성공: ACTIVE → CANCELED")
+    void cancel_success() {
+        Reservation r = Reservation.createExchange(1L, "KRW", "USD", AMOUNT, TARGET, EXPIRES, "key-c");
+
+        r.cancel();
+
+        assertThat(r.getStatus()).isEqualTo(ReservationStatus.CANCELED);
+    }
+
+    @Test
+    @DisplayName("송금 체결 완료: TRIGGERED·REMITTANCE → COMPLETED + 결과 ID 기록")
+    void markCompletedAsRemittance_success() {
+        Reservation r = Reservation.createRemittance(1L, "KRW", "USD", AMOUNT, TARGET, EXPIRES,
+                99L, RemittanceReason.LIVING_EXPENSES, null, "key-rc");
+        r.markTriggered();
+
+        r.markCompletedAsRemittance(700L);
+
+        assertThat(r.getStatus()).isEqualTo(ReservationStatus.COMPLETED);
+        assertThat(r.getResultRemittanceTransactionId()).isEqualTo(700L);
+    }
 }
