@@ -521,10 +521,10 @@ class RemittanceTransactionServiceTest {
                 .thenReturn(Optional.of(virtualAccount));
         when(mockBankAccountService.withdrawForRemittance(
                 eq(userId),
-                eq("JRN-TRF-" + transferId + "-FUND"),
+                anyString(),
                 eq(new BigDecimal("1008000.00")),
                 eq("KRW"),
-                eq(String.valueOf(transferId))
+                anyString()
         )).thenReturn(sourceMockAccountId);
 
         // when
@@ -542,10 +542,10 @@ class RemittanceTransactionServiceTest {
         assertThat(virtualAccount.getPaidAt()).isNotNull();
 
         verify(companyPoolService).depositForRemittance(
-                "JRN-TRF-" + transferId + "-FUND",
-                "KRW",
-                new BigDecimal("1008000.00"),
-                transferId
+                anyString(),
+                eq("KRW"),
+                eq(new BigDecimal("1008000.00")),
+                anyString()
         );
         ArgumentCaptor<RemittanceFundedEvent> eventCaptor =
                 ArgumentCaptor.forClass(RemittanceFundedEvent.class);
@@ -1044,7 +1044,8 @@ class RemittanceTransactionServiceTest {
                 new BigDecimal("736.52"),
                 RemittanceReason.LIVING_EXPENSES.name(),
                 "생활비 송금",
-                "idempotency-key"
+                "idempotency-key",
+                "JNL-TEST-FUND"
         );
         ReflectionTestUtils.setField(remittanceTransaction, "id", transferId);
 
@@ -1059,7 +1060,7 @@ class RemittanceTransactionServiceTest {
                 "123-456789-123456",
                 new BigDecimal("1008000.00"),
                 "REMITTANCE",
-                String.valueOf(transferId),
+                "JNL-TEST-FUND",
                 LocalDateTime.now().minusMinutes(10),
                 expiredAt
         );

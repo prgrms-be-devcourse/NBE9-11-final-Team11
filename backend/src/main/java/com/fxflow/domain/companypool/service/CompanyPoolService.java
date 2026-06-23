@@ -187,7 +187,7 @@ public class CompanyPoolService {
      * 지갑 충전이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
      */
     @Transactional
-    public CompanyPool depositForRemittance(String journalId, String currencyCode, BigDecimal amount, Long remittanceTransactionId) {
+    public CompanyPool depositForRemittance(String journalId, String currencyCode, BigDecimal amount, String refId) {
         CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
                 .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
         BigDecimal balanceBefore = pool.getBalance();
@@ -208,7 +208,7 @@ public class CompanyPoolService {
                 balanceBefore,
                 balanceAfter,
                 LedgerRefType.REMITTANCE,
-                String.valueOf(remittanceTransactionId)
+                refId
         );
         ledgerEntryRepository.save(poolEntry);
         eventPublisher.publishEvent(new PoolChangedEvent(this));
@@ -221,7 +221,7 @@ public class CompanyPoolService {
      * 지갑 출금이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
      */
     @Transactional
-    public CompanyPool withdrawForRemittance(String journalId, String currencyCode, BigDecimal amount, Long remittanceTransactionId) {
+    public CompanyPool withdrawForRemittance(String journalId, String currencyCode, BigDecimal amount, String refId) {
         CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
                 .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
         BigDecimal balanceBefore = pool.getBalance();
@@ -246,7 +246,7 @@ public class CompanyPoolService {
                 balanceBefore,
                 balanceAfter,
                 LedgerRefType.REMITTANCE,
-                String.valueOf(remittanceTransactionId)
+                refId
         );
         ledgerEntryRepository.save(poolEntry);
         eventPublisher.publishEvent(new PoolChangedEvent(this));

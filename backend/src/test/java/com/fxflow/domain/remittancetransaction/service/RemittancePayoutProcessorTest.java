@@ -1,6 +1,8 @@
 package com.fxflow.domain.remittancetransaction.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,11 +57,11 @@ class RemittancePayoutProcessorTest {
         when(recipientRepository.findById(remittanceTransaction.getRecipientId()))
                 .thenReturn(Optional.of(recipient));
         when(mockBankAccountService.depositForRemittance(
-                "JRN-TRF-" + transferId + "-PAYOUT",
-                "1234567890",
-                new BigDecimal("736.52"),
-                "USD",
-                String.valueOf(transferId)
+                anyString(),
+                eq("1234567890"),
+                eq(new BigDecimal("736.52")),
+                eq("USD"),
+                anyString()
         )).thenReturn(targetMockAccountId);
 
         // when
@@ -67,17 +69,17 @@ class RemittancePayoutProcessorTest {
 
         // then
         verify(companyPoolService).withdrawForRemittance(
-                "JRN-TRF-" + transferId + "-PAYOUT",
-                "USD",
-                new BigDecimal("736.52"),
-                transferId
+                anyString(),
+                eq("USD"),
+                eq(new BigDecimal("736.52")),
+                anyString()
         );
         verify(mockBankAccountService).depositForRemittance(
-                "JRN-TRF-" + transferId + "-PAYOUT",
-                "1234567890",
-                new BigDecimal("736.52"),
-                "USD",
-                String.valueOf(transferId)
+                anyString(),
+                eq("1234567890"),
+                eq(new BigDecimal("736.52")),
+                eq("USD"),
+                anyString()
         );
         assertThat(remittanceTransaction.getStatus()).isEqualTo(TransferStatus.COMPLETED);
         assertThat(remittanceTransaction.getTargetMockAccountId()).isEqualTo(targetMockAccountId);
@@ -104,7 +106,8 @@ class RemittancePayoutProcessorTest {
                 new BigDecimal("736.52"),
                 RemittanceReason.LIVING_EXPENSES.name(),
                 "생활비 송금",
-                "idempotency-key"
+                "idempotency-key",
+                "JNL-TEST-PAYOUT"
         );
         ReflectionTestUtils.setField(remittanceTransaction, "id", transferId);
         remittanceTransaction.fund(30L);

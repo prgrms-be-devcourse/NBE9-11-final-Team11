@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 
 public record RemittanceTransactionDetailResponse(
         Long transferId,
+        String journalId,
         TransferStatus status,
         RecipientInfo recipient,
         BigDecimal sendAmountKrw,
@@ -71,6 +72,7 @@ public record RemittanceTransactionDetailResponse(
     ) {
         return new RemittanceTransactionDetailResponse(
                 remittanceTransaction.getId(),
+                remittanceTransaction.getJournalId(),
                 remittanceTransaction.getStatus(),
                 RecipientInfo.from(recipient),
                 CurrencyAmountFormatter.format(

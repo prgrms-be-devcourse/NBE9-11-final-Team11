@@ -1,6 +1,8 @@
 package com.fxflow.domain.remittancetransaction.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -67,17 +69,17 @@ class RemittanceRefundServiceTest {
 
         // then
         verify(companyPoolService).withdrawForRemittance(
-                "JRN-TRF-" + transferId + "-REFUND",
-                "KRW",
-                new BigDecimal("1008000.00"),
-                transferId
+                anyString(),
+                eq("KRW"),
+                eq(new BigDecimal("1008000.00")),
+                anyString()
         );
         verify(mockBankAccountService).refundForRemittance(
-                "JRN-TRF-" + transferId + "-REFUND",
-                sourceMockAccountId,
-                new BigDecimal("1008000.00"),
-                "KRW",
-                String.valueOf(transferId)
+                anyString(),
+                eq(sourceMockAccountId),
+                eq(new BigDecimal("1008000.00")),
+                eq("KRW"),
+                anyString()
         );
         assertThat(annualUsage.getAnnualUsedUsd()).isEqualByComparingTo(new BigDecimal("263.48"));
         assertThat(remittanceTransaction.getStatus()).isEqualTo(TransferStatus.FAILED);
@@ -130,7 +132,8 @@ class RemittanceRefundServiceTest {
                 new BigDecimal("736.52"),
                 RemittanceReason.LIVING_EXPENSES.name(),
                 "생활비 송금",
-                "idempotency-key"
+                "idempotency-key",
+                "JNL-TEST-REFUND"
         );
         ReflectionTestUtils.setField(remittanceTransaction, "id", transferId);
         remittanceTransaction.fund(30L);

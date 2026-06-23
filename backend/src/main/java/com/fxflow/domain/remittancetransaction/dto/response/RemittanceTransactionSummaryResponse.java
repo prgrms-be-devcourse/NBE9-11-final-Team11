@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 
 public record RemittanceTransactionSummaryResponse(
         Long transferId,
+        String journalId,
         String recipientName,
         String recipientCountryCode,
         String recipientCurrencyCode,
@@ -39,6 +40,7 @@ public record RemittanceTransactionSummaryResponse(
     ) {
         return new RemittanceTransactionSummaryResponse(
                 remittanceTransaction.getId(),
+                remittanceTransaction.getJournalId(),
                 recipient.getName(),
                 recipient.getCountryCode(),
                 recipient.getCurrencyCode(),

@@ -18,6 +18,9 @@ public class RemittanceTransaction extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "journal_id", length = 100)
+    private String journalId;
+
     @Column(name = "recipient_id", nullable = false)
     private Long recipientId;
 
@@ -122,9 +125,11 @@ public class RemittanceTransaction extends BaseEntity {
             BigDecimal amountUsd,
             String reason,
             String reasonDetail,
-            String idempotencyKey
+            String idempotencyKey,
+            String journalId
     ) {
         this.userId = userId;
+        this.journalId = journalId;
         this.recipientId = recipientId;
         this.recipientName = recipientName;
         this.recipientCountryCode = recipientCountryCode;
@@ -177,7 +182,8 @@ public class RemittanceTransaction extends BaseEntity {
             BigDecimal amountUsd,
             String reason,
             String reasonDetail,
-            String idempotencyKey
+            String idempotencyKey,
+            String journalId
     ) {
         return new RemittanceTransaction(
                 userId,
@@ -204,7 +210,8 @@ public class RemittanceTransaction extends BaseEntity {
                 amountUsd,
                 reason,
                 reasonDetail,
-                idempotencyKey
+                idempotencyKey,
+                journalId
         );
     }
 
@@ -228,7 +235,8 @@ public class RemittanceTransaction extends BaseEntity {
             BigDecimal amountUsd,
             String reason,
             String reasonDetail,
-            String idempotencyKey
+            String idempotencyKey,
+            String journalId
     ) {
         return new RemittanceTransaction(
                 userId,
@@ -255,7 +263,8 @@ public class RemittanceTransaction extends BaseEntity {
                 amountUsd,
                 reason,
                 reasonDetail,
-                idempotencyKey
+                idempotencyKey,
+                journalId
         );
     }
 

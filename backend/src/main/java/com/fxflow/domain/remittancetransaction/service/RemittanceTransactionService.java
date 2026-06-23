@@ -1,6 +1,7 @@
 package com.fxflow.domain.remittancetransaction.service;
 
 import com.fxflow.domain.companypool.service.CompanyPoolService;
+import com.fxflow.domain.ledger.entity.LedgerEntry;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
 import com.fxflow.domain.remittancetransaction.dto.cache.RemittanceQuoteCache;
 import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionCreateRequest;
@@ -204,7 +205,8 @@ public class RemittanceTransactionService {
                 quote.amountUsd(),
                 request.reason().name(),
                 request.reasonDetail(),
-                idempotencyKey
+                idempotencyKey,
+                LedgerEntry.generateJournalId()
         );
 
         RemittanceTransaction savedTransaction = remittanceTransactionRepository.save(remittanceTransaction);
@@ -260,8 +262,8 @@ public class RemittanceTransactionService {
         LocalDateTime paidAt = LocalDateTime.now();
         validateVirtualAccountNotExpired(virtualAccount, paidAt);
 
-        String journalId = createFundJournalId(remittanceTransaction.getId());
-        String refId = String.valueOf(remittanceTransaction.getId());
+        String journalId = remittanceTransaction.getJournalId();
+        String refId = remittanceTransaction.getJournalId();
         BigDecimal krwAmount = virtualAccount.getExpectedAmount();
 
         Long sourceMockAccountId = mockBankAccountService.withdrawForRemittance(
@@ -272,7 +274,7 @@ public class RemittanceTransactionService {
                 refId
         );
 
-        companyPoolService.depositForRemittance(journalId, KRW, krwAmount, remittanceTransaction.getId());
+        companyPoolService.depositForRemittance(journalId, KRW, krwAmount, refId);
 
         remittanceTransaction.fund(sourceMockAccountId);
         virtualAccount.pay(paidAt);
@@ -518,13 +520,6 @@ public class RemittanceTransactionService {
                 issuedAt,
                 expiredAt
         );
-    }
-
-    /**
-     * 해외송금 입금 확인 단계의 원장 묶음 ID를 생성한다.
-     */
-    private String createFundJournalId(Long transferId) {
-        return "JRN-TRF-" + transferId + "-FUND";
     }
 
     /**
