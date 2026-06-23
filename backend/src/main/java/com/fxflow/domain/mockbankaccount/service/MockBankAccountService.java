@@ -179,6 +179,7 @@ public class MockBankAccountService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        user.completeKyc();
 
         MockBankAccount account = MockBankAccount.create(user, bankName, accountNumber);
         mockBankAccountRepository.save(account);

@@ -12,12 +12,15 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiRequest } from "@/lib/api"
 import { KOREAN_BANKS } from "@/lib/fx-data"
+import { useStore } from "@/lib/store"
 
 type CheckStatus = "idle" | "checking" | "available" | "unavailable"
 type KycState = "idle" | "waiting" | "verified" | "failed"
 
 export default function LinkAccountPage() {
   const router = useRouter()
+  const { setVerified } = useStore()
+
   const [bankName, setBankName] = useState(KOREAN_BANKS[0])
   const [accountNumber, setAccountNumber] = useState("")
   const [check, setCheck] = useState<{ status: CheckStatus; message?: string }>({ status: "idle" })
@@ -79,6 +82,7 @@ export default function LinkAccountPage() {
         accountNumber: accountNumber.replace(/[^\d]/g, ""),
       })
       setKyc("verified")
+      setVerified()
       toast.success("인증이 완료되었습니다. 지갑이 생성되었어요.")
       setTimeout(() => router.push("/dashboard"), 1200)
     } catch (err: any) {
