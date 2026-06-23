@@ -5,12 +5,14 @@ import com.fxflow.domain.mockbankaccount.repository.MockBankAccountRepository;
 import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.repository.UserRepository;
-import java.math.BigDecimal;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.UUID;
+
+// 수취인 생성
 @Service
 @RequiredArgsConstructor
 public class RecipientPayoutAccountService {

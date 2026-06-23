@@ -18,6 +18,9 @@ public class RemittanceTransaction extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "journal_id", length = 100)
+    private String journalId;
+
     @Column(name = "recipient_id", nullable = false)
     private Long recipientId;
 
@@ -42,20 +45,11 @@ public class RemittanceTransaction extends BaseEntity {
     @Column(name = "method", length = 30, nullable = false)
     private String method;
 
-    @Column(name = "source_wallet_id")
-    private Long sourceWalletId;
-
-    @Column(name = "target_wallet_id")
-    private Long targetWalletId;
-
     @Column(name = "source_mock_account_id")
     private Long sourceMockAccountId;
 
     @Column(name = "target_mock_account_id")
     private Long targetMockAccountId;
-
-    @Column(name = "exchange_transaction_id")
-    private Long exchangeTransactionId;
 
     @Column(name = "send_currency", length = 10, nullable = false)
     private String sendCurrency;
@@ -107,11 +101,8 @@ public class RemittanceTransaction extends BaseEntity {
             String recipientAccountNumber,
             Long targetUserId,
             String method,
-            Long sourceWalletId,
-            Long targetWalletId,
             Long sourceMockAccountId,
             Long targetMockAccountId,
-            Long exchangeTransactionId,
             String sendCurrency,
             BigDecimal sendAmount,
             String receiveCurrency,
@@ -122,9 +113,11 @@ public class RemittanceTransaction extends BaseEntity {
             BigDecimal amountUsd,
             String reason,
             String reasonDetail,
-            String idempotencyKey
+            String idempotencyKey,
+            String journalId
     ) {
         this.userId = userId;
+        this.journalId = journalId;
         this.recipientId = recipientId;
         this.recipientName = recipientName;
         this.recipientCountryCode = recipientCountryCode;
@@ -133,11 +126,8 @@ public class RemittanceTransaction extends BaseEntity {
         this.recipientAccountNumber = recipientAccountNumber;
         this.targetUserId = targetUserId;
         this.method = method;
-        this.sourceWalletId = sourceWalletId;
-        this.targetWalletId = targetWalletId;
         this.sourceMockAccountId = sourceMockAccountId;
         this.targetMockAccountId = targetMockAccountId;
-        this.exchangeTransactionId = exchangeTransactionId;
         this.sendCurrency = sendCurrency;
         this.sendAmount = sendAmount;
         this.receiveCurrency = receiveCurrency;
@@ -162,11 +152,8 @@ public class RemittanceTransaction extends BaseEntity {
             String recipientAccountNumber,
             Long targetUserId,
             String method,
-            Long sourceWalletId,
-            Long targetWalletId,
             Long sourceMockAccountId,
             Long targetMockAccountId,
-            Long exchangeTransactionId,
             String sendCurrency,
             BigDecimal sendAmount,
             String receiveCurrency,
@@ -177,7 +164,8 @@ public class RemittanceTransaction extends BaseEntity {
             BigDecimal amountUsd,
             String reason,
             String reasonDetail,
-            String idempotencyKey
+            String idempotencyKey,
+            String journalId
     ) {
         return new RemittanceTransaction(
                 userId,
@@ -189,11 +177,8 @@ public class RemittanceTransaction extends BaseEntity {
                 recipientAccountNumber,
                 targetUserId,
                 method,
-                sourceWalletId,
-                targetWalletId,
                 sourceMockAccountId,
                 targetMockAccountId,
-                exchangeTransactionId,
                 sendCurrency,
                 sendAmount,
                 receiveCurrency,
@@ -204,7 +189,8 @@ public class RemittanceTransaction extends BaseEntity {
                 amountUsd,
                 reason,
                 reasonDetail,
-                idempotencyKey
+                idempotencyKey,
+                journalId
         );
     }
 
@@ -213,11 +199,8 @@ public class RemittanceTransaction extends BaseEntity {
             Long recipientId,
             Long targetUserId,
             String method,
-            Long sourceWalletId,
-            Long targetWalletId,
             Long sourceMockAccountId,
             Long targetMockAccountId,
-            Long exchangeTransactionId,
             String sendCurrency,
             BigDecimal sendAmount,
             String receiveCurrency,
@@ -228,7 +211,8 @@ public class RemittanceTransaction extends BaseEntity {
             BigDecimal amountUsd,
             String reason,
             String reasonDetail,
-            String idempotencyKey
+            String idempotencyKey,
+            String journalId
     ) {
         return new RemittanceTransaction(
                 userId,
@@ -240,11 +224,8 @@ public class RemittanceTransaction extends BaseEntity {
                 "",
                 targetUserId,
                 method,
-                sourceWalletId,
-                targetWalletId,
                 sourceMockAccountId,
                 targetMockAccountId,
-                exchangeTransactionId,
                 sendCurrency,
                 sendAmount,
                 receiveCurrency,
@@ -255,7 +236,8 @@ public class RemittanceTransaction extends BaseEntity {
                 amountUsd,
                 reason,
                 reasonDetail,
-                idempotencyKey
+                idempotencyKey,
+                journalId
         );
     }
 

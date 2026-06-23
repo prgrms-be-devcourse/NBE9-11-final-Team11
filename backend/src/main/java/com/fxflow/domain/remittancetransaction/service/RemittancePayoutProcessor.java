@@ -46,15 +46,15 @@ public class RemittancePayoutProcessor {
         remittanceTransaction.startProcessing();
 
         Recipient recipient = getRecipient(remittanceTransaction.getRecipientId());
-        String payoutJournalId = createPayoutJournalId(transferId);
-        String refId = String.valueOf(transferId);
+        String payoutJournalId = remittanceTransaction.getJournalId();
+        String refId = remittanceTransaction.getJournalId();
 
         // TRF-08: 회사 외화풀에서 지급 외화를 차감하고, 송금자가 입력한 수취인 계좌번호로 입금한다.
         companyPoolService.withdrawForRemittance(
                 payoutJournalId,
                 remittanceTransaction.getReceiveCurrency(),
                 remittanceTransaction.getReceiveAmount(),
-                transferId
+                refId
         );
         Long targetMockAccountId = mockBankAccountService.depositForRemittance(
                 payoutJournalId,
@@ -79,7 +79,4 @@ public class RemittancePayoutProcessor {
                 .orElseThrow(() -> new BusinessException(RecipientErrorCode.RECIPIENT_NOT_FOUND));
     }
 
-    private String createPayoutJournalId(Long transferId) {
-        return "JRN-TRF-" + transferId + "-PAYOUT";
-    }
 }
