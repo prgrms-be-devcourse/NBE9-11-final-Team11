@@ -21,9 +21,10 @@ import {
 
 // ── 헬퍼 ────────────────────────────────────────────────────────
 
-function formatCurrency(currency: "KRW" | "USD", amount: number) {
-  if (currency === "KRW") return `₩${(amount / 1e8).toFixed(1)}억`
-  return `$${(amount / 1e4).toFixed(1)}만`
+function formatCurrency(currency: "KRW" | "USD", amount: number | null | undefined) {
+  if (amount == null) return "—"
+  if (currency === "KRW") return `₩${Math.round(amount).toLocaleString("ko-KR")}`
+  return `$${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}`
 }
 
 function formatAmount(currency: "KRW" | "USD", amount: number) {
