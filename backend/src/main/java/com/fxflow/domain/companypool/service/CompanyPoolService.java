@@ -100,7 +100,7 @@ public class CompanyPoolService {
                             pool.getTargetBalance(), pool.getFloorBalance(), pool.getCeilingBalance(),
                             status, utilizationRate, null);
                 }
-                if (appliedRate != null) {
+                if (appliedRate != null && appliedRate.compareTo(BigDecimal.ZERO) > 0) {
                     BigDecimal maxBuyable = "KRW".equals(pool.getCurrencyCode())
                             ? sellSurplus.multiply(appliedRate).setScale(2, RoundingMode.FLOOR)
                             : sellSurplus.divide(appliedRate, 2, RoundingMode.FLOOR);
