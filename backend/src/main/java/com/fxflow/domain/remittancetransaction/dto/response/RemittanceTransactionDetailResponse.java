@@ -32,6 +32,10 @@ public record RemittanceTransactionDetailResponse(
     ) {
 
         public static RecipientInfo from(Recipient recipient) {
+            if (recipient == null) {
+                return null;
+            }
+
             return new RecipientInfo(
                     recipient.getName(),
                     recipient.getBankName(),
