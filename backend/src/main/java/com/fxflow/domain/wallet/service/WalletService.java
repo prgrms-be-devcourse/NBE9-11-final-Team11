@@ -17,9 +17,13 @@ import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
 import com.fxflow.domain.wallet.dto.response.TransactionResponse;
 import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
 import com.fxflow.domain.wallet.dto.response.WalletResponse;
+import com.fxflow.domain.wallet.entity.ExchangeTransaction;
+import com.fxflow.domain.wallet.entity.P2pTransfer;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.errorcode.WalletErrorCode;
 import com.fxflow.domain.wallet.policy.WalletPolicy;
+import com.fxflow.domain.wallet.repository.ExchangeTransactionRepository;
+import com.fxflow.domain.wallet.repository.P2pTransferRepository;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +35,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -45,6 +53,8 @@ public class WalletService {
     private final TransactionLimitValidator transactionLimitValidator;
     private final UserService userService;
     private final UserDailyUsageService userDailyUsageService;
+    private final ExchangeTransactionRepository exchangeTransactionRepository;
+    private final P2pTransferRepository p2pTransferRepository;
 
 
     public Wallet getWallet(Long userId, String currencyCode){
@@ -68,8 +78,9 @@ public class WalletService {
         return WalletBalanceResponse.from(krw.setScale(0, java.math.RoundingMode.HALF_UP).longValue(), walletResponses);
     }
 
+    @Transactional(readOnly = true)
     public TransactionHistoryResponse getTransactionHistory(Long userId, String currency, LedgerEntryType type, LocalDate from, LocalDate to, Pageable pageable) {
-        // userId + currency로 Wallet 조회
+
         List<Long> walletIds;
         if (currency != null) {
             Wallet wallet = walletRepository.findByUserIdAndCurrencyCode(userId, currency)
@@ -79,19 +90,62 @@ public class WalletService {
             walletIds = walletRepository.findByUserId(userId).stream().map(Wallet::getId).toList();
         }
 
-        if (walletIds.isEmpty()) {  // 사용자의 월렛이 없을 시 DB 조회하지 않고 바로 빈 페이지 반환
-            return TransactionHistoryResponse.from(Page.empty(pageable));
+        if (walletIds.isEmpty()) {
+            return TransactionHistoryResponse.from(Page.empty());
         }
 
         LocalDateTime fromDateTime = from != null ? from.atStartOfDay() : null;
         LocalDateTime toDateTime = to != null ? to.atTime(23, 59, 59) : null;
-
         Page<LedgerEntry> entries = ledgerEntryRepository.findByWalletIdInAndFilters(
                 walletIds, currency, type, fromDateTime, toDateTime, pageable
         );
 
-        // DTO 변환
-        return TransactionHistoryResponse.from(entries);
+        List<String> exchangeRefIds = new ArrayList<>();
+        List<String> transferRefIds = new ArrayList<>();
+
+        for (LedgerEntry entry : entries.getContent()) {
+            if (entry.getEntryType() == LedgerEntryType.EXCHANGE) {
+                exchangeRefIds.add(entry.getRefId());
+            } else if (entry.getEntryType() == LedgerEntryType.TRANSFER) {
+                transferRefIds.add(entry.getRefId());
+            }
+        }
+
+        Map<String, ExchangeTransaction> exchangeMap;
+        if (!exchangeRefIds.isEmpty()) {
+            List<ExchangeTransaction> exchanges = exchangeTransactionRepository.findAllByTransactionIdIn(exchangeRefIds);
+            exchangeMap = exchanges.stream()
+                    .collect(Collectors.toMap(ExchangeTransaction::getTransactionId, ex -> ex));
+        } else {
+            exchangeMap = new HashMap<>();
+        }
+
+        Map<String, P2pTransfer> transferMap;
+        if (!transferRefIds.isEmpty()) {
+            List<P2pTransfer> transfers = p2pTransferRepository.findAllWithUsersByIdIn(transferRefIds);
+            transferMap = transfers.stream()
+                    .collect(Collectors.toMap(P2pTransfer::getTransferId, t -> t));
+        } else {
+            transferMap = new HashMap<>();
+        }
+
+        Page<TransactionResponse> responsePage = entries.map(entry -> switch (entry.getEntryType()) {
+            case CHARGE, WITHDRAW ->
+                    TransactionResponse.from(entry);
+
+            case EXCHANGE -> {
+                ExchangeTransaction exchangeTx = exchangeMap.get(entry.getRefId());
+                yield TransactionResponse.from(entry, exchangeTx);
+            }
+
+            case TRANSFER -> {
+                P2pTransfer transferTx = transferMap.get(entry.getRefId());
+                yield TransactionResponse.from(entry, transferTx);
+            }
+        });
+
+        // 최종 응답 객체 반환
+        return TransactionHistoryResponse.from(responsePage);
     }
 
     @Transactional

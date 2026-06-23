@@ -9,6 +9,7 @@ export type TxStatus = "completed" | "processing" | "failed" | "refunded" | "can
 
 export interface Transaction {
   id: string
+  journalId?: string
   type: TxType
   title: string
   amountKRW: number // signed: negative = outflow

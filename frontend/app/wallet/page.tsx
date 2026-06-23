@@ -29,6 +29,7 @@ interface MockAccountInfo {
 
 export default function WalletPage() {
   const [krwBalance, setKrwBalance] = useState<number>(0)
+  const [totalKrw, setTotalKrw] = useState<number>(0)
   const [fxBalances, setFxBalances] = useState<Record<CurrencyCode, number>>({
     KRW: 0,
     USD: 0,
@@ -75,6 +76,7 @@ export default function WalletPage() {
       }
       setKrwBalance(localKrw)
       setFxBalances(newFxBalances)
+      setTotalKrw(balanceRes.totalKrw || 0)
 
       // 연결된 모의계좌(KRW) 잔액 조회 — 미연결 상태(404 등)면 카드를 숨긴다
       try {
@@ -100,41 +102,75 @@ export default function WalletPage() {
       )
 
       if (historyRes.transactionResponseList) {
-        const mappedTxList = historyRes.transactionResponseList.map((tx: any) => {
-          let type: TxType = "deposit"
+        const rawList = (historyRes.transactionResponseList || []).filter(Boolean)
+        const exchangeCounts: Record<string, number> = {}
+
+        const mappedTxList = rawList.map((tx: any) => {
+          let direction = tx.direction
+          let currency = tx.currency
+
+          // Fallback for exchanges if backend has not been restarted
+          if (tx.type === "EXCHANGE" && (!direction || !currency)) {
+            const count = exchangeCounts[tx.journalId] || 0
+            exchangeCounts[tx.journalId] = count + 1
+            
+            if (count % 2 === 0) {
+              direction = "DEBIT"
+              currency = tx.fromCurrency || "KRW"
+            } else {
+              direction = "CREDIT"
+              currency = tx.toCurrency || "USD"
+            }
+          }
+
+          const isCredit = direction === "CREDIT"
+          const amountSign = isCredit ? 1 : -1
+          
+          let type: TxType = "transfer"
           let title = ""
-          let amountKRW = Number(tx.amount)
+          let amountKRW = Number(tx.amount || 0) * amountSign
+          let fromCurrency: CurrencyCode | undefined = undefined
+          let toCurrency: CurrencyCode | undefined = currency as CurrencyCode
+          let rate: number | undefined = undefined
+          let fee: number | undefined = undefined
+          let detailStr = tx.memo || undefined
 
           if (tx.type === "CHARGE") {
             type = "deposit"
             title = "KRW 입금"
+            detailStr = "모의계좌 입금"
           } else if (tx.type === "WITHDRAW") {
             type = "withdraw"
             title = "KRW 출금"
-            amountKRW = -amountKRW
+            detailStr = "모의계좌 출금"
           } else if (tx.type === "EXCHANGE") {
             type = "exchange"
-            if (tx.currency === "KRW") {
-              title = "KRW → USD 환전 (지불)"
-              amountKRW = -amountKRW
-            } else {
-              title = "KRW → USD 환전 (수취)"
-              amountKRW = amountKRW * 1530 // Convert to KRW for UI list display
-            }
+            title = `${tx.fromCurrency} → ${tx.toCurrency} 환전`
+            
+            amountKRW = direction === "CREDIT" ? Number(tx.toAmount) : -Number(tx.fromAmount)
+            fromCurrency = tx.fromCurrency as CurrencyCode
+            toCurrency = (direction === "CREDIT" ? tx.toCurrency : tx.fromCurrency) as CurrencyCode
+            rate = Number(tx.exchangeRate)
+            fee = Number(tx.feeAmount)
           } else if (tx.type === "TRANSFER") {
             type = "transfer"
-            const isCredit = tx.direction === "CREDIT"
             title = `이체 (${isCredit ? "받음" : "보냄"})`
-            amountKRW = isCredit ? amountKRW : -amountKRW
+            detailStr = tx.counterpartyEmail ? `${isCredit ? "보낸이" : "받는이"}: ${tx.counterpartyEmail}` : tx.memo
           }
 
           return {
-            id: String(tx.transactionId),
+            id: `w-${tx.journalId || Math.random()}-${currency || "KRW"}`,
+            journalId: tx.journalId,
             type,
             title,
             amountKRW,
-            status: "completed",
+            fromCurrency,
+            toCurrency,
+            rate,
+            fee,
+            status: "completed" as TxStatus,
             createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : new Date().toISOString(),
+            detail: detailStr
           } as Transaction
         })
         setTransactions(mappedTxList)
@@ -171,7 +207,7 @@ export default function WalletPage() {
   }
 
   const fxValueKRW = FX_CODES.reduce((sum, c) => sum + (fxBalances[c] ?? 0) * krwPerUnit(c), 0)
-  const totalKRW = krwBalance + fxValueKRW
+  const totalKRW = totalKrw
 
   async function submit() {
     const value = Number(amount.replace(/,/g, ""))
