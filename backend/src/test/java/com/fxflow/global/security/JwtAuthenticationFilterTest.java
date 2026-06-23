@@ -17,16 +17,18 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("JwtAuthenticationFilter - 토큰/블랙리스트 검증")
+@DisplayName("JwtAuthenticationFilter - Access Token 검증")
 class JwtAuthenticationFilterTest {
 
     @Mock
     private JwtTokenProvider jwtTokenProvider;
-    @Mock
-    private TokenBlacklistService tokenBlacklistService;
+    // Access Token 블랙리스트 제거 → TokenBlacklistService 의존성 없음
 
     private JwtAuthenticationFilter filter;
 
@@ -35,7 +37,8 @@ class JwtAuthenticationFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistService);
+        // TokenBlacklistService 제거된 생성자
+        filter = new JwtAuthenticationFilter(jwtTokenProvider);
     }
 
     @AfterEach
@@ -56,7 +59,6 @@ class JwtAuthenticationFilterTest {
         // given
         given(jwtTokenProvider.getJwtUserInfo(TOKEN))
                 .willReturn(new JwtUserInfo(1L, "USER", JTI));
-        given(tokenBlacklistService.isBlacklisted(JTI)).willReturn(false);
 
         // when
         filter.doFilter(requestWithCookie(), new MockHttpServletResponse(), new MockFilterChain());
@@ -68,12 +70,11 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    @DisplayName("블랙리스트에 등록된 토큰이면 인증하지 않는다")
-    void blacklistedToken_doesNotAuthenticate() throws Exception {
-        // given - 로그아웃 처리된 토큰 상황
+    @DisplayName("토큰 파싱/서명 검증에 실패하면 인증하지 않는다")
+    void invalidToken_doesNotAuthenticate() throws Exception {
+        // given
         given(jwtTokenProvider.getJwtUserInfo(TOKEN))
-                .willReturn(new JwtUserInfo(1L, "USER", JTI));
-        given(tokenBlacklistService.isBlacklisted(JTI)).willReturn(true);
+                .willThrow(new BusinessException(AuthErrorCode.UNAUTHORIZED));
 
         // when
         filter.doFilter(requestWithCookie(), new MockHttpServletResponse(), new MockFilterChain());
@@ -83,9 +84,9 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    @DisplayName("토큰 파싱/서명 검증에 실패하면 인증하지 않는다")
-    void invalidToken_doesNotAuthenticate() throws Exception {
-        // given
+    @DisplayName("만료된 토큰이면 인증하지 않는다")
+    void expiredToken_doesNotAuthenticate() throws Exception {
+        // given - 만료된 토큰도 동일하게 UNAUTHORIZED 예외 발생
         given(jwtTokenProvider.getJwtUserInfo(TOKEN))
                 .willThrow(new BusinessException(AuthErrorCode.UNAUTHORIZED));
 
@@ -107,5 +108,22 @@ class JwtAuthenticationFilterTest {
 
         // then
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(jwtTokenProvider, never()).getJwtUserInfo(any());
+    }
+
+    @Test
+    @DisplayName("ADMIN 역할 토큰이면 ROLE_ADMIN 권한이 부여된다")
+    void adminToken_setsAdminRole() throws Exception {
+        // given
+        given(jwtTokenProvider.getJwtUserInfo(TOKEN))
+                .willReturn(new JwtUserInfo(1L, "ADMIN", JTI));
+
+        // when
+        filter.doFilter(requestWithCookie(), new MockHttpServletResponse(), new MockFilterChain());
+
+        // then
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 }

@@ -35,6 +35,9 @@ public class JwtTokenProvider {
     private final boolean cookieSecure;
     private final String cookieSameSite;
     private final int cookieMaxAge;
+    private final long refreshTokenExpiration;
+    private final int cookieRefreshMaxAge;
+
 
     /**
      * 생성자 방식으로 초기화
@@ -43,15 +46,20 @@ public class JwtTokenProvider {
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.access-token-expiration}") long accessTokenExpiration,
+            @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration,
             @Value("${cookie.secure}") boolean cookieSecure,
             @Value("${cookie.same-site}") String cookieSameSite,
-            @Value("${cookie.max-age}") int cookieMaxAge
+            @Value("${cookie.max-age}") int cookieMaxAge,
+            @Value("${cookie.refresh-max-age}") int cookieRefreshMaxAge
+
     ) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpiration = accessTokenExpiration;
+        this.refreshTokenExpiration = refreshTokenExpiration;
         this.cookieSecure = cookieSecure;
         this.cookieSameSite = cookieSameSite;
         this.cookieMaxAge = cookieMaxAge;
+        this.cookieRefreshMaxAge = cookieRefreshMaxAge;
     }
 
     /**
@@ -66,7 +74,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .subject(String.valueOf(user.getId()))
-                .id(UUID.randomUUID().toString()) //로그아웃시 블랙리스트 키로 쓸 jti
+                .id(UUID.randomUUID().toString()) // 토큰 고유 식별자
                 .claim(ROLE_CLAIM, user.getRole().name())
                 .issuedAt(now)
                 .expiration(expiry)
@@ -91,6 +99,45 @@ public class JwtTokenProvider {
                 .build();
     }
 
+    // Refresh Token 생성 메서드 추가
+    public String generateRefreshToken(User user) {
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + refreshTokenExpiration);
+
+        return Jwts.builder()
+                .subject(String.valueOf(user.getId()))
+                .id(UUID.randomUUID().toString())
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(secretKey)
+                .compact();
+    }
+
+    // Refresh Token 쿠키 생성 메서드 추가
+    public ResponseCookie generateRefreshTokenCookie(User user) {
+        String token = generateRefreshToken(user);
+        return ResponseCookie.from("refreshToken", token)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite)
+                .path("/api/v1/auth")
+                .maxAge(cookieRefreshMaxAge)
+                .build();
+    }
+
+    // Refresh Token 삭제 쿠키
+    public ResponseCookie deleteRefreshTokenCookie() {
+        return ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite)
+                .path("/api/v1/auth")
+                .maxAge(0)
+                .build();
+    }
+
+
+
     /**
      * 로그아웃 시 쿠키 삭제용 빈 쿠키 생성
      * maxAge=0으로 즉시 만료
@@ -105,14 +152,6 @@ public class JwtTokenProvider {
                 .build();
     }
 
-    /**
-     * 토큰 유효성 검증
-     * 실패 이유는 로그에만 기록하고 클라이언트에는 노출하지 않음
-     * 만료/위조/형식 오류 모두 동일하게 UNAUTHORIZED 반환
-     */
-    public void validateToken(String token) {
-        parseClaims(token);
-    }
 
     public JwtUserInfo getJwtUserInfo(String token) {
         Claims claims = parseClaims(token); // 여기서 검증과 파싱이 1번만 발생
