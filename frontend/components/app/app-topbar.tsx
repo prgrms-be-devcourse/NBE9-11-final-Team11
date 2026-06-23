@@ -78,14 +78,6 @@ export function AppTopbar({ title }: { title: string }) {
             <DropdownMenuItem
               render={
                 <Link href="/settings">
-                  <User className="size-4" />
-                  프로필
-                </Link>
-              }
-            />
-            <DropdownMenuItem
-              render={
-                <Link href="/settings">
                   <Settings className="size-4" />
                   설정
                 </Link>

@@ -30,7 +30,6 @@ public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
     private final CorsConfigurationSource corsConfigurationSource;
-    private final TokenBlacklistService tokenBlacklistService;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -66,6 +65,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/signup",
+                                "/api/v1/auth/refresh",
                                 "/api/v1/mockbank/check",
                                 "/api/v1/mockbank/inquiry/usd"
                         ).permitAll()
@@ -81,7 +81,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider,tokenBlacklistService),
+                        new JwtAuthenticationFilter(jwtTokenProvider),
                         UsernamePasswordAuthenticationFilter.class
                 );
 

@@ -378,9 +378,6 @@ class MockBankAccountInquiryTest {
                 RemittanceMethod.BANK_TRANSFER.name(),
                 null,
                 null,
-                null,
-                null,
-                null,
                 "KRW",
                 new BigDecimal(sendAmount),
                 USD,
@@ -391,7 +388,8 @@ class MockBankAccountInquiryTest {
                 new BigDecimal(receiveAmount),
                 RemittanceReason.LIVING_EXPENSES.name(),
                 null,
-                "idempotency-key-" + userId + "-" + System.nanoTime()
+                "idempotency-key-" + userId + "-" + System.nanoTime(),
+                "JNL-TEST-" + userId
         );
         ReflectionTestUtils.setField(tx, "id", userId);
         tx.fund(10L);

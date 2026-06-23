@@ -182,7 +182,7 @@ export default function TransactionsPage() {
 
             return {
               id: `r-${tx.transferId}`,
-              journalId: tx.transferId,
+              journalId: tx.journalId,
               type: "remittance" as TxType,
               title: `해외송금 · ${tx.recipientName}`,
               amountKRW: -(Number(tx.sendAmount) + Number(tx.feeAmount ?? 0)),

@@ -91,13 +91,22 @@ public class CompanyPoolService {
                     : pool.getBalance().subtract(pool.getTargetBalance());
 
             // BUY일 때 상대 풀의 floor 여유분으로 실제 체결 가능량을 cap
-            if ("BELOW_FLOOR".equals(status) && appliedRate != null) {
+            // 상대 풀도 floor 미만이면 환전 불가 → recommendedAction=null
+            if ("BELOW_FLOOR".equals(status)) {
                 BigDecimal sellSurplus = otherPool.surplusAboveFloor();
-                BigDecimal maxBuyable = "KRW".equals(pool.getCurrencyCode())
-                        ? sellSurplus.multiply(appliedRate).setScale(2, RoundingMode.FLOOR)
-                        : sellSurplus.divide(appliedRate, 2, RoundingMode.FLOOR);
-                if (maxBuyable.compareTo(amount) < 0) {
-                    amount = maxBuyable;
+                if (sellSurplus.compareTo(BigDecimal.ZERO) <= 0) {
+                    return new PoolDashboardRes.PoolStatusRes(
+                            pool.getCurrencyCode(), pool.getBalance(),
+                            pool.getTargetBalance(), pool.getFloorBalance(), pool.getCeilingBalance(),
+                            status, utilizationRate, null);
+                }
+                if (appliedRate != null) {
+                    BigDecimal maxBuyable = "KRW".equals(pool.getCurrencyCode())
+                            ? sellSurplus.multiply(appliedRate).setScale(2, RoundingMode.FLOOR)
+                            : sellSurplus.divide(appliedRate, 2, RoundingMode.FLOOR);
+                    if (maxBuyable.compareTo(amount) < 0) {
+                        amount = maxBuyable;
+                    }
                 }
             }
 
@@ -127,8 +136,10 @@ public class CompanyPoolService {
                 : amount.multiply(appliedRate).setScale(2, RoundingMode.FLOOR);
     }
 
+    @Transactional
     public CompanyPool deposit(String journalId, String currencyCode, BigDecimal amount) {
-        CompanyPool pool = getPoolByCurrency(currencyCode);
+        CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
+                .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
         BigDecimal balanceBefore = pool.getBalance();
         BigDecimal balanceAfter = balanceBefore.add(amount);
 
@@ -150,17 +161,19 @@ public class CompanyPoolService {
                 null
         );
         ledgerEntryRepository.save(poolEntry);
+        eventPublisher.publishEvent(new PoolChangedEvent(this));
 
         return pool;
     }
 
     @Transactional
     public void withdraw(String journalId, String currencyCode, BigDecimal amount) {
-        CompanyPool pool = getPoolByCurrency(currencyCode);
+        CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
+                .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
         BigDecimal balanceBefore = pool.getBalance();
         BigDecimal balanceAfter = balanceBefore.subtract(amount);
         if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
-            // todo: error
+            throw new BusinessException(PoolErrorCode.POOL_INSUFFICIENT_BALANCE);
         }
         pool.decrease(amount);
         companyPoolRepository.save(pool);
@@ -180,6 +193,7 @@ public class CompanyPoolService {
                 null
         );
         ledgerEntryRepository.save(poolEntry);
+        eventPublisher.publishEvent(new PoolChangedEvent(this));
     }
 
     /**
@@ -187,7 +201,7 @@ public class CompanyPoolService {
      * 지갑 충전이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
      */
     @Transactional
-    public CompanyPool depositForRemittance(String journalId, String currencyCode, BigDecimal amount, Long remittanceTransactionId) {
+    public CompanyPool depositForRemittance(String journalId, String currencyCode, BigDecimal amount, String refId) {
         CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
                 .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
         BigDecimal balanceBefore = pool.getBalance();
@@ -208,7 +222,7 @@ public class CompanyPoolService {
                 balanceBefore,
                 balanceAfter,
                 LedgerRefType.REMITTANCE,
-                String.valueOf(remittanceTransactionId)
+                refId
         );
         ledgerEntryRepository.save(poolEntry);
         eventPublisher.publishEvent(new PoolChangedEvent(this));
@@ -221,7 +235,7 @@ public class CompanyPoolService {
      * 지갑 출금이 아니므로 LedgerEntryType.TRANSFER와 REMITTANCE 참조로 원장을 남긴다.
      */
     @Transactional
-    public CompanyPool withdrawForRemittance(String journalId, String currencyCode, BigDecimal amount, Long remittanceTransactionId) {
+    public CompanyPool withdrawForRemittance(String journalId, String currencyCode, BigDecimal amount, String refId) {
         CompanyPool pool = companyPoolRepository.findByCurrencyCodeWithLock(currencyCode)
                 .orElseThrow(() -> new BusinessException(PoolErrorCode.POOL_NOT_FOUND));
         BigDecimal balanceBefore = pool.getBalance();
@@ -246,7 +260,7 @@ public class CompanyPoolService {
                 balanceBefore,
                 balanceAfter,
                 LedgerRefType.REMITTANCE,
-                String.valueOf(remittanceTransactionId)
+                refId
         );
         ledgerEntryRepository.save(poolEntry);
         eventPublisher.publishEvent(new PoolChangedEvent(this));

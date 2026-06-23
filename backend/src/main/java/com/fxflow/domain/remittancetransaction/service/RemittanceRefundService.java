@@ -42,16 +42,16 @@ public class RemittanceRefundService {
                 ));
 
         String failureReason = cause.getMessage();
-        String refundJournalId = createRefundJournalId(transferId);
+        String refundJournalId = remittanceTransaction.getJournalId();
         BigDecimal refundAmount = remittanceTransaction.getAmountKrw().add(remittanceTransaction.getFeeAmount());
-        String refId = String.valueOf(transferId);
+        String refId = remittanceTransaction.getJournalId();
 
         // 환불은 TRF-07에서 증가했던 회사 KRW 풀을 차감하고 송금자 모의계좌로 되돌리는 흐름이다.
         companyPoolService.withdrawForRemittance(
                 refundJournalId,
                 KRW,
                 refundAmount,
-                transferId
+                refId
         );
         mockBankAccountService.refundForRemittance(
                 refundJournalId,
@@ -88,10 +88,6 @@ public class RemittanceRefundService {
                 transferId,
                 cause.getMessage()
         );
-    }
-
-    private String createRefundJournalId(Long transferId) {
-        return "JRN-TRF-" + transferId + "-REFUND";
     }
 
     /**
