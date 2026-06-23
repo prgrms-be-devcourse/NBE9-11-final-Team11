@@ -115,4 +115,16 @@ class ReservationTriggerListenerTest {
 
         verify(reservationRepository, never()).findByStatusAndAction(any(), any());
     }
+
+    @Test
+    @DisplayName("후보 조회가 실패해도 리스너 밖으로 예외를 전파하지 않는다")
+    void repositoryFailure_doesNotPropagate() {
+        when(reservationRepository.findByStatusAndAction(ReservationStatus.ACTIVE, ReservationAction.EXCHANGE))
+                .thenThrow(new RuntimeException("DB 조회 실패"));
+
+        // 예외가 리스너 밖으로 전파되지 않아야 한다(정상 반환).
+        reservationTriggerListener.onFxRateUpdated(event("USD", "KRW", "1280", "0.01"));
+
+        verify(reservationExecutionService, never()).preempt(anyLong());
+    }
 }
