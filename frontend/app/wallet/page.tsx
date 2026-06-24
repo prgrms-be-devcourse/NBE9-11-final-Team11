@@ -238,7 +238,7 @@ export default function WalletPage() {
           bankAccountId: bankAccountId,
           amount: value,
         })
-        toast.success(`${formatKRW(value)} 입금이 완료되었습니다.`)
+        toast.success(`${formatKRW(value)} 충전이 완료되었습니다.`)
       } else if (mode === "withdraw") {
         await apiRequest("POST", "/api/v1/wallets/withdraw", {
           bankAccountId: bankAccountId,
@@ -252,7 +252,7 @@ export default function WalletPage() {
           amount: value,
           memo: memo.trim(),
         })
-        toast.success(`${recipientEmail}님께 ${formatCurrency(value, transferCurrency)} 이체가 완료되었습니다.`)
+        toast.success(`${recipientEmail}님께 ${formatCurrency(value, transferCurrency)} 송금이 완료되었습니다.`)
       }
 
       setAmount("")
@@ -286,7 +286,7 @@ export default function WalletPage() {
               <DialogTrigger
                 render={
                   <Button variant="secondary" size="sm" onClick={() => setMode("deposit")}>
-                    <Plus className="size-4" /> 입금
+                    <Plus className="size-4" /> 충전
                   </Button>
                 }
               />
@@ -300,14 +300,14 @@ export default function WalletPage() {
               <DialogTrigger
                 render={
                   <Button variant="secondary" size="sm" onClick={() => setMode("transfer")}>
-                    <ArrowLeftRight className="size-4" /> 이체
+                    <ArrowLeftRight className="size-4" /> 지갑 송금
                   </Button>
                 }
               />
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>
-                    {mode === "deposit" ? "KRW 입금" : mode === "withdraw" ? "KRW 출금" : "P2P 지갑 이체"}
+                    {mode === "deposit" ? "KRW 충전" : mode === "withdraw" ? "KRW 출금" : "P2P 지갑 송금"}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
@@ -424,7 +424,7 @@ export default function WalletPage() {
                     onClick={submit}
                     disabled={mode === "transfer" && checkingEmail}
                   >
-                    {mode === "deposit" ? "입금하기" : mode === "withdraw" ? "출금하기" : checkingEmail ? "이메일 확인 중..." : "이체하기"}
+                    {mode === "deposit" ? "충전하기" : mode === "withdraw" ? "출금하기" : checkingEmail ? "이메일 확인 중..." : "송금하기"}
                   </Button>
                 </div>
               </DialogContent>
