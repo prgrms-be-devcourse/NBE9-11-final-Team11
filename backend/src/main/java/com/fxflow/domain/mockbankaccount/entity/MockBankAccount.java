@@ -1,6 +1,7 @@
 package com.fxflow.domain.mockbankaccount.entity;
 
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
+import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.global.entity.BaseEntity;
 import com.fxflow.global.exception.BusinessException;
@@ -21,6 +22,7 @@ import java.time.LocalDateTime;
         name = "mock_bank_accounts",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_mock_bank_account_user_currency", columnNames = {"user_id", "currency_code"}),
+                @UniqueConstraint(name = "uk_mock_bank_account_recipient_currency", columnNames = {"recipient_id", "currency_code"}),
                 @UniqueConstraint(name = "uk_mock_bank_account_number", columnNames = {"account_number"})
         }
 )
@@ -30,8 +32,15 @@ import java.time.LocalDateTime;
 public class MockBankAccount extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id")
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recipient_id")
+    private Recipient recipient;
+
+    @Column(name = "owner_type", length = 20)
+    private String ownerType;
 
     @Column(name = "currency_code", nullable = false, length = 10)
     private String currencyCode;        // KRW: 사용자가 직접 연결 / USD: 시딩 데이터(받는 가상계좌)
@@ -55,6 +64,7 @@ public class MockBankAccount extends BaseEntity {
     public static MockBankAccount create(User user, String bankName, String accountNumber) {
         MockBankAccount account = new MockBankAccount();
         account.user = user;
+        account.ownerType = "USER";
         account.currencyCode = "KRW";
         account.bankName = bankName;
         account.accountNumber = accountNumber;
@@ -70,6 +80,24 @@ public class MockBankAccount extends BaseEntity {
     ) {
         MockBankAccount account = new MockBankAccount();
         account.user = user;
+        account.ownerType = "USER";
+        account.currencyCode = currencyCode;
+        account.bankName = bankName;
+        account.accountNumber = accountNumber;
+        account.balance = initialBalance;
+        return account;
+    }
+
+    /**
+     * 수취인 지급 시뮬레이션용 모의계좌 생성.
+     * 수취인은 플랫폼 회원이 아니므로 User가 아니라 Recipient를 소유자로 둔다.
+     */
+    public static MockBankAccount createRecipientAccount(
+            Recipient recipient, String currencyCode, String bankName, String accountNumber, BigDecimal initialBalance
+    ) {
+        MockBankAccount account = new MockBankAccount();
+        account.recipient = recipient;
+        account.ownerType = "RECIPIENT";
         account.currencyCode = currencyCode;
         account.bankName = bankName;
         account.accountNumber = accountNumber;

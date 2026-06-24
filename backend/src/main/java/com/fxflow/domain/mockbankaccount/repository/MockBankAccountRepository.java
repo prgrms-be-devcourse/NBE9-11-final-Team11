@@ -76,19 +76,19 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
 
     /**
      * 수취인 USD 모의계좌 조회 — 이름·은행명·계좌번호로 직접 조회
-     * 수취인은 가짜 이메일로 생성된 User이므로 User 경유 없이 MockBankAccount를 직접 찾는다.
+     * 수취인은 플랫폼 User가 아니므로 MockBankAccount의 recipient를 통해 찾는다.
      */
     @Query("""
             SELECT m
             FROM MockBankAccount m
-            JOIN m.user u
+            JOIN m.recipient r
             WHERE m.accountNumber = :accountNumber
               AND m.bankName = :bankName
-              AND u.name = :name
+              AND r.name = :name
               AND m.currencyCode = :currencyCode
               AND m.deletedAt IS NULL
             """)
-    Optional<MockBankAccount> findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+    Optional<MockBankAccount> findByRecipientAccountNumberAndBankNameAndNameAndCurrencyCode(
             @Param("accountNumber") String accountNumber,
             @Param("bankName") String bankName,
             @Param("name") String name,

@@ -35,18 +35,17 @@ public class RecipientService {
         validateAccountNumber(request.accountNumber());
         validateDuplicateRecipient(userId, request);
 
-        Recipient recipient = Recipient.create(
+        Recipient recipient = recipientRepository.save(Recipient.create(
                 userId,
                 request.name(),
                 request.countryCode(),
                 request.currencyCode(),
                 request.bankName(),
                 request.accountNumber()
-        );
+        ));
         recipientPayoutAccountService.ensurePayoutAccount(recipient);
 
-        Recipient savedRecipient = recipientRepository.save(recipient);
-        return RecipientResponse.from(savedRecipient);
+        return RecipientResponse.from(recipient);
     }
 
     /**

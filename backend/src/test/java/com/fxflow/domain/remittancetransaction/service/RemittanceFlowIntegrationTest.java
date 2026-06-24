@@ -111,7 +111,7 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
 
         User sender = createUser("sender-flow@example.com", "송금자");
         createSenderKrwAccount(sender);
-        Recipient recipient = createRecipient(sender, "John Doe", "Chase Bank", "987654321001");
+        Recipient recipient = createRecipient(sender, "John Doe", "Chase Bank", "98765432101");
 
         RemittanceTransactionCreateResponse createResponse =
                 createTransfer(sender, recipient, "idem-success-001");
@@ -145,7 +145,7 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
 
         User sender = createUser("sender-refund@example.com", "환불대상");
         createSenderKrwAccount(sender);
-        Recipient recipient = createRecipient(sender, "Jane Doe", "Bank of America", "987654321002");
+        Recipient recipient = createRecipient(sender, "Jane Doe", "Bank of America", "98765432102");
 
         RemittanceTransactionCreateResponse createResponse =
                 createTransfer(sender, recipient, "idem-refund-001");
@@ -175,7 +175,7 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
 
         User sender = createUser("sender-concurrent@example.com", "동시성대상");
         createSenderKrwAccount(sender);
-        Recipient recipient = createRecipient(sender, "Concurrent Recipient", "Citibank", "987654321004");
+        Recipient recipient = createRecipient(sender, "Concurrent Recipient", "Citibank", "98765432104");
 
         RemittanceTransactionCreateResponse firstCreateResponse =
                 createTransfer(sender, recipient, "idem-concurrent-001");
@@ -223,7 +223,7 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
 
         User sender = createUser("sender-expire@example.com", "만료대상");
         createSenderKrwAccount(sender);
-        Recipient recipient = createRecipient(sender, "Expired Recipient", "Wells Fargo", "987654321003");
+        Recipient recipient = createRecipient(sender, "Expired Recipient", "Wells Fargo", "98765432103");
 
         RemittanceTransactionCreateResponse createResponse =
                 createTransfer(sender, recipient, "idem-expire-001");
@@ -278,7 +278,7 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
             String bankName,
             String accountNumber
     ) {
-        return recipientRepository.save(Recipient.create(
+        Recipient recipient = recipientRepository.save(Recipient.create(
                 sender.getId(),
                 name,
                 "US",
@@ -286,6 +286,14 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
                 bankName,
                 accountNumber
         ));
+        mockBankAccountRepository.save(MockBankAccount.createRecipientAccount(
+                recipient,
+                recipient.getCurrencyCode(),
+                recipient.getBankName(),
+                recipient.getAccountNumber(),
+                BigDecimal.ZERO
+        ));
+        return recipient;
     }
 
     private MockBankAccount createSenderKrwAccount(User sender) {
