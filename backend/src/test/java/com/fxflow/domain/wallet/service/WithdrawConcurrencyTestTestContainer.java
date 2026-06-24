@@ -15,7 +15,6 @@ import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -96,42 +95,6 @@ class WithdrawConcurrencyTestTestContainer extends AbstractIntegrationTest {
         start.countDown();
         done.await();
         executor.shutdown();
-    }
-
-    // 락 없음 - 잔액 마이너스 재현
-    @Test
-    @DisplayName("재시도 없는 낙관적 락 - 충돌 시 예외 발생, 성공건만 정합성 보장")
-    void 락없음_재시도없음_충돌시예외발생() throws InterruptedException {
-        WithdrawRequest request = new WithdrawRequest(new BigDecimal("9000"));
-        AtomicInteger successCount = new AtomicInteger();
-        List<String> errors = new CopyOnWriteArrayList<>();
-
-        runConcurrent(5, () -> {
-            try {
-                walletService.withdraw(testUser.getId(), request);
-                successCount.incrementAndGet();
-            } catch (Exception e) {
-                errors.add(e.getClass().getSimpleName() + ": " + e.getMessage());
-            }
-        });
-
-        Wallet result = walletRepository.findById(testWallet.getId()).orElseThrow();
-        BigDecimal expectedBalance = new BigDecimal("100000")
-                .subtract(new BigDecimal("9000").multiply(new BigDecimal(successCount.get())));
-
-        System.out.println("====== 재시도 없는 낙관적 락 결과 ======");
-        System.out.println("성공 건수: " + successCount.get());
-        System.out.println("실패 건수: " + errors.size());
-        System.out.println("실패 원인: " + errors);
-        System.out.println("기대 잔액: " + expectedBalance);
-        System.out.println("실제 잔액: " + result.getBalance());
-        System.out.println("정합성: " + (result.getBalance().compareTo(expectedBalance) == 0 ? "✅ 정상" : "❌ 깨짐"));
-        System.out.println("========================================");
-
-        // 충돌로 인해 5건 모두 성공하지 못함을 증명
-        assertThat(successCount.get()).isLessThan(5);
-        // 성공한 것들은 정합성 보장됨
-        assertThat(result.getBalance()).isEqualByComparingTo(expectedBalance);
     }
 
     // 비관적 락

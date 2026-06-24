@@ -256,7 +256,7 @@ class WalletServiceTest {
         // given
         Long userId = 1L;
         ChargeRequest request = new ChargeRequest(new BigDecimal("5000"));
-        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+        when(walletRepository.findByUserIdAndCurrencyCodeWithLock(userId, "KRW")).thenReturn(Optional.of(krwWallet));
         when(companyPoolService.deposit(anyString(), eq("KRW"), any(BigDecimal.class))).thenReturn(mock(CompanyPool.class));
         User mockUser = mock(User.class);
         when(userService.getUser(userId)).thenReturn(mockUser);
@@ -336,7 +336,7 @@ class WalletServiceTest {
 
         when(userService.getUser(userId)).thenReturn(user);
 
-        when(walletRepository.findByUserIdAndCurrencyCode(userId, currency))
+        when(walletRepository.findByUserIdAndCurrencyCodeWithLock(userId, currency))
                 .thenReturn(Optional.of(wallet));
 
         ChargeRequest request = new ChargeRequest(chargeAmount);
@@ -363,7 +363,7 @@ class WalletServiceTest {
         Long userId = 1L;
         ChargeRequest request = new ChargeRequest(new BigDecimal("5000"));
 
-        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet)); // add this
+        when(walletRepository.findByUserIdAndCurrencyCodeWithLock(userId, "KRW")).thenReturn(Optional.of(krwWallet)); // add this
 
         doThrow(new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND))
                 .when(mockBankAccountService)
@@ -396,7 +396,7 @@ class WalletServiceTest {
         // given
         Long userId = 1L;
         WithdrawRequest request = new WithdrawRequest(new BigDecimal("5000"));
-        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+        when(walletRepository.findByUserIdAndCurrencyCodeWithLock(userId, "KRW")).thenReturn(Optional.of(krwWallet));
         User mockUser = mock(User.class);
         when(userService.getUser(userId)).thenReturn(mockUser);
 
@@ -476,7 +476,7 @@ class WalletServiceTest {
         Long userId = 1L;
         WithdrawRequest request = new WithdrawRequest(new BigDecimal("60000")); // more than krwWallet's 50000
 
-        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+        when(walletRepository.findByUserIdAndCurrencyCodeWithLock(userId, "KRW")).thenReturn(Optional.of(krwWallet));
         User mockUser = mock(User.class);
         when(userService.getUser(userId)).thenReturn(mockUser);
 
@@ -499,7 +499,7 @@ class WalletServiceTest {
         Long userId = 1L;
         WithdrawRequest request = new WithdrawRequest(new BigDecimal("5000"));
 
-        when(walletRepository.findByUserIdAndCurrencyCode(userId, "KRW")).thenReturn(Optional.of(krwWallet));
+        when(walletRepository.findByUserIdAndCurrencyCodeWithLock(userId, "KRW")).thenReturn(Optional.of(krwWallet));
 
         doThrow(new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND))
                 .when(mockBankAccountService)
