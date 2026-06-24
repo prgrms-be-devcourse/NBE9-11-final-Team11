@@ -69,6 +69,21 @@ public class ReservationService {
         return ReservationResponse.from(reservation);
     }
 
+    /**
+     * 기한 만료 예약 전이 — 스케줄러가 주기적으로 호출
+     * 기한이 지난 ACTIVE 예약을 한 번에 추려 EXPIRED 로 전이하고 전이 건수를 반환한다.
+     * 조회가 ACTIVE 만 반환하므로 모든 후보가 만료 대상이며, 트리거 체결은 미만료 ACTIVE 만 대상이라 만료 스캔과 대상이 겹치지 않는다.
+     */
+    @Transactional
+    public int expireOverdueReservations(LocalDateTime now) {
+        List<Reservation> overdue =
+                reservationRepository.findByStatusAndExpiresAtLessThanEqual(ReservationStatus.ACTIVE, now);
+        for (Reservation reservation : overdue) {
+            reservation.expire();
+        }
+        return overdue.size();
+    }
+
 
     ///  private 메서드
     /** 소유자 본인 예약 조회, 없으면 404. */
