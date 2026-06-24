@@ -331,13 +331,18 @@ public class MockBankAccountService {
     @Transactional
     public Long depositForRemittance(
             String journalId,
+            String bankName,
             String accountNumber,
             BigDecimal amount,
             String currencyCode,
             String refId
     ) {
         MockBankAccount bankAccount = mockBankAccountRepository
-                .findByAccountNumberAndCurrencyCodeAndDeletedAtIsNullForUpdate(accountNumber, currencyCode)
+                .findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNullForUpdate(
+                        bankName,
+                        accountNumber,
+                        currencyCode
+                )
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
         return depositToMockAccount(journalId, bankAccount, amount, currencyCode, refId);

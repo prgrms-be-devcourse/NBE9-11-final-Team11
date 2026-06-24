@@ -310,7 +310,8 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
 
     private MockBankAccount recipientUsdAccount(Recipient recipient) {
         return mockBankAccountRepository
-                .findByAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+                .findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+                        recipient.getBankName(),
                         recipient.getAccountNumber(),
                         recipient.getCurrencyCode()
                 )

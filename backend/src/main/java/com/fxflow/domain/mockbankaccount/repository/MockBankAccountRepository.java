@@ -20,6 +20,12 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
 
     boolean existsByAccountNumber(String accountNumber);
 
+    boolean existsByBankNameAndAccountNumberAndCurrencyCode(
+            String bankName,
+            String accountNumber,
+            String currencyCode
+    );
+
     /**
      * TRF-07 입금 확인 시 송금자 본인의 통화별 모의계좌를 조회한다.
      */
@@ -32,7 +38,8 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
      * TRF-08 외화 지급 시 송금자가 등록한 수취인 계좌번호와 통화로
      * 입금 대상 모의계좌를 조회한다.
      */
-    Optional<MockBankAccount> findByAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+    Optional<MockBankAccount> findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+            String bankName,
             String accountNumber,
             String currencyCode
     );
@@ -45,11 +52,13 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
     @Query("""
             SELECT m
             FROM MockBankAccount m
-            WHERE m.accountNumber = :accountNumber
+            WHERE m.bankName = :bankName
+              AND m.accountNumber = :accountNumber
               AND m.currencyCode = :currencyCode
               AND m.deletedAt IS NULL
             """)
-    Optional<MockBankAccount> findByAccountNumberAndCurrencyCodeAndDeletedAtIsNullForUpdate(
+    Optional<MockBankAccount> findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNullForUpdate(
+            @Param("bankName") String bankName,
             @Param("accountNumber") String accountNumber,
             @Param("currencyCode") String currencyCode
     );

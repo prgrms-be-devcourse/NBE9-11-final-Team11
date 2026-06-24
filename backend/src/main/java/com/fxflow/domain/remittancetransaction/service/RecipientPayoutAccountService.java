@@ -23,7 +23,8 @@ public class RecipientPayoutAccountService {
     @Transactional
     public void ensurePayoutAccount(Recipient recipient) {
         boolean exists = mockBankAccountRepository
-                .findByAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+                .findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+                        recipient.getBankName(),
                         recipient.getAccountNumber(),
                         recipient.getCurrencyCode()
                 )

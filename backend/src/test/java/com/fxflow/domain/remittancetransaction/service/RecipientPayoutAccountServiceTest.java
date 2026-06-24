@@ -35,7 +35,8 @@ class RecipientPayoutAccountServiceTest {
         Recipient recipient = createRecipient();
         MockBankAccount account = createMockBankAccount();
 
-        when(mockBankAccountRepository.findByAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+        when(mockBankAccountRepository.findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+                recipient.getBankName(),
                 recipient.getAccountNumber(),
                 recipient.getCurrencyCode()
         )).thenReturn(Optional.of(account));
@@ -53,7 +54,8 @@ class RecipientPayoutAccountServiceTest {
         // given
         Recipient recipient = createRecipient();
 
-        when(mockBankAccountRepository.findByAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+        when(mockBankAccountRepository.findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+                recipient.getBankName(),
                 recipient.getAccountNumber(),
                 recipient.getCurrencyCode()
         )).thenReturn(Optional.empty());
@@ -66,18 +68,46 @@ class RecipientPayoutAccountServiceTest {
                 account.getUser() == null
                         && account.getOwnerType() == MockBankAccountOwnerType.RECIPIENT
                         && account.getAccountHolderName().equals(recipient.getName())
+                        && account.getBankName().equals(recipient.getBankName())
                         && account.getAccountNumber().equals(recipient.getAccountNumber())
         ));
     }
 
+    @Test
+    @DisplayName("성공: 같은 계좌번호라도 은행명이 다르면 별도 수취인 지급용 모의계좌를 생성한다")
+    void ensurePayoutAccount_success_createAccountWhenSameNumberDifferentBank() {
+        // given
+        Recipient recipient = createRecipient("Bank of America", "1234567890");
+
+        when(mockBankAccountRepository.findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+                recipient.getBankName(),
+                recipient.getAccountNumber(),
+                recipient.getCurrencyCode()
+        )).thenReturn(Optional.empty());
+
+        // when
+        recipientPayoutAccountService.ensurePayoutAccount(recipient);
+
+        // then
+        verify(mockBankAccountRepository).save(argThat(account ->
+                account.getBankName().equals("Bank of America")
+                        && account.getAccountNumber().equals("1234567890")
+                        && account.getCurrencyCode().equals("USD")
+        ));
+    }
+
     private Recipient createRecipient() {
+        return createRecipient("Chase Bank", "1234567890");
+    }
+
+    private Recipient createRecipient(String bankName, String accountNumber) {
         return Recipient.create(
                 1L,
                 "John Doe",
                 "US",
                 "USD",
-                "Chase Bank",
-                "1234567890"
+                bankName,
+                accountNumber
         );
     }
 

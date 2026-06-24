@@ -19,7 +19,10 @@ import java.time.LocalDateTime;
         name = "mock_bank_accounts",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_mock_bank_account_user_currency", columnNames = {"user_id", "currency_code"}),
-                @UniqueConstraint(name = "uk_mock_bank_account_number", columnNames = {"account_number"})
+                @UniqueConstraint(
+                        name = "uk_mock_bank_account_bank_number_currency",
+                        columnNames = {"bank_name", "account_number", "currency_code"}
+                )
         }
 )
 @Getter
