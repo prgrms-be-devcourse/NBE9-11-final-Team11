@@ -35,7 +35,7 @@ public class MockBankAccount extends BaseEntity {
     private User user;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "owner_type", length = 20)
+    @Column(name = "owner_type", nullable = false, length = 20)
     private MockBankAccountOwnerType ownerType;
 
     @Column(name = "currency_code", nullable = false, length = 10)
@@ -47,7 +47,7 @@ public class MockBankAccount extends BaseEntity {
     @Column(name = "account_number", nullable = false, length = 50)
     private String accountNumber;
 
-    @Column(name = "account_holder_name", length = 100)
+    @Column(name = "account_holder_name", nullable = false, length = 100)
     private String accountHolderName;
 
     @Column(nullable = false, precision = 18, scale = 8)
