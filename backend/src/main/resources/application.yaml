@@ -8,8 +8,8 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:myuser}
     password: ${SPRING_DATASOURCE_PASSWORD:mypassword}
   data:
-    host: ${SPRING_DATA_REDIS_HOST:localhost}
     redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
   jpa:
     hibernate:
