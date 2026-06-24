@@ -4,6 +4,7 @@ package com.fxflow.global.exception;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Path;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -15,6 +16,8 @@ import java.util.List;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final String RECIPIENT_ACCOUNT_MESSAGE = "계좌번호를 다시 확인해주세요.";
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {
@@ -69,6 +72,31 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .badRequest()
                 .body(ErrorResponse.of("MISSING_HEADER", e.getHeaderName() + " 헤더가 필요합니다.", null));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException e) {
+        String message = e.getMostSpecificCause().getMessage();
+
+        if (message != null && (
+                message.contains("uk_recipient_user_bank_account")
+                        || message.contains("uk_mock_bank_account_bank_number_currency")
+        )) {
+            log.warn("Recipient account constraint violation: {}", message);
+            return ResponseEntity
+                    .badRequest()
+                    .body(ErrorResponse.of(
+                            "INVALID_RECIPIENT_ACCOUNT_NUMBER",
+                            RECIPIENT_ACCOUNT_MESSAGE,
+                            null
+                    ));
+        }
+
+        log.error("DataIntegrityViolationException: ", e);
+        ErrorCode errorCode = GlobalErrorCode.INTERNAL_SERVER_ERROR;
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(ErrorResponse.from(errorCode));
     }
 
     @ExceptionHandler(Exception.class)

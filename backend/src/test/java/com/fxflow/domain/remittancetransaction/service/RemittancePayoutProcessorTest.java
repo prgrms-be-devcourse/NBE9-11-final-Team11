@@ -58,6 +58,7 @@ class RemittancePayoutProcessorTest {
                 .thenReturn(Optional.of(recipient));
         when(mockBankAccountService.depositForRemittance(
                 anyString(),
+                eq("Chase Bank"),
                 eq("1234567890"),
                 eq(new BigDecimal("736.52")),
                 eq("USD"),
@@ -76,6 +77,7 @@ class RemittancePayoutProcessorTest {
         );
         verify(mockBankAccountService).depositForRemittance(
                 anyString(),
+                eq("Chase Bank"),
                 eq("1234567890"),
                 eq(new BigDecimal("736.52")),
                 eq("USD"),

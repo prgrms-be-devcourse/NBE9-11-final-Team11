@@ -163,6 +163,8 @@ export default function RemittancePage() {
   async function saveRecipient() {
     if (!form.name.trim() || !form.bank.trim() || !form.account.trim())
       return toast.error("수취인 정보를 모두 입력하세요.")
+    if (!/^\d{8,11}$/.test(form.account))
+      return toast.error("계좌번호를 다시 확인해주세요.")
     const c = COUNTRIES.find((x) => x.name === form.country) ?? COUNTRIES[0]
     if (c.code !== "US" || c.currency !== "USD") return toast.error("현재 MVP에서는 미국·USD 수취인만 등록할 수 있습니다.")
 
@@ -172,7 +174,7 @@ export default function RemittancePage() {
         countryCode: c.code,
         currencyCode: c.currency,
         bankName: form.bank.trim(),
-        accountNumber: form.account.replace(/\D/g, ""),
+        accountNumber: form.account,
       })
       const rec = mapRecipient(created)
       setRecipients((prev) => [...prev, rec])
@@ -182,7 +184,10 @@ export default function RemittancePage() {
       toast.success("수취인이 추가되었습니다.")
     } catch (err: any) {
       console.error(err)
-      toast.error(err.message || "수취인 등록에 실패했습니다.")
+      const isAccountNumberError =
+        err.code === "DUPLICATE_RECIPIENT" ||
+        err.code === "INVALID_RECIPIENT_ACCOUNT_NUMBER"
+      toast.error(isAccountNumberError ? "계좌번호를 다시 확인해주세요." : err.message || "수취인 등록에 실패했습니다.")
     }
   }
 
@@ -397,9 +402,12 @@ export default function RemittancePage() {
                   <Label htmlFor="r-account">계좌번호 / IBAN</Label>
                   <Input
                     id="r-account"
-                    placeholder="****6789"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={11}
+                    placeholder="1234567890"
                     value={form.account}
-                    onChange={(e) => setForm({ ...form, account: e.target.value })}
+                    onChange={(e) => setForm({ ...form, account: e.target.value.replace(/\D/g, "") })}
                   />
                 </div>
                 <div className="flex gap-2">

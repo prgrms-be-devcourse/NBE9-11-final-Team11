@@ -23,7 +23,7 @@ public record RecipientCreateRequest(
         String bankName,
 
         @NotBlank(message = "계좌번호는 필수입니다.")
-        @Pattern(regexp = "^[0-9]{6,17}$", message = "계좌번호는 숫자 6~17자리여야 합니다.")
+        @Pattern(regexp = "^[0-9]{8,11}$", message = "계좌번호를 다시 확인해주세요.")
         String accountNumber
 ) {
 }

@@ -58,6 +58,7 @@ public class RemittancePayoutProcessor {
         );
         Long targetMockAccountId = mockBankAccountService.depositForRemittance(
                 payoutJournalId,
+                recipient.getBankName(),
                 recipient.getAccountNumber(),
                 remittanceTransaction.getReceiveAmount(),
                 remittanceTransaction.getReceiveCurrency(),

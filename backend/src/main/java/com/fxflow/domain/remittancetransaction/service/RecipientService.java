@@ -12,11 +12,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class RecipientService {
+
+    private static final Pattern ACCOUNT_NUMBER_PATTERN = Pattern.compile("^[0-9]{8,11}$");
 
     private final RecipientRepository recipientRepository;
     private final RecipientPayoutAccountService recipientPayoutAccountService;
@@ -29,20 +32,20 @@ public class RecipientService {
      */
     @Transactional
     public RecipientResponse createRecipient(Long userId, RecipientCreateRequest request) {
+        validateAccountNumber(request.accountNumber());
         validateDuplicateRecipient(userId, request);
 
-        Recipient recipient = Recipient.create(
+        Recipient recipient = recipientRepository.save(Recipient.create(
                 userId,
                 request.name(),
                 request.countryCode(),
                 request.currencyCode(),
                 request.bankName(),
                 request.accountNumber()
-        );
+        ));
         recipientPayoutAccountService.ensurePayoutAccount(recipient);
 
-        Recipient savedRecipient = recipientRepository.save(recipient);
-        return RecipientResponse.from(savedRecipient);
+        return RecipientResponse.from(recipient);
     }
 
     /**
@@ -81,6 +84,12 @@ public class RecipientService {
 
         if (exists) {
             throw new BusinessException(RecipientErrorCode.DUPLICATE_RECIPIENT);
+        }
+    }
+
+    private void validateAccountNumber(String accountNumber) {
+        if (accountNumber == null || !ACCOUNT_NUMBER_PATTERN.matcher(accountNumber).matches()) {
+            throw new BusinessException(RecipientErrorCode.INVALID_ACCOUNT_NUMBER);
         }
     }
 }

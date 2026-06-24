@@ -1,10 +1,9 @@
 package com.fxflow.domain.remittancetransaction.service;
 
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
+import com.fxflow.domain.mockbankaccount.enums.MockBankAccountOwnerType;
 import com.fxflow.domain.mockbankaccount.repository.MockBankAccountRepository;
 import com.fxflow.domain.remittancetransaction.entity.Recipient;
-import com.fxflow.domain.user.entity.User;
-import com.fxflow.domain.user.repository.UserRepository;
 import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -15,7 +14,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -27,9 +25,6 @@ class RecipientPayoutAccountServiceTest {
     @Mock
     private MockBankAccountRepository mockBankAccountRepository;
 
-    @Mock
-    private UserRepository userRepository;
-
     @InjectMocks
     private RecipientPayoutAccountService recipientPayoutAccountService;
 
@@ -40,7 +35,8 @@ class RecipientPayoutAccountServiceTest {
         Recipient recipient = createRecipient();
         MockBankAccount account = createMockBankAccount();
 
-        when(mockBankAccountRepository.findByAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+        when(mockBankAccountRepository.findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+                recipient.getBankName(),
                 recipient.getAccountNumber(),
                 recipient.getCurrencyCode()
         )).thenReturn(Optional.of(account));
@@ -49,7 +45,6 @@ class RecipientPayoutAccountServiceTest {
         recipientPayoutAccountService.ensurePayoutAccount(recipient);
 
         // then
-        verify(userRepository, never()).save(any(User.class));
         verify(mockBankAccountRepository, never()).save(any(MockBankAccount.class));
     }
 
@@ -58,49 +53,70 @@ class RecipientPayoutAccountServiceTest {
     void ensurePayoutAccount_success_createAccount() {
         // given
         Recipient recipient = createRecipient();
-        User recipientUser = User.create(
-                "remittance-recipient-1234567890-test@fxflow.local",
-                "remittance-recipient",
-                recipient.getName()
-        );
 
-        when(mockBankAccountRepository.findByAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+        when(mockBankAccountRepository.findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+                recipient.getBankName(),
                 recipient.getAccountNumber(),
                 recipient.getCurrencyCode()
         )).thenReturn(Optional.empty());
-        when(userRepository.findByEmail(anyString()))
-                .thenReturn(Optional.empty());
-        when(userRepository.save(any(User.class))).thenReturn(recipientUser);
 
         // when
         recipientPayoutAccountService.ensurePayoutAccount(recipient);
 
         // then
-        verify(userRepository).findByEmail(argThat(email ->
-                email.startsWith("remittance-recipient-1234567890-")
-                        && email.endsWith("@fxflow.local")
+        verify(mockBankAccountRepository).save(argThat(account ->
+                account.getUser() == null
+                        && account.getOwnerType() == MockBankAccountOwnerType.RECIPIENT
+                        && account.getAccountHolderName().equals(recipient.getName())
+                        && account.getBankName().equals(recipient.getBankName())
+                        && account.getAccountNumber().equals(recipient.getAccountNumber())
         ));
-        verify(userRepository).save(any(User.class));
-        verify(mockBankAccountRepository).save(any(MockBankAccount.class));
+    }
+
+    @Test
+    @DisplayName("성공: 같은 계좌번호라도 은행명이 다르면 별도 수취인 지급용 모의계좌를 생성한다")
+    void ensurePayoutAccount_success_createAccountWhenSameNumberDifferentBank() {
+        // given
+        Recipient recipient = createRecipient("Bank of America", "1234567890");
+
+        when(mockBankAccountRepository.findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+                recipient.getBankName(),
+                recipient.getAccountNumber(),
+                recipient.getCurrencyCode()
+        )).thenReturn(Optional.empty());
+
+        // when
+        recipientPayoutAccountService.ensurePayoutAccount(recipient);
+
+        // then
+        verify(mockBankAccountRepository).save(argThat(account ->
+                account.getBankName().equals("Bank of America")
+                        && account.getAccountNumber().equals("1234567890")
+                        && account.getCurrencyCode().equals("USD")
+        ));
     }
 
     private Recipient createRecipient() {
+        return createRecipient("Chase Bank", "1234567890");
+    }
+
+    private Recipient createRecipient(String bankName, String accountNumber) {
         return Recipient.create(
                 1L,
                 "John Doe",
                 "US",
                 "USD",
-                "Chase Bank",
-                "123-456 7890"
+                bankName,
+                accountNumber
         );
     }
 
     private MockBankAccount createMockBankAccount() {
-        return MockBankAccount.createSeedAccount(
-                User.create("recipient@example.com", "password", "John Doe"),
+        return MockBankAccount.createRecipientAccount(
+                "John Doe",
                 "USD",
                 "Chase Bank",
-                "123-456 7890",
+                "1234567890",
                 BigDecimal.ZERO
         );
     }

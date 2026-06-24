@@ -20,6 +20,12 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
 
     boolean existsByAccountNumber(String accountNumber);
 
+    boolean existsByBankNameAndAccountNumberAndCurrencyCode(
+            String bankName,
+            String accountNumber,
+            String currencyCode
+    );
+
     /**
      * TRF-07 입금 확인 시 송금자 본인의 통화별 모의계좌를 조회한다.
      */
@@ -32,7 +38,8 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
      * TRF-08 외화 지급 시 송금자가 등록한 수취인 계좌번호와 통화로
      * 입금 대상 모의계좌를 조회한다.
      */
-    Optional<MockBankAccount> findByAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+    Optional<MockBankAccount> findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNull(
+            String bankName,
             String accountNumber,
             String currencyCode
     );
@@ -45,11 +52,13 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
     @Query("""
             SELECT m
             FROM MockBankAccount m
-            WHERE m.accountNumber = :accountNumber
+            WHERE m.bankName = :bankName
+              AND m.accountNumber = :accountNumber
               AND m.currencyCode = :currencyCode
               AND m.deletedAt IS NULL
             """)
-    Optional<MockBankAccount> findByAccountNumberAndCurrencyCodeAndDeletedAtIsNullForUpdate(
+    Optional<MockBankAccount> findByBankNameAndAccountNumberAndCurrencyCodeAndDeletedAtIsNullForUpdate(
+            @Param("bankName") String bankName,
             @Param("accountNumber") String accountNumber,
             @Param("currencyCode") String currencyCode
     );
@@ -76,19 +85,18 @@ public interface MockBankAccountRepository extends JpaRepository<MockBankAccount
 
     /**
      * 수취인 USD 모의계좌 조회 — 이름·은행명·계좌번호로 직접 조회
-     * 수취인은 가짜 이메일로 생성된 User이므로 User 경유 없이 MockBankAccount를 직접 찾는다.
+     * 수취인은 사용자별 주소록에 중복 저장될 수 있으므로 MockBankAccount 자체의 예금주명으로 찾는다.
      */
     @Query("""
             SELECT m
             FROM MockBankAccount m
-            JOIN m.user u
             WHERE m.accountNumber = :accountNumber
               AND m.bankName = :bankName
-              AND u.name = :name
+              AND m.accountHolderName = :name
               AND m.currencyCode = :currencyCode
               AND m.deletedAt IS NULL
             """)
-    Optional<MockBankAccount> findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+    Optional<MockBankAccount> findByAccountNumberAndBankNameAndAccountHolderNameAndCurrencyCode(
             @Param("accountNumber") String accountNumber,
             @Param("bankName") String bankName,
             @Param("name") String name,
