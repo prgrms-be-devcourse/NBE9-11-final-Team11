@@ -287,7 +287,7 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
                 accountNumber
         ));
         mockBankAccountRepository.save(MockBankAccount.createRecipientAccount(
-                recipient,
+                recipient.getName(),
                 recipient.getCurrencyCode(),
                 recipient.getBankName(),
                 recipient.getAccountNumber(),

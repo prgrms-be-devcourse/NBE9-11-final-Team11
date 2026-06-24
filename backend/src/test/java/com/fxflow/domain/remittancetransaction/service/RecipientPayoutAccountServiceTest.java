@@ -63,8 +63,8 @@ class RecipientPayoutAccountServiceTest {
         // then
         verify(mockBankAccountRepository).save(argThat(account ->
                 account.getUser() == null
-                        && account.getRecipient() == recipient
                         && account.getOwnerType().equals("RECIPIENT")
+                        && account.getAccountHolderName().equals(recipient.getName())
                         && account.getAccountNumber().equals(recipient.getAccountNumber())
         ));
     }
@@ -82,7 +82,7 @@ class RecipientPayoutAccountServiceTest {
 
     private MockBankAccount createMockBankAccount() {
         return MockBankAccount.createRecipientAccount(
-                createRecipient(),
+                "John Doe",
                 "USD",
                 "Chase Bank",
                 "1234567890",

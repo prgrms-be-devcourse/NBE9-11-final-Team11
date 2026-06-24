@@ -34,7 +34,7 @@ public class RecipientPayoutAccountService {
         }
 
         MockBankAccount account = MockBankAccount.createRecipientAccount(
-                recipient,
+                recipient.getName(),
                 recipient.getCurrencyCode(),
                 recipient.getBankName(),
                 recipient.getAccountNumber(),

@@ -82,7 +82,7 @@ public class MockBankAccountService {
     @Transactional(readOnly = true)
     public UsdMockAccountInquiryResponse inquireUsdMockAccount(UsdMockAccountInquiryRequest request, Pageable pageable) {
         MockBankAccount mockAccount = mockBankAccountRepository
-                .findByRecipientAccountNumberAndBankNameAndNameAndCurrencyCode(
+                .findByAccountNumberAndBankNameAndAccountHolderNameAndCurrencyCode(
                         request.accountNumber(), request.bankName(), request.name(), "USD"
                 ).orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NOT_FOUND));
 
