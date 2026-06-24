@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,6 +23,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     // 상태별 조회 (예: ACTIVE — 만료 스캔)
     List<Reservation> findByStatus(ReservationStatus status);
+
+    // 만료 스캔 — 기한이 지난 ACTIVE 예약만 추려 EXPIRED 로 전이 (만료분을 조회 단계에서 걸러냄)
+    List<Reservation> findByStatusAndExpiresAtLessThanEqual(ReservationStatus status, LocalDateTime now);
 
     // 상태+동작별 조회 (체결 트리거 — ACTIVE·EXCHANGE 후보 추림)
     List<Reservation> findByStatusAndAction(ReservationStatus status, ReservationAction action);

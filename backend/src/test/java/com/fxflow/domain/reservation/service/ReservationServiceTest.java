@@ -157,6 +157,34 @@ class ReservationServiceTest {
     }
 
     @Test
+    @DisplayName("만료 스캔 — 기한 지난 ACTIVE 예약을 EXPIRED 로 전이하고 건수를 반환한다")
+    void expireOverdueReservations_expiresAndCounts() {
+        LocalDateTime now = LocalDateTime.now();
+        Reservation r1 = Reservation.createExchange(1L, "KRW", "USD", AMOUNT, TARGET, now.minusDays(1), "k1");
+        Reservation r2 = Reservation.createExchange(2L, "USD", "KRW", AMOUNT, TARGET, now.minusHours(1), "k2");
+        when(reservationRepository.findByStatusAndExpiresAtLessThanEqual(ReservationStatus.ACTIVE, now))
+                .thenReturn(List.of(r1, r2));
+
+        int count = reservationService.expireOverdueReservations(now);
+
+        assertThat(count).isEqualTo(2);
+        assertThat(r1.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+        assertThat(r2.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+    }
+
+    @Test
+    @DisplayName("만료 스캔 — 대상이 없으면 0을 반환하고 아무것도 전이하지 않는다")
+    void expireOverdueReservations_noCandidates() {
+        LocalDateTime now = LocalDateTime.now();
+        when(reservationRepository.findByStatusAndExpiresAtLessThanEqual(ReservationStatus.ACTIVE, now))
+                .thenReturn(List.of());
+
+        int count = reservationService.expireOverdueReservations(now);
+
+        assertThat(count).isZero();
+    }
+
+    @Test
     @DisplayName("목록 조회 — 페이지 메타와 데이터를 매핑한다")
     void getReservations_mapsPage() {
         Reservation reservation =
