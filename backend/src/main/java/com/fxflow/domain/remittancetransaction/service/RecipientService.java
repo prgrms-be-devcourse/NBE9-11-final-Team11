@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 @Transactional(readOnly = true)
 public class RecipientService {
 
-    private static final Pattern ACCOUNT_NUMBER_PATTERN = Pattern.compile("^[0-9]{6,17}$");
+    private static final Pattern ACCOUNT_NUMBER_PATTERN = Pattern.compile("^[0-9]{8,11}$");
 
     private final RecipientRepository recipientRepository;
     private final RecipientPayoutAccountService recipientPayoutAccountService;

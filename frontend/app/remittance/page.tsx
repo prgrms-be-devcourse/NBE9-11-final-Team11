@@ -163,8 +163,8 @@ export default function RemittancePage() {
   async function saveRecipient() {
     if (!form.name.trim() || !form.bank.trim() || !form.account.trim())
       return toast.error("수취인 정보를 모두 입력하세요.")
-    if (!/^\d{6,17}$/.test(form.account))
-      return toast.error("계좌번호는 숫자 6~17자리로 입력하세요.")
+    if (!/^\d{8,11}$/.test(form.account))
+      return toast.error("계좌번호를 다시 확인해주세요.")
     const c = COUNTRIES.find((x) => x.name === form.country) ?? COUNTRIES[0]
     if (c.code !== "US" || c.currency !== "USD") return toast.error("현재 MVP에서는 미국·USD 수취인만 등록할 수 있습니다.")
 
@@ -401,7 +401,7 @@ export default function RemittancePage() {
                     id="r-account"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={17}
+                    maxLength={11}
                     placeholder="1234567890"
                     value={form.account}
                     onChange={(e) => setForm({ ...form, account: e.target.value.replace(/\D/g, "") })}
