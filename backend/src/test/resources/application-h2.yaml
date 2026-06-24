@@ -2,15 +2,16 @@
 
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000
     driver-class-name: org.h2.Driver
     username: sa
     password:
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create
     database-platform: org.hibernate.dialect.H2Dialect
     defer-datasource-initialization: false
+    show-sql: false
   sql:
     init:
       mode: never
@@ -41,3 +42,7 @@ fxrate:
 
 twelvedata:
   api-key: test
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG

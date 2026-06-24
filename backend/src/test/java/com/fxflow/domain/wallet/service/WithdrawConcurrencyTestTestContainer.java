@@ -12,13 +12,13 @@ import com.fxflow.domain.userlimitusage.service.UserDailyUsageService;
 import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.repository.WalletRepository;
+import com.fxflow.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -34,8 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @TestPropertySource(properties = "spring.sql.init.mode=never")
-@ActiveProfiles("h2")
-class WithdrawConcurrencyTest {
+class WithdrawConcurrencyTestTestContainer extends AbstractIntegrationTest {
 
     @Autowired WalletService walletService;
     @Autowired WalletRepository walletRepository;
@@ -43,9 +42,9 @@ class WithdrawConcurrencyTest {
     @Autowired TransactionLimitRepository transactionLimitRepository;
 
     @MockitoBean
-    MockBankAccountService mockBankAccountService;  // 추가
+    MockBankAccountService mockBankAccountService;
     @MockitoBean
-    CompanyPoolService companyPoolService;          // 추가
+    CompanyPoolService companyPoolService;
     @MockitoBean
     UserDailyUsageService userDailyUsageService;
 
@@ -85,7 +84,9 @@ class WithdrawConcurrencyTest {
                 try {
                     start.await(); // 모든 스레드 동시 출발
                     task.run();
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    System.out.println(e.getClass());
+                    e.printStackTrace();
                 } finally {
                     done.countDown();
                 }
@@ -143,7 +144,10 @@ class WithdrawConcurrencyTest {
             try {
                 walletService.withdrawWithPessimisticLock(testUser.getId(), request);
                 successCount.incrementAndGet();
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                System.out.println(e.getClass());
+                e.printStackTrace();
+            }
         });
 
         Wallet result = walletRepository.findById(testWallet.getId()).orElseThrow();
@@ -191,12 +195,40 @@ class WithdrawConcurrencyTest {
             try {
                 walletService.withdrawWithAtomicQuery(testUser.getId(), request);
                 successCount.incrementAndGet();
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                System.out.println(e.getClass());
+                e.printStackTrace();
+            }
         });
 
         Wallet result = walletRepository.findById(testWallet.getId()).orElseThrow();
         System.out.println("atomic 성공: " + successCount.get() + "건, 최종 잔액: " + result.getBalance());
         assertThat(successCount.get()).isEqualTo(5);
         assertThat(result.getBalance()).isEqualByComparingTo("55000");
+    }
+
+    // h2 vs Test container (psql) 비교용
+    @Test
+    void 비관적락_2개동시출금_정합성보장() throws InterruptedException {
+        WithdrawRequest request = new WithdrawRequest(new BigDecimal("9000"));
+        AtomicInteger successCount = new AtomicInteger();
+
+        runConcurrent(2, () -> {
+            try {
+                walletService.withdrawWithPessimisticLockWithDelay(testUser.getId(), request);
+                successCount.incrementAndGet();
+            } catch (Exception e) {
+                System.out.println(e.getClass());
+                e.printStackTrace();
+            }
+        });
+
+        Wallet result = walletRepository.findById(testWallet.getId()).orElseThrow();
+
+        System.out.println("비관적락 성공: " + successCount.get() + "건, 최종 잔액: " + result.getBalance());
+
+        assertThat(successCount.get()).isEqualTo(2);
+        assertThat(result.getBalance())
+                .isEqualByComparingTo("82000");
     }
 }
