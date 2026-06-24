@@ -21,7 +21,8 @@ public class ReservationScheduler {
 
     @Scheduled(fixedDelayString = "${reservation.expiration-scheduler.fixed-delay-ms:60000}")
     public void expireOverdueReservations() {
-        int expiredCount = reservationService.expireOverdueReservations(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        int expiredCount = reservationService.expireOverdueReservations(now);
 
         if (expiredCount > 0) {
             log.info("기한 만료 예약 자동 전이 완료. count={}", expiredCount);
