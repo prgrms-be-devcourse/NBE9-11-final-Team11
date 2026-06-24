@@ -91,7 +91,7 @@ class RecipientPayoutAccountServiceTest {
                 "US",
                 "USD",
                 "Chase Bank",
-                "123-456 7890"
+                "1234567890"
         );
     }
 
@@ -100,7 +100,7 @@ class RecipientPayoutAccountServiceTest {
                 User.create("recipient@example.com", "password", "John Doe"),
                 "USD",
                 "Chase Bank",
-                "123-456 7890",
+                "1234567890",
                 BigDecimal.ZERO
         );
     }

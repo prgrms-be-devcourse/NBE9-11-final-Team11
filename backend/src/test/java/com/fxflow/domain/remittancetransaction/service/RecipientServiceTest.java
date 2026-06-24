@@ -86,6 +86,26 @@ class RecipientServiceTest {
     }
 
     @Test
+    @DisplayName("실패: 계좌번호에 숫자가 아닌 문자가 포함되면 예외가 발생한다")
+    void createRecipient_fail_invalidAccountNumber() {
+        // given
+        Long userId = 1L;
+        RecipientCreateRequest request = new RecipientCreateRequest(
+                "John Doe",
+                "US",
+                "USD",
+                "Chase Bank",
+                "123-456"
+        );
+
+        // when & then
+        assertThatThrownBy(() -> recipientService.createRecipient(userId, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RecipientErrorCode.INVALID_ACCOUNT_NUMBER);
+    }
+
+    @Test
     @DisplayName("성공: 사용자가 등록한 수취인 목록을 최신순으로 조회한다")
     void getRecipients_success() {
         // given
