@@ -222,6 +222,35 @@ class RebalancingServiceTest {
         given(pool.surplusAboveFloor()).willReturn(
                 surplus.compareTo(BigDecimal.ZERO) > 0 ? surplus : BigDecimal.ZERO
         );
+        given(pool.getFloorBalance()).willReturn(floor);
         return pool;
+    }
+
+    // 리밸런싱 후에도 floor 미달 ────────────────────────────────────
+
+    @Test
+    @DisplayName("KRW 리밸런싱 후에도 floor 미달 → sendStillBelowFloorAfterRebalancing 호출")
+    void execute_krwStillBelowFloorAfterRebalancing_alertSent() {
+        // KRW=5B, shortage=5B / USD surplus=1.3M × 1303.9=1.695B → capping
+        // buyBalanceAfter=6.695B < floor(8B) → 알림 발화
+        givenPools(new BigDecimal("5000000000"), new BigDecimal("6500000"));
+
+        rebalancingService.execute(TriggerType.MANUAL, null);
+
+        verify(adminAlertService).sendStillBelowFloorAfterRebalancing(
+                eq("KRW"), any(BigDecimal.class), any(BigDecimal.class));
+        verify(rebalancingRepository).save(any(RebalancingOrder.class));
+    }
+
+    @Test
+    @DisplayName("리밸런싱 후 floor 미달 알림 실패해도 RebalancingOrder 저장됨")
+    void execute_stillBelowFloorAlertFails_rebalancingOrderStillSaved() {
+        givenPools(new BigDecimal("5000000000"), new BigDecimal("6500000"));
+        doThrow(new RuntimeException("알림 전송 실패"))
+                .when(adminAlertService).sendStillBelowFloorAfterRebalancing(any(), any(), any());
+
+        rebalancingService.execute(TriggerType.MANUAL, null);
+
+        verify(rebalancingRepository).save(any(RebalancingOrder.class));
     }
 }

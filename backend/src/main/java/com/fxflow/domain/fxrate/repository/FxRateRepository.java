@@ -8,11 +8,6 @@ import java.util.Optional;
 public interface FxRateRepository extends JpaRepository<FxRate, Long> {
 
     // 통화쌍의 가장 최신 환율 1건 조회 (append-only 테이블이므로 최신 수집분이 현재 환율)
+    // @Query 사용 시 다른 코드를 참조하게 되고, "First" 가 SQL LIMIT 1 을 선언적으로 보장한다는 점에서 유지
     Optional<FxRate> findFirstByBaseCurrencyAndQuoteCurrencyOrderByFetchedAtDesc(String baseCurrency, String quoteCurrency);
-
-    // 통화쌍 환율 조회 — append-only 특성상 다건이면 예외 발생 가능
-    Optional<FxRate> findByBaseCurrencyAndQuoteCurrency(
-            String fromCurrency,
-            String toCurrency
-    );
 }
