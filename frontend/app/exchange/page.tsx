@@ -26,6 +26,8 @@ export default function ExchangePage() {
   const [loadingQuote, setLoadingQuote] = useState(false)
   const [quoteError, setQuoteError] = useState<string>("")
 
+  const [timeLeft, setTimeLeft] = useState(300)
+
   const parsedAmount = Number(inputAmount.replace(/[^\d.]/g, "")) || 0
 
   const fetchBalances = async () => {
@@ -43,6 +45,32 @@ export default function ExchangePage() {
     }
   }
 
+  const fetchQuote = async () => {
+    if (parsedAmount <= 0) return
+    setLoadingQuote(true)
+    setQuoteError("")
+    try {
+      const from = direction === "KRW_TO_USD" ? "KRW" : "USD"
+      const to = direction === "KRW_TO_USD" ? "USD" : "KRW"
+      const data = await apiRequest<any>(
+        "POST",
+        "/api/v1/wallets/exchange/quote",
+        {
+          fromCurrency: from,
+          toCurrency: to,
+          amount: parsedAmount,
+        }
+      )
+      setQuote(data)
+    } catch (err: any) {
+      console.error(err)
+      setQuoteError(err.message || "환율 정보를 가져올 수 없습니다.")
+      setQuote(null)
+    } finally {
+      setLoadingQuote(false)
+    }
+  }
+
   useEffect(() => {
     fetchBalances()
   }, [])
@@ -54,33 +82,33 @@ export default function ExchangePage() {
       return
     }
 
-    const timer = setTimeout(async () => {
-      setLoadingQuote(true)
-      setQuoteError("")
-      try {
-        const from = direction === "KRW_TO_USD" ? "KRW" : "USD"
-        const to = direction === "KRW_TO_USD" ? "USD" : "KRW"
-        const data = await apiRequest<any>(
-          "POST",
-          "/api/v1/wallets/exchange/quote",
-          {
-            fromCurrency: from,
-            toCurrency: to,
-            amount: parsedAmount,
-          }
-        )
-        setQuote(data)
-      } catch (err: any) {
-        console.error(err)
-        setQuoteError(err.message || "환율 정보를 가져올 수 없습니다.")
-        setQuote(null)
-      } finally {
-        setLoadingQuote(false)
-      }
+    const timer = setTimeout(() => {
+      fetchQuote()
     }, 400)
 
     return () => clearTimeout(timer)
   }, [parsedAmount, direction])
+
+  // 5 Minutes countdown timer
+  useEffect(() => {
+    if (!quote) return
+
+    setTimeLeft(300)
+
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval)
+          setQuote(null)
+          toast.warning("견적 유효 시간이 만료되었습니다. 견적을 다시 조회합니다.")
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [quote])
 
   const appliedRate = quote ? quote.exchangeRate : 0
   const netAmount = quote ? quote.fromAmount : parsedAmount
@@ -221,6 +249,24 @@ export default function ExchangePage() {
           <Card className="p-5">
             <h3 className="text-sm font-semibold">환전 요약</h3>
             <dl className="mt-3 space-y-2.5 text-sm">
+              {quote && (
+                <div className="flex justify-between text-amber-600 font-medium bg-amber-500/10 p-2 rounded-lg mb-2">
+                  <dt className="text-xs flex items-center gap-1">
+                    <Info className="size-3.5" /> 견적 유효 시간
+                  </dt>
+                  <dd className="tabular-nums text-xs font-bold">
+                    {Math.floor(timeLeft / 60)}:
+                    {String(timeLeft % 60).padStart(2, "0")}
+                  </dd>
+                </div>
+              )}
+              {!quote && parsedAmount > 0 && !loadingQuote && (
+                <div className="mb-2">
+                  <Button variant="outline" size="sm" onClick={fetchQuote} className="w-full text-xs h-7">
+                    견적 재요청
+                  </Button>
+                </div>
+              )}
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">적용 환율</dt>
                 <dd className="font-medium tabular-nums">

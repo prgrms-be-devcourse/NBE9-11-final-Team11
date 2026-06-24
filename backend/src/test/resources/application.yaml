@@ -3,6 +3,45 @@
 #       지금은 컨텍스트를 띄우는 테스트가 없어(FxflowApplicationTests 는 @Disabled) 스케줄러 비활성 용도로만 쓰임
 #       향후 full @SpringBootTest 를 살리려면, 그 테스트에 필요한 main 설정
 #       (datasource / jpa / profiles.include: secret 등)을 이 파일로 옮기거나 프로파일로 전환해야 함
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    defer-datasource-initialization: false
+  sql:
+    init:
+      mode: never
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+jwt:
+  secret: dev-only-placeholder-secret-key-32bytes-minimum-do-not-use-in-production
+  access-token-expiration: 1800000
+
+cookie:
+  secure: false
+  same-site: Lax
+  max-age: 1800
+
+exchange:
+  fee:
+    rates:
+      KRW-USD: 0.001
+      USD-KRW: 0.001
+  quote-expiration-minutes: 5
+
 fxrate:
   scheduler:
-    enabled: false   # 테스트/CI 에서 스케줄러 비활성화 → 외부 TwelveData 호출·쿼터 소모 차단
+    enabled: false
+
+twelvedata:
+  api-key: test
