@@ -21,6 +21,7 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final TokenBlacklistService tokenBlacklistService;
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -32,6 +33,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (token != null) {
             try {
                 JwtUserInfo jwtUserInfo = jwtTokenProvider.getJwtUserInfo(token);
+
+                if (tokenBlacklistService.isForceLogoutRequired(jwtUserInfo.userId(), jwtUserInfo.issuedAt())) {
+                    log.warn("[JWT] 강제 로그아웃 대상 토큰 — userId={}", jwtUserInfo.userId());
+                    SecurityContextHolder.clearContext();
+                    filterChain.doFilter(request, response);
+                    return;
+                }
 
                 log.debug("[JWT] 인증 성공 — userId={}, role={}",
                         jwtUserInfo.userId(), jwtUserInfo.role());

@@ -185,16 +185,29 @@ public class UserController {
         // 토큰 파싱 (만료/위조 검증)
         JwtUserInfo jwtUserInfo = jwtTokenProvider.getJwtUserInfo(refreshToken);
 
-        // 블랙리스트 확인
-        if (tokenBlacklistService.isRefreshTokenBlacklisted(jwtUserInfo.jti())) {
-            log.warn("[토큰 재발급 실패] 블랙리스트 등록된 Refresh Token — userId={}", jwtUserInfo.userId());
+        // 강제 로그아웃 마커 확인 — 블랙리스트(jti 단위)는 "이미 회전된 RT의 재사용"만 막을 뿐,
+        // 마커 찍힌 시각 이전에 발급되어 아직 한 번도 안 쓴 RT는 그대로 통과해버린다.
+        // 마커보다 이전에 발급된 RT라면 여기서도 차단해야 강제 로그아웃이 우회되지 않는다.
+        if (tokenBlacklistService.isForceLogoutRequired(jwtUserInfo.userId(), jwtUserInfo.issuedAt())) {
+            log.warn("[토큰 재발급 실패] 강제 로그아웃 대상 Refresh Token — userId={}", jwtUserInfo.userId());
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        // 새 Access Token 발급
+        // RT 회전 권한을 원자적으로 점유한다 (SETNX). 동시에 같은 RT로 요청이 들어와도
+        // 정확히 하나만 true를 받으므로 "확인 후 등록" 사이의 race window가 없다.
+        // 점유 실패 = 이미 회전된 RT의 재사용 시도 → 탈취 의심으로 전체 세션 강제 로그아웃.
+        if (!tokenBlacklistService.tryRotateRefreshToken(refreshToken)) {
+            log.warn("[토큰 재발급 실패] 이미 회전된 Refresh Token 재사용 감지 — userId={}", jwtUserInfo.userId());
+            tokenBlacklistService.forceLogoutUser(jwtUserInfo.userId());
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
+        // 회전 권한을 획득한 이 요청만 새 Access/Refresh Token을 발급한다.
         User user = userService.getUser(jwtUserInfo.userId());
         response.addHeader(HttpHeaders.SET_COOKIE,
                 jwtTokenProvider.generateAccessTokenCookie(user).toString());
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                jwtTokenProvider.generateRefreshTokenCookie(user).toString());
         log.info("[토큰 재발급 완료] userId={}", jwtUserInfo.userId());
 
         return ResponseEntity.ok().build();
