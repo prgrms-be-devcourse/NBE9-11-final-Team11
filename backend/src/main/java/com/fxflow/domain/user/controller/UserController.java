@@ -185,16 +185,21 @@ public class UserController {
         // 토큰 파싱 (만료/위조 검증)
         JwtUserInfo jwtUserInfo = jwtTokenProvider.getJwtUserInfo(refreshToken);
 
-        // 블랙리스트 확인
+        // 블랙리스트 확인 — 이미 회전되어 폐기된 RT가 재사용되면 탈취 의심으로 전체 세션 강제 로그아웃
         if (tokenBlacklistService.isRefreshTokenBlacklisted(jwtUserInfo.jti())) {
-            log.warn("[토큰 재발급 실패] 블랙리스트 등록된 Refresh Token — userId={}", jwtUserInfo.userId());
+            log.warn("[토큰 재발급 실패] 블랙리스트 등록된 Refresh Token 재사용 감지 — userId={}", jwtUserInfo.userId());
+            tokenBlacklistService.forceLogoutUser(jwtUserInfo.userId());
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        // 새 Access Token 발급
+        // 새 Access/Refresh Token을 먼저 발급한 뒤 기존 RT를 블랙리스트 등록한다.
+        // 순서를 반대로 하면 새 토큰 발급/응답 중 예외 발생 시 사용자가 RT를 잃고 로그아웃될 수 있다.
         User user = userService.getUser(jwtUserInfo.userId());
         response.addHeader(HttpHeaders.SET_COOKIE,
                 jwtTokenProvider.generateAccessTokenCookie(user).toString());
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                jwtTokenProvider.generateRefreshTokenCookie(user).toString());
+        tokenBlacklistService.invalidateRefreshToken(refreshToken);
         log.info("[토큰 재발급 완료] userId={}", jwtUserInfo.userId());
 
         return ResponseEntity.ok().build();

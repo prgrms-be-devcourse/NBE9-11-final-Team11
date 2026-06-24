@@ -16,9 +16,13 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.Date;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -28,7 +32,8 @@ class JwtAuthenticationFilterTest {
 
     @Mock
     private JwtTokenProvider jwtTokenProvider;
-    // Access Token 블랙리스트 제거 → TokenBlacklistService 의존성 없음
+    @Mock
+    private TokenBlacklistService tokenBlacklistService;
 
     private JwtAuthenticationFilter filter;
 
@@ -37,8 +42,8 @@ class JwtAuthenticationFilterTest {
 
     @BeforeEach
     void setUp() {
-        // TokenBlacklistService 제거된 생성자
-        filter = new JwtAuthenticationFilter(jwtTokenProvider);
+        filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistService);
+        lenient().when(tokenBlacklistService.isForceLogoutRequired(any(), any())).thenReturn(false);
     }
 
     @AfterEach
@@ -58,7 +63,7 @@ class JwtAuthenticationFilterTest {
     void validToken_setsAuthentication() throws Exception {
         // given
         given(jwtTokenProvider.getJwtUserInfo(TOKEN))
-                .willReturn(new JwtUserInfo(1L, "USER", JTI));
+                .willReturn(new JwtUserInfo(1L, "USER", JTI, new Date()));
 
         // when
         filter.doFilter(requestWithCookie(), new MockHttpServletResponse(), new MockFilterChain());
@@ -112,11 +117,27 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    @DisplayName("강제 로그아웃 마커 대상 토큰이면 인증하지 않는다")
+    void forceLogoutRequired_doesNotAuthenticate() throws Exception {
+        // given
+        given(jwtTokenProvider.getJwtUserInfo(TOKEN))
+                .willReturn(new JwtUserInfo(1L, "USER", JTI, new Date()));
+        given(tokenBlacklistService.isForceLogoutRequired(eq(1L), any()))
+                .willReturn(true);
+
+        // when
+        filter.doFilter(requestWithCookie(), new MockHttpServletResponse(), new MockFilterChain());
+
+        // then
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
     @DisplayName("ADMIN 역할 토큰이면 ROLE_ADMIN 권한이 부여된다")
     void adminToken_setsAdminRole() throws Exception {
         // given
         given(jwtTokenProvider.getJwtUserInfo(TOKEN))
-                .willReturn(new JwtUserInfo(1L, "ADMIN", JTI));
+                .willReturn(new JwtUserInfo(1L, "ADMIN", JTI, new Date()));
 
         // when
         filter.doFilter(requestWithCookie(), new MockHttpServletResponse(), new MockFilterChain());

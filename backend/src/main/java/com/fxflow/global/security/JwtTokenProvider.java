@@ -159,8 +159,9 @@ public class JwtTokenProvider {
         Long userId = Long.parseLong(claims.getSubject());
         String role = claims.get(ROLE_CLAIM, String.class);
         String jti = claims.getId();
+        Date issuedAt = claims.getIssuedAt();
 
-        return new JwtUserInfo(userId, role,jti);
+        return new JwtUserInfo(userId, role, jti, issuedAt);
     }
 
     /**
