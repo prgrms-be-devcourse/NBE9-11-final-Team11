@@ -113,24 +113,46 @@ async function fetchOnce(
 }
 
 // ── Refresh Token으로 Access Token 재발급 ──────────────────────
-// 동시에 여러 요청이 401을 받아도 /refresh는 딱 1번만 호출되도록 Promise 공유
+// 동시에 여러 요청이 401을 받아도 /refresh는 딱 1번만 호출되도록 Promise 공유.
+// 같은 탭 안에서는 refreshPromise로 막지만, 그것만으로는 "여러 탭"이 동시에
+// 같은 refreshToken으로 /refresh를 날리는 건 막을 수 없다 (탭마다 별도의 JS 메모리).
+// 백엔드는 Refresh Token Rotation으로 동작해서, 같은 RT로 동시에 두 요청이 오면
+// 하나만 성공시키고 나머지는 "재사용 탐지"로 간주해 해당 유저를 강제 로그아웃시킨다.
+// 즉 탭이 여러 개 열려있는 정상 사용자도 잘못 로그아웃될 수 있으므로,
+// Web Locks API(navigator.locks)로 탭 간에도 refresh를 한 번에 하나씩만 실행한다.
+// 미지원 브라우저에서는 같은 탭 내 중복 방지만 적용된다 (기존 동작과 동일).
+
+const REFRESH_LOCK_NAME = "fxflow-refresh-lock"
 
 let refreshPromise: Promise<boolean> | null = null
 
+async function callRefreshEndpoint(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
+      method: "POST",
+      credentials: "include", // refreshToken 쿠키 자동 포함
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 async function tryRefresh(): Promise<boolean> {
-  // 이미 refresh 진행 중이면 같은 Promise 반환 (중복 호출 방지)
+  // 이미 refresh 진행 중이면 같은 Promise 반환 (탭 내 중복 호출 방지)
   if (refreshPromise) return refreshPromise
 
-  refreshPromise = fetch(`${BASE_URL}/api/v1/auth/refresh`, {
-    method: "POST",
-    credentials: "include", // refreshToken 쿠키 자동 포함
+  const hasWebLocks = typeof navigator !== "undefined" && "locks" in navigator
+
+  refreshPromise = (
+    hasWebLocks
+      // 탭 간에도 한 번에 하나씩만 /refresh를 실행 (RT 동시 회전 race 방지)
+      ? navigator.locks.request(REFRESH_LOCK_NAME, () => callRefreshEndpoint())
+      : callRefreshEndpoint()
+  ).finally(() => {
+    // refresh 완료 후 초기화
+    refreshPromise = null
   })
-    .then((res) => res.ok)
-    .catch(() => false)
-    .finally(() => {
-      // refresh 완료 후 초기화
-      refreshPromise = null
-    })
 
   return refreshPromise
 }
