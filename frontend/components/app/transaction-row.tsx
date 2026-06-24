@@ -43,7 +43,7 @@ export function TransactionRow({ tx, onClick }: { tx: Transaction; onClick?: () 
         <p className="truncate text-xs text-muted-foreground">{timeAgo(tx.createdAt)}</p>
       </div>
       <div className="flex flex-col items-end gap-1">
-        <span className={`text-sm font-semibold tabular-nums ${positive ? "text-accent" : "text-foreground"}`}>
+        <span className={`text-sm font-semibold tabular-nums ${positive ? "text-accent" : "text-text-primary"}`}>
           {positive ? "+" : "-"}
           {(() => {
             const currency = tx.type === "exchange"

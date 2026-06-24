@@ -401,7 +401,7 @@ export default function TransactionsPage() {
                           </span>
                         </TableCell>
                         <TableCell
-                          className={`text-right font-semibold tabular-nums whitespace-nowrap ${positive ? "text-accent" : "text-foreground"}`}
+                          className={`text-right font-semibold tabular-nums whitespace-nowrap ${positive ? "text-accent" : "text-text-primary"}`}
                         >
                           {positive ? "+" : "-"}
                           {displayAmount(t)}

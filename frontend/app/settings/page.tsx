@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { User, Mail, Lock, LogOut, ShieldCheck, ShieldAlert, Trash2, AlertCircle } from "lucide-react"
+import { User, Mail, Lock, LogOut, ShieldCheck, ShieldAlert, Trash2, AlertCircle, Sun, Moon } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -31,6 +31,28 @@ export default function SettingsPage() {
 
   const [name, setName] = useState(user?.name ?? "")
   const [email, setEmail] = useState(user?.email ?? "")
+  const [theme, setTheme] = useState<"light" | "dark" | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("theme") as "light" | "dark"
+      const isDark = saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)
+      setTheme(isDark ? "dark" : "light")
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    if (theme === null) return
+    const nextTheme = theme === "light" ? "dark" : "light"
+    setTheme(nextTheme)
+    localStorage.setItem("theme", nextTheme)
+    if (nextTheme === "dark") {
+      document.documentElement.classList.add("dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+    }
+    toast.success(`${nextTheme === "dark" ? "다크 모드" : "라이트 모드"}로 전환되었습니다.`)
+  }
 
   useEffect(() => {
     if (user) {
@@ -173,6 +195,27 @@ export default function SettingsPage() {
             </Button>
           </div>
         </Card>
+
+        {/* Appearance */}
+        {theme !== null && (
+          <Card className="p-5">
+            <h2 className="text-base font-bold">화면 설정</h2>
+            <div className="mt-4 flex items-center justify-between rounded-2xl border border-border p-4">
+              <div className="flex items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                  {theme === "dark" ? <Moon className="size-[18px]" /> : <Sun className="size-[18px]" />}
+                </span>
+                <div>
+                  <p className="font-medium">다크 모드</p>
+                  <p className="text-sm text-muted-foreground">화면 테마를 라이트 모드와 다크 모드로 전환합니다.</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={toggleTheme}>
+                {theme === "dark" ? "라이트 모드로 변경" : "다크 모드로 변경"}
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {/* Account actions */}
         <Card className="p-5">
