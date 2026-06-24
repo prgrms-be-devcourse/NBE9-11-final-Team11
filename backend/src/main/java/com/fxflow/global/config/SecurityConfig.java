@@ -71,6 +71,7 @@ public class SecurityConfig {
                                 "/api/v1/mockbank/inquiry/usd"
                         ).permitAll()
                         .requestMatchers("/api/v1/fxrates/**").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",

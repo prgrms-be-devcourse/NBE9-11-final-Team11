@@ -48,3 +48,15 @@ fxrate:
   scheduler:
     enabled: true            # 환율 수집 스케줄러 on/off (테스트/CI에서는 false로 비활성화)
     fixed-delay-ms: 120000   # 수집 주기(ms). 기본 2분
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+  metrics:
+    tags:
+      application: ${spring.application.name}

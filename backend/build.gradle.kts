@@ -43,6 +43,10 @@ dependencies {
 	//redis
 	implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
+	//monitoring
+	implementation("org.springframework.boot:spring-boot-starter-actuator")
+	runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+
 	// Testcontainers
 	testImplementation(platform("org.testcontainers:testcontainers-bom:1.20.4"))
 	testImplementation("org.testcontainers:testcontainers")
