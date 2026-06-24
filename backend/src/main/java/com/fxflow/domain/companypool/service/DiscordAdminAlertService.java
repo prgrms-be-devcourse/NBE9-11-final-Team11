@@ -33,6 +33,30 @@ public class DiscordAdminAlertService implements AdminAlertService {
 
     @Async("discordAlertExecutor")
     @Override
+    public void sendStillBelowFloorAfterRebalancing(String currencyCode, BigDecimal balanceAfter, BigDecimal floorBalance) {
+        String message = String.format(
+                "⚠️ **[경고] 리밸런싱 후 floor 미달 — 추가 조치 필요**\n" +
+                "통화: %s\n" +
+                "리밸런싱 후 잔액: %s\n" +
+                "Floor: %s\n" +
+                "→ 상대 풀 여유분 부족으로 완전 복구 불가. 수동 조치 필요.",
+                currencyCode, balanceAfter.toPlainString(), floorBalance.toPlainString()
+        );
+        try {
+            restClient.post()
+                    .uri(webhookUrl)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("content", message))
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("Discord 관리자 알림 전송 완료.");
+        } catch (Exception e) {
+            log.error("Discord 알림 전송 실패. currency={}, balanceAfter={}", currencyCode, balanceAfter, e);
+        }
+    }
+
+    @Async("discordAlertExecutor")
+    @Override
     public void sendBothBelowFloorAlert(BigDecimal krwBalance, BigDecimal usdBalance) {
         String message = String.format(
                 "⚠️ **[긴급] 양 통화 모두 Floor 미만 — 즉시 수동 점검 필요**\n" +
