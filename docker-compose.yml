@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:16
     container_name: postgres-db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: mydb
       POSTGRES_USER: myuser
@@ -21,6 +22,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     networks:
@@ -31,6 +33,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: backend-app
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
