@@ -116,8 +116,8 @@ class PoolRebalancingIntegrationTest extends AbstractIntegrationTest {
         insertPool("USD",    "5500000",    "6500000",    "5200000",    "7800000");
 
         // 해외송금: 수취 KRW = 500K USD × 1303.9 = 651,950,000
-        companyPoolService.depositForRemittance("case3-recv", "KRW", new BigDecimal("651950000"), 3L);
-        companyPoolService.withdrawForRemittance("case3-pay", "USD", new BigDecimal("500000"), 3L);
+        companyPoolService.depositForRemittance("case3-recv", "KRW", new BigDecimal("651950000"), "3");
+        companyPoolService.withdrawForRemittance("case3-pay", "USD", new BigDecimal("500000"), "3");
 
         CompanyPool krw = companyPoolRepository.findByCurrencyCode("KRW").orElseThrow();
         CompanyPool usd = companyPoolRepository.findByCurrencyCode("USD").orElseThrow();
@@ -142,8 +142,8 @@ class PoolRebalancingIntegrationTest extends AbstractIntegrationTest {
         insertPool("USD",  "5500000",    "6500000",    "5200000",    "7800000");
 
         // 해외송금: 수취 KRW = 1.5M USD × 1303.9 = 1,955,850,000
-        companyPoolService.depositForRemittance("case4-recv", "KRW", new BigDecimal("1955850000"), 4L);
-        companyPoolService.withdrawForRemittance("case4-pay", "USD", new BigDecimal("1500000"), 4L);
+        companyPoolService.depositForRemittance("case4-recv", "KRW", new BigDecimal("1955850000"), "4");
+        companyPoolService.withdrawForRemittance("case4-pay", "USD", new BigDecimal("1500000"), "4");
 
         CompanyPool krw = companyPoolRepository.findByCurrencyCode("KRW").orElseThrow();
         CompanyPool usd = companyPoolRepository.findByCurrencyCode("USD").orElseThrow();
