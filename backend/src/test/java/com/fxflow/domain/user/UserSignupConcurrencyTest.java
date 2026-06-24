@@ -67,16 +67,19 @@ class UserSignupConcurrencyTest extends AbstractIntegrationTest {
             }));
         }
 
-        readyLatch.await(5, TimeUnit.SECONDS); // 모든 스레드가 동시에 출발 준비
-        startLatch.countDown();                // 동시에 출발
+        try {
+            readyLatch.await(5, TimeUnit.SECONDS); // 모든 스레드가 동시에 출발 준비
+            startLatch.countDown();                // 동시에 출발
 
-        for (Future<?> f : futures) {
-            try {
-                f.get(10, TimeUnit.SECONDS);
-            } catch (Exception ignored) {
+            for (Future<?> f : futures) {
+                try {
+                    f.get(10, TimeUnit.SECONDS);
+                } catch (Exception ignored) {
+                }
             }
+        } finally {
+            executor.shutdown();
         }
-        executor.shutdown();
 
         // then
         System.out.println("success=" + successCount.get()
