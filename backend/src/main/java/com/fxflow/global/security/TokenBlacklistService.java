@@ -51,11 +51,36 @@ public class TokenBlacklistService {
         }
     }
 
-    public boolean isRefreshTokenBlacklisted(String jti) {
-        if (jti == null) return false;
-        return Boolean.TRUE.equals(
-                redisTemplate.hasKey(REFRESH_BLACKLIST_PREFIX + jti)
-        );
+    /**
+     * RT 회전(rotate) 권한을 원자적으로 점유한다 (SETNX 기반 락).
+     * "블랙리스트 여부 확인"과 "블랙리스트 등록"을 한 번의 Redis 명령으로 묶어서,
+     * 동일한 RT로 들어온 동시 요청 중 정확히 하나만 true를 받도록 보장한다.
+     * 이미 누군가 먼저 점유했다면(false) 재사용 시도로 간주한다.
+     */
+    public boolean tryRotateRefreshToken(String refreshToken) {
+        if (refreshToken == null) return false;
+        try {
+            JwtUserInfo info = jwtTokenProvider.getJwtUserInfo(refreshToken);
+            Duration ttl = jwtTokenProvider.getRemainingTtl(refreshToken);
+
+            if (info.jti() == null || ttl.isZero() || ttl.isNegative()) return false;
+
+            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
+                    REFRESH_BLACKLIST_PREFIX + info.jti(),
+                    Boolean.TRUE,
+                    ttl
+            );
+
+            if (Boolean.TRUE.equals(acquired)) {
+                log.info("[Refresh 회전 권한 획득] jti={}, ttl={}s", info.jti(), ttl.getSeconds());
+                return true;
+            }
+            log.warn("[Refresh 회전 권한 획득 실패] 이미 회전된 RT — jti={}", info.jti());
+            return false;
+        } catch (BusinessException e) {
+            log.debug("[Refresh 회전 시도 스킵] 이미 만료된 토큰");
+            return false;
+        }
     }
 
     /**

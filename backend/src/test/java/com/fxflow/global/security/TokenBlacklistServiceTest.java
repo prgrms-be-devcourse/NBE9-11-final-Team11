@@ -134,31 +134,86 @@ class TokenBlacklistServiceTest {
     }
 
     @Nested
-    @DisplayName("isRefreshTokenBlacklisted - Refresh Token 블랙리스트 조회")
-    class IsRefreshTokenBlacklisted {
+    @DisplayName("tryRotateRefreshToken - RT 회전 권한의 원자적 점유")
+    class TryRotateRefreshToken {
 
         @Test
-        @DisplayName("성공: 키가 존재하면 true (로그아웃된 토큰)")
-        void found() {
-            given(redisTemplate.hasKey(REFRESH_BLACKLIST_PREFIX + JTI)).willReturn(true);
+        @DisplayName("성공: 처음 회전 시도면 점유에 성공하고 true를 반환한다")
+        void success() {
+            // given
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(jwtTokenProvider.getJwtUserInfo(REFRESH_TOKEN))
+                    .willReturn(new JwtUserInfo(1L, null, JTI, new Date()));
+            given(jwtTokenProvider.getRemainingTtl(REFRESH_TOKEN))
+                    .willReturn(Duration.ofDays(7));
+            given(valueOperations.setIfAbsent(
+                    REFRESH_BLACKLIST_PREFIX + JTI, Boolean.TRUE, Duration.ofDays(7)
+            )).willReturn(true);
 
-            assertThat(tokenBlacklistService.isRefreshTokenBlacklisted(JTI)).isTrue();
+            // when & then
+            assertThat(tokenBlacklistService.tryRotateRefreshToken(REFRESH_TOKEN)).isTrue();
         }
 
         @Test
-        @DisplayName("성공: 키가 없으면 false (유효한 토큰)")
-        void notFound() {
-            given(redisTemplate.hasKey(REFRESH_BLACKLIST_PREFIX + JTI)).willReturn(false);
+        @DisplayName("실패: 이미 다른 요청이 같은 RT로 먼저 회전시켰으면 false를 반환한다 (재사용 감지)")
+        void alreadyRotated() {
+            // given - 동시 요청 race를 흉내: 동일 jti에 대한 setIfAbsent가 false 반환
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(jwtTokenProvider.getJwtUserInfo(REFRESH_TOKEN))
+                    .willReturn(new JwtUserInfo(1L, null, JTI, new Date()));
+            given(jwtTokenProvider.getRemainingTtl(REFRESH_TOKEN))
+                    .willReturn(Duration.ofDays(7));
+            given(valueOperations.setIfAbsent(
+                    REFRESH_BLACKLIST_PREFIX + JTI, Boolean.TRUE, Duration.ofDays(7)
+            )).willReturn(false);
 
-            assertThat(tokenBlacklistService.isRefreshTokenBlacklisted(JTI)).isFalse();
+            // when & then
+            assertThat(tokenBlacklistService.tryRotateRefreshToken(REFRESH_TOKEN)).isFalse();
         }
 
         @Test
-        @DisplayName("jti가 null이면 Redis를 조회하지 않고 false")
+        @DisplayName("Refresh Token이 null이면 점유를 시도하지 않고 false")
+        void tokenNull() {
+            assertThat(tokenBlacklistService.tryRotateRefreshToken(null)).isFalse();
+
+            verify(redisTemplate, never()).opsForValue();
+        }
+
+        @Test
+        @DisplayName("남은 TTL이 0이면 점유를 시도하지 않고 false (이미 만료)")
+        void zeroTtl() {
+            given(jwtTokenProvider.getJwtUserInfo(REFRESH_TOKEN))
+                    .willReturn(new JwtUserInfo(1L, null, JTI, new Date()));
+            given(jwtTokenProvider.getRemainingTtl(REFRESH_TOKEN))
+                    .willReturn(Duration.ZERO);
+
+            assertThat(tokenBlacklistService.tryRotateRefreshToken(REFRESH_TOKEN)).isFalse();
+
+            verify(redisTemplate, never()).opsForValue();
+        }
+
+        @Test
+        @DisplayName("만료된 Refresh Token이면 false (BusinessException 처리)")
+        void expiredToken() {
+            given(jwtTokenProvider.getJwtUserInfo(REFRESH_TOKEN))
+                    .willThrow(new BusinessException(AuthErrorCode.UNAUTHORIZED));
+
+            assertThat(tokenBlacklistService.tryRotateRefreshToken(REFRESH_TOKEN)).isFalse();
+
+            verify(redisTemplate, never()).opsForValue();
+        }
+
+        @Test
+        @DisplayName("jti가 null이면 점유를 시도하지 않고 false")
         void jtiNull() {
-            assertThat(tokenBlacklistService.isRefreshTokenBlacklisted(null)).isFalse();
+            given(jwtTokenProvider.getJwtUserInfo(REFRESH_TOKEN))
+                    .willReturn(new JwtUserInfo(1L, null, null, new Date()));
+            given(jwtTokenProvider.getRemainingTtl(REFRESH_TOKEN))
+                    .willReturn(Duration.ofDays(7));
 
-            verify(redisTemplate, never()).hasKey(any());
+            assertThat(tokenBlacklistService.tryRotateRefreshToken(REFRESH_TOKEN)).isFalse();
+
+            verify(redisTemplate, never()).opsForValue();
         }
     }
 
