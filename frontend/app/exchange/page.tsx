@@ -104,6 +104,13 @@ export default function ExchangePage() {
     }
   }
 
+  function handleAddAmount(amountToAdd: number) {
+    setInputAmount((prev) => {
+      const current = Number(prev) || 0
+      return String(current + amountToAdd)
+    })
+  }
+
   async function submit() {
     if (parsedAmount <= 0) return toast.error("환전할 금액을 입력하세요.")
     if (quoteError) return toast.error(quoteError)
@@ -195,20 +202,23 @@ export default function ExchangePage() {
           </div>
 
           {/* Quick amounts */}
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-2 items-center">
             {direction === "KRW_TO_USD" ? (
               [100000, 500000, 1000000].map((q) => (
-                <Button key={q} variant="outline" size="sm" onClick={() => setInputAmount(String(q))}>
+                <Button key={q} variant="outline" size="sm" onClick={() => handleAddAmount(q)}>
                   +{(q / 10000).toLocaleString("ko-KR")}만 원
                 </Button>
               ))
             ) : (
               [100, 500, 1000].map((q) => (
-                <Button key={q} variant="outline" size="sm" onClick={() => setInputAmount(String(q))}>
+                <Button key={q} variant="outline" size="sm" onClick={() => handleAddAmount(q)}>
                   +${q.toLocaleString("ko-KR")}
                 </Button>
               ))
             )}
+            <Button variant="ghost" size="sm" onClick={() => setInputAmount("")} className="text-muted-foreground hover:text-foreground">
+              초기화
+            </Button>
           </div>
 
           <Button className="mt-5 w-full" size="lg" onClick={submit}>

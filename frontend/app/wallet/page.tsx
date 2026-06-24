@@ -18,7 +18,7 @@ import { KOREAN_BANKS } from "@/lib/fx-data"
 import { apiRequest } from "@/lib/api"
 import { useEffect } from "react"
 
-const FX_CODES: CurrencyCode[] = ["USD", "JPY", "EUR", "CNY"]
+const FX_CODES: CurrencyCode[] = ["USD"/*, "JPY", "EUR", "CNY"*/]
 
 interface MockAccountInfo {
   bankName: string
@@ -49,6 +49,13 @@ export default function WalletPage() {
   const [open, setOpen] = useState(false)
   const [recipientName, setRecipientName] = useState("")
   const [checkingEmail, setCheckingEmail] = useState(false)
+
+  function handleAddAmount(amountToAdd: number) {
+    setAmount((prev) => {
+      const current = Number(prev) || 0
+      return String(current + amountToAdd)
+    })
+  }
 
   const fetchData = async () => {
     try {
@@ -363,6 +370,44 @@ export default function WalletPage() {
                       }}
                     />
                   </div>
+                  {mode === "transfer" && (
+                    <div className="flex flex-wrap gap-2 items-center">
+                      {transferCurrency === "KRW" ? (
+                        [100000, 500000, 1000000].map((q) => (
+                          <Button
+                            key={q}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAddAmount(q)}
+                          >
+                            +{(q / 10000).toLocaleString("ko-KR")}만 원
+                          </Button>
+                        ))
+                      ) : (
+                        [100, 500, 1000].map((q) => (
+                          <Button
+                            key={q}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAddAmount(q)}
+                          >
+                            +${q.toLocaleString("ko-KR")}
+                          </Button>
+                        ))
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setAmount("")}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        초기화
+                      </Button>
+                    </div>
+                  )}
                   {mode === "transfer" && (
                     <div className="space-y-2">
                       <Label htmlFor="memo">메모</Label>
