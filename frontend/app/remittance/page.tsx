@@ -34,6 +34,8 @@ import { cn } from "@/lib/utils"
 import { apiRequest } from "@/lib/api"
 
 const STEPS = ["수취인", "금액", "확인"]
+const MIN_SEND_AMOUNT_KRW = 10000
+const PER_TRANSFER_LIMIT_USD = 5000
 const REASON_TO_API: Record<string, string> = {
   가족생활비: "FAMILY_SUPPORT",
   유학경비: "TUITION",
@@ -110,6 +112,8 @@ export default function RemittancePage() {
   }, [krwAmount, currency, quote])
 
   const total = krwAmount + fee
+  const estimatedAmountUsd = krwAmount / krwPerUnit(currency)
+  const estimatedMaxKrw = Math.floor(PER_TRANSFER_LIMIT_USD * krwPerUnit(currency))
 
   useEffect(() => {
     async function loadInitialData() {
@@ -237,6 +241,12 @@ export default function RemittancePage() {
     if (step === 0 && !recipient) return toast.error("수취인을 선택하거나 추가하세요.")
     if (step === 1) {
       if (krwAmount <= 0) return toast.error("송금 금액을 입력하세요.")
+      if (krwAmount < MIN_SEND_AMOUNT_KRW) {
+        return toast.error(`최소 송금 금액은 ${formatKRW(MIN_SEND_AMOUNT_KRW)}입니다.`)
+      }
+      if (estimatedAmountUsd > PER_TRANSFER_LIMIT_USD) {
+        return toast.error(`건당 최대 송금 한도는 ${formatCurrency(PER_TRANSFER_LIMIT_USD, "USD")}입니다.`)
+      }
       const nextQuote = quote ?? await fetchQuote()
       if (!nextQuote) return
     }
@@ -455,6 +465,10 @@ export default function RemittancePage() {
                       ? `수취 예상 ${formatCurrency(received, currency)}`
                       : `예상 지출 비용 ${formatKRW(krwAmount)}`}
                 </p>
+                <div className="mt-3 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span>최소 {formatKRW(MIN_SEND_AMOUNT_KRW)}</span>
+                  <span>최대 {formatCurrency(PER_TRANSFER_LIMIT_USD, "USD")} · 약 {formatKRW(estimatedMaxKrw)}</span>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reason">송금 목적</Label>
