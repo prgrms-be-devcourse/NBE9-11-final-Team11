@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import com.fxflow.domain.companypool.entity.CompanyPool;
 import com.fxflow.domain.companypool.repository.CompanyPoolRepository;
 import com.fxflow.domain.fxrate.service.FxRateQueryService;
+import com.fxflow.domain.ledger.entity.LedgerEntry;
 import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.enums.LedgerRefType;
@@ -39,7 +40,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -61,7 +68,6 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
     private static final BigDecimal INSUFFICIENT_USD_POOL = new BigDecimal("100.00");
 
     @Autowired private RemittanceTransactionService remittanceTransactionService;
-    @Autowired private RemittancePayoutProcessor remittancePayoutProcessor;
     @Autowired private RemittancePayoutService remittancePayoutService;
     @Autowired private RemittanceTransactionRepository remittanceTransactionRepository;
     @Autowired private VirtualAccountRepository virtualAccountRepository;
@@ -116,7 +122,7 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
         BigDecimal expectedUsdPayout = getTransfer(transferId).getReceiveAmount();
 
         remittanceTransactionService.mockFundTransfer(sender.getId(), transferId);
-        remittancePayoutProcessor.process(transferId);
+        remittancePayoutService.processPayout(transferId);
 
         RemittanceTransaction completed = getTransfer(transferId);
         assertThat(completed.getStatus()).isEqualTo(TransferStatus.COMPLETED);
@@ -128,10 +134,7 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
 
         assertMoney(annualUsedUsd(sender), expectedUsdPayout);
 
-        assertRemittanceLedgerEntry(completed.getJournalId(), KRW, LedgerDirection.DEBIT, expectedKrwPayment);
-        assertRemittanceLedgerEntry(completed.getJournalId(), KRW, LedgerDirection.CREDIT, expectedKrwPayment);
-        assertRemittanceLedgerEntry(completed.getJournalId(), USD, LedgerDirection.DEBIT, expectedUsdPayout);
-        assertRemittanceLedgerEntry(completed.getJournalId(), USD, LedgerDirection.CREDIT, expectedUsdPayout);
+        assertCompletedRemittanceLedgerEntries(completed.getJournalId(), expectedKrwPayment, expectedUsdPayout);
     }
 
     @Test
@@ -162,8 +165,54 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
         assertMoney(recipientUsdAccount(recipient).getBalance(), BigDecimal.ZERO);
         assertMoney(annualUsedUsd(sender), BigDecimal.ZERO);
 
-        assertRemittanceLedgerEntry(failed.getJournalId(), KRW, LedgerDirection.DEBIT, expectedKrwPayment);
-        assertRemittanceLedgerEntry(failed.getJournalId(), KRW, LedgerDirection.CREDIT, expectedKrwPayment);
+        assertRefundedRemittanceLedgerEntries(failed.getJournalId(), expectedKrwPayment);
+    }
+
+    @Test
+    @DisplayName("외화풀 동시성: 동시에 두 건이 마지막 USD 풀을 점유해도 한 건만 지급되고 한 건은 환불된다")
+    void concurrentPayout_allowsOnlyOneTransferWhenUsdPoolIsEnoughForOne() throws Exception {
+        insertCompanyPool(KRW, INITIAL_KRW_POOL);
+
+        User sender = createUser("sender-concurrent@example.com", "동시성대상");
+        createSenderKrwAccount(sender);
+        Recipient recipient = createRecipient(sender, "Concurrent Recipient", "Citibank", "987654321004");
+
+        RemittanceTransactionCreateResponse firstCreateResponse =
+                createTransfer(sender, recipient, "idem-concurrent-001");
+        RemittanceTransactionCreateResponse secondCreateResponse =
+                createTransfer(sender, recipient, "idem-concurrent-002");
+        Long firstTransferId = firstCreateResponse.transferId();
+        Long secondTransferId = secondCreateResponse.transferId();
+
+        BigDecimal expectedKrwPayment = getVirtualAccount(firstTransferId).getExpectedAmount();
+        BigDecimal expectedUsdPayout = getTransfer(firstTransferId).getReceiveAmount();
+        insertCompanyPool(USD, expectedUsdPayout);
+
+        remittanceTransactionService.mockFundTransfer(sender.getId(), firstTransferId);
+        remittanceTransactionService.mockFundTransfer(sender.getId(), secondTransferId);
+
+        runPayoutsConcurrently(firstTransferId, secondTransferId);
+
+        RemittanceTransaction firstTransfer = getTransfer(firstTransferId);
+        RemittanceTransaction secondTransfer = getTransfer(secondTransferId);
+        List<TransferStatus> statuses = List.of(firstTransfer.getStatus(), secondTransfer.getStatus());
+
+        assertThat(statuses).containsExactlyInAnyOrder(TransferStatus.COMPLETED, TransferStatus.FAILED);
+        assertMoney(senderKrwAccount(sender).getBalance(), INITIAL_SENDER_KRW.subtract(expectedKrwPayment));
+        assertMoney(pool(KRW).getBalance(), INITIAL_KRW_POOL.add(expectedKrwPayment));
+        assertMoney(pool(USD).getBalance(), BigDecimal.ZERO);
+        assertMoney(recipientUsdAccount(recipient).getBalance(), expectedUsdPayout);
+        assertMoney(annualUsedUsd(sender), expectedUsdPayout);
+
+        RemittanceTransaction completed = statuses.get(0) == TransferStatus.COMPLETED
+                ? firstTransfer
+                : secondTransfer;
+        RemittanceTransaction failed = statuses.get(0) == TransferStatus.FAILED
+                ? firstTransfer
+                : secondTransfer;
+
+        assertCompletedRemittanceLedgerEntries(completed.getJournalId(), expectedKrwPayment, expectedUsdPayout);
+        assertRefundedRemittanceLedgerEntries(failed.getJournalId(), expectedKrwPayment);
     }
 
     @Test
@@ -280,21 +329,106 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
                 .getAnnualUsedUsd();
     }
 
-    private void assertRemittanceLedgerEntry(
+    private void runPayoutsConcurrently(Long firstTransferId, Long secondTransferId) throws Exception {
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        CountDownLatch readyLatch = new CountDownLatch(2);
+        CountDownLatch startLatch = new CountDownLatch(1);
+
+        try {
+            Future<?> firstFuture = executorService.submit(() -> processPayoutAfterStartSignal(
+                    firstTransferId,
+                    readyLatch,
+                    startLatch
+            ));
+            Future<?> secondFuture = executorService.submit(() -> processPayoutAfterStartSignal(
+                    secondTransferId,
+                    readyLatch,
+                    startLatch
+            ));
+
+            assertThat(readyLatch.await(3, TimeUnit.SECONDS)).isTrue();
+            startLatch.countDown();
+
+            firstFuture.get(10, TimeUnit.SECONDS);
+            secondFuture.get(10, TimeUnit.SECONDS);
+        } finally {
+            executorService.shutdownNow();
+        }
+    }
+
+    private void processPayoutAfterStartSignal(
+            Long transferId,
+            CountDownLatch readyLatch,
+            CountDownLatch startLatch
+    ) {
+        readyLatch.countDown();
+        try {
+            startLatch.await();
+            remittancePayoutService.processPayout(transferId);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private void assertCompletedRemittanceLedgerEntries(
             String journalId,
+            BigDecimal krwAmount,
+            BigDecimal usdAmount
+    ) {
+        List<LedgerEntry> entries = remittanceLedgerEntries(journalId);
+
+        assertThat(entries).hasSize(4);
+        assertRemittanceLedgerEntry(entries, KRW, LedgerDirection.DEBIT, krwAmount);
+        assertRemittanceLedgerEntry(entries, KRW, LedgerDirection.CREDIT, krwAmount);
+        assertRemittanceLedgerEntry(entries, USD, LedgerDirection.DEBIT, usdAmount);
+        assertRemittanceLedgerEntry(entries, USD, LedgerDirection.CREDIT, usdAmount);
+    }
+
+    private void assertRefundedRemittanceLedgerEntries(String journalId, BigDecimal krwAmount) {
+        List<LedgerEntry> entries = remittanceLedgerEntries(journalId);
+
+        assertThat(entries).hasSize(4);
+        assertThat(entries)
+                .filteredOn(entry -> entry.getCurrencyCode().equals(USD))
+                .isEmpty();
+        assertThat(entries)
+                .filteredOn(entry -> entry.getCurrencyCode().equals(KRW))
+                .hasSize(4);
+        assertThat(entries)
+                .filteredOn(entry -> entry.getCurrencyCode().equals(KRW))
+                .filteredOn(entry -> entry.getLedgerDirection() == LedgerDirection.DEBIT)
+                .hasSize(2)
+                .allSatisfy(entry -> assertThat(entry.getAmount()).isEqualByComparingTo(krwAmount));
+        assertThat(entries)
+                .filteredOn(entry -> entry.getCurrencyCode().equals(KRW))
+                .filteredOn(entry -> entry.getLedgerDirection() == LedgerDirection.CREDIT)
+                .hasSize(2)
+                .allSatisfy(entry -> assertThat(entry.getAmount()).isEqualByComparingTo(krwAmount));
+    }
+
+    private List<LedgerEntry> remittanceLedgerEntries(String journalId) {
+        return ledgerEntryRepository.findAll()
+                .stream()
+                .filter(entry -> entry.getJournalId().equals(journalId))
+                .toList();
+    }
+
+    private void assertRemittanceLedgerEntry(
+            List<LedgerEntry> entries,
             String currencyCode,
             LedgerDirection direction,
             BigDecimal amount
     ) {
-        assertThat(ledgerEntryRepository.findAll())
-                .anySatisfy(entry -> {
-                    assertThat(entry.getJournalId()).isEqualTo(journalId);
+        assertThat(entries)
+                .filteredOn(entry -> entry.getCurrencyCode().equals(currencyCode))
+                .filteredOn(entry -> entry.getLedgerDirection() == direction)
+                .singleElement()
+                .satisfies(entry -> {
                     assertThat(entry.getEntryType()).isEqualTo(LedgerEntryType.TRANSFER);
-                    assertThat(entry.getLedgerDirection()).isEqualTo(direction);
-                    assertThat(entry.getCurrencyCode()).isEqualTo(currencyCode);
                     assertThat(entry.getAmount()).isEqualByComparingTo(amount);
                     assertThat(entry.getRefType()).isEqualTo(LedgerRefType.REMITTANCE);
-                    assertThat(entry.getRefId()).isEqualTo(journalId);
+                    assertThat(entry.getRefId()).isEqualTo(entry.getJournalId());
                 });
     }
 
