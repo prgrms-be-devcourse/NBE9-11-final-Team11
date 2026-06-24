@@ -22,6 +22,7 @@ import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,7 +64,13 @@ public class UserService {
                 request.name()
         );
 
-        userRepository.save(user);
+        try {
+            userRepository.save(user);
+        } catch (DataIntegrityViolationException e) {
+            // existsByEmail() 체크 이후 동시 요청이 먼저 INSERT를 끝낸 경우 (TOCTOU)
+            log.warn("[회원가입 실패] 동시 요청으로 인한 이메일 중복 — email={}", request.email());
+            throw new BusinessException(UserErrorCode.EMAIL_DUPLICATED);
+        }
 
         log.info("[회원가입 완료] userId={}, email={}", user.getId(), user.getEmail());
 
