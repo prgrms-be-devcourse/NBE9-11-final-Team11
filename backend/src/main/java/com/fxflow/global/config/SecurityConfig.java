@@ -28,6 +28,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final TokenBlacklistService tokenBlacklistService;
     private final ObjectMapper objectMapper;
     private final CorsConfigurationSource corsConfigurationSource;
 
@@ -81,7 +82,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider),
+                        new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistService),
                         UsernamePasswordAuthenticationFilter.class
                 );
 
