@@ -94,7 +94,7 @@ export default function DashboardPage() {
             
             amountKRW = direction === "CREDIT" ? Number(tx.toAmount) : -Number(tx.fromAmount)
             fromCurrency = tx.fromCurrency as CurrencyCode
-            toCurrency = (direction === "CREDIT" ? tx.toCurrency : tx.fromCurrency) as CurrencyCode
+            toCurrency = tx.toCurrency as CurrencyCode
             rate = Number(tx.exchangeRate)
             fee = Number(tx.feeAmount)
           } else if (tx.type === "TRANSFER") {
@@ -115,7 +115,9 @@ export default function DashboardPage() {
             fee,
             status: "completed" as TxStatus,
             createdAt: tx.createdAt,
-            detail: detailStr
+            detail: detailStr,
+            fromAmount: tx.type === "EXCHANGE" ? Number(tx.fromAmount) : undefined,
+            toAmount: tx.type === "EXCHANGE" ? Number(tx.toAmount) : undefined
           }
         })
         setTransactions(mapped)

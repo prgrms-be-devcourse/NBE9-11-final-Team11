@@ -45,9 +45,14 @@ export function TransactionRow({ tx, onClick }: { tx: Transaction; onClick?: () 
       <div className="flex flex-col items-end gap-1">
         <span className={`text-sm font-semibold tabular-nums ${positive ? "text-accent" : "text-foreground"}`}>
           {positive ? "+" : "-"}
-          {tx.toCurrency && tx.toCurrency !== "KRW"
-            ? formatCurrency(Math.abs(tx.amountKRW), tx.toCurrency)
-            : formatKRW(Math.abs(tx.amountKRW))}
+          {(() => {
+            const currency = tx.type === "exchange"
+              ? (tx.amountKRW >= 0 ? tx.toCurrency : tx.fromCurrency)
+              : (tx.toCurrency || "KRW");
+            return currency && currency !== "KRW"
+              ? formatCurrency(Math.abs(tx.amountKRW), currency)
+              : formatKRW(Math.abs(tx.amountKRW));
+          })()}
         </span>
         <TxStatusBadge status={tx.status} />
       </div>

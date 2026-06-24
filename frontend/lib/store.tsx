@@ -20,6 +20,8 @@ export interface Transaction {
   status: TxStatus
   createdAt: string // ISO
   detail?: string
+  fromAmount?: number
+  toAmount?: number
 }
 
 export type ReservationType = "exchange" | "remittance"
