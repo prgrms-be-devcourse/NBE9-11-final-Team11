@@ -184,7 +184,11 @@ export default function RemittancePage() {
       toast.success("수취인이 추가되었습니다.")
     } catch (err: any) {
       console.error(err)
-      toast.error(err.message || "수취인 등록에 실패했습니다.")
+      const isAccountNumberError =
+        err.status >= 500 ||
+        err.code === "DUPLICATE_RECIPIENT" ||
+        err.code === "INVALID_RECIPIENT_ACCOUNT_NUMBER"
+      toast.error(isAccountNumberError ? "계좌번호를 다시 확인해주세요." : err.message || "수취인 등록에 실패했습니다.")
     }
   }
 
