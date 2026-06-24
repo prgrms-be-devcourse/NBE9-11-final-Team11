@@ -1,0 +1,43 @@
+
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    defer-datasource-initialization: false
+  sql:
+    init:
+      mode: never
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+jwt:
+  secret: dev-only-placeholder-secret-key-32bytes-minimum-do-not-use-in-production
+  access-token-expiration: 1800000
+
+cookie:
+  secure: false
+  same-site: Lax
+  max-age: 1800
+
+exchange:
+  fee:
+    rates:
+      KRW-USD: 0.001
+      USD-KRW: 0.001
+  quote-expiration-minutes: 5
+
+fxrate:
+  scheduler:
+    enabled: false
+
+twelvedata:
+  api-key: test
