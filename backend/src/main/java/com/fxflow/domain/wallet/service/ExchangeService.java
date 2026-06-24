@@ -40,6 +40,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ExchangeService {
 
+    private static final BigDecimal MIN_KRW_AMOUNT = new BigDecimal("1000"); // 1,000원
+    private static final BigDecimal MIN_USD_AMOUNT = new BigDecimal("1");
+
     private final ExchangeRateProvider exchangeRateProvider;
     private final ExchangeFeeProperties exchangeFeeProperties;
     private final ExchangeProperties exchangeProperties;
@@ -64,6 +67,13 @@ public class ExchangeService {
         String toCurrency = request.toCurrency();
         BigDecimal amount = request.amount();
 
+        // 환전 최소값 검증
+        if (fromCurrency.equals("KRW") && amount.compareTo(MIN_KRW_AMOUNT) < 0) {
+            throw new BusinessException(ExchangeErrorCode.MINIMUM_AMOUNT_NOT_MET);
+        } else if (fromCurrency.equals("USD") && amount.compareTo(MIN_USD_AMOUNT) < 0) {
+            throw new BusinessException(ExchangeErrorCode.MINIMUM_AMOUNT_NOT_MET);
+        }
+
         FxRateSnapshot fxRateSnapshot = exchangeRateProvider.getLatestRate("USD", "KRW")
                 .orElseThrow( () -> new BusinessException(ExchangeErrorCode.FEE_RATE_NOT_FOUND));
         BigDecimal appliedRate = fromCurrency.equals("USD") ? fxRateSnapshot.sellRate() : fxRateSnapshot.buyRate(); // todo: 현재 USD <-> WON 고정, 추후 다른 환율 추가 시 수정 필요
@@ -74,8 +84,8 @@ public class ExchangeService {
         }
 
         BigDecimal toAmount = fromCurrency.equals("KRW")
-                ? amount.divide(appliedRate, 2, RoundingMode.HALF_UP)
-                : amount.multiply(appliedRate);  // 환율만 적용된 금액
+                ? amount.divide(appliedRate, 2, RoundingMode.HALF_UP) // 달러는 소수점 2자리까지
+                : amount.multiply(appliedRate).setScale(0, RoundingMode.HALF_DOWN); // 원화는 소수점 버림
         BigDecimal feeAmount = amount.multiply(feeRate);  // 출발 통화 기준 수수료
         BigDecimal totalAmount = amount.add(feeAmount);  // 출발 통화 기준 총 차감액
         LocalDateTime expiredAt =

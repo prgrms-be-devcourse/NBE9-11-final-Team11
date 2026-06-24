@@ -21,12 +21,15 @@ export default function ExchangePage() {
   const [krwBalance, setKrwBalance] = useState<number>(0)
   const [usdBalance, setUsdBalance] = useState<number>(0)
   const [direction, setDirection] = useState<"KRW_TO_USD" | "USD_TO_KRW">("KRW_TO_USD")
-  const [inputAmount, setInputAmount] = useState("10000")
+  const [inputAmount, setInputAmount] = useState("1000")
   const [quote, setQuote] = useState<any>(null)
   const [loadingQuote, setLoadingQuote] = useState(false)
   const [quoteError, setQuoteError] = useState<string>("")
 
   const parsedAmount = Number(inputAmount.replace(/[^\d.]/g, "")) || 0
+  const fromCurrency = direction === "KRW_TO_USD" ? "KRW" : "USD"
+  const minAmount = fromCurrency === "KRW" ? 1000 : 1
+  const isBelowMin = parsedAmount < minAmount
 
   const fetchBalances = async () => {
     try {
@@ -88,7 +91,6 @@ export default function ExchangePage() {
   const totalDeduct = quote ? quote.totalAmount : parsedAmount
   const received = quote ? quote.toAmount : 0
 
-  const fromCurrency = direction === "KRW_TO_USD" ? "KRW" : "USD"
   const toCurrency = direction === "KRW_TO_USD" ? "USD" : "KRW"
   const currentBalance = direction === "KRW_TO_USD" ? krwBalance : usdBalance
 
@@ -97,10 +99,10 @@ export default function ExchangePage() {
     setQuoteError("")
     if (direction === "KRW_TO_USD") {
       setDirection("USD_TO_KRW")
-      setInputAmount("10") // Default to 500 USD
+      setInputAmount("1")
     } else {
       setDirection("KRW_TO_USD")
-      setInputAmount("10000") // Default to 500k KRW
+      setInputAmount("1000")
     }
   }
 
@@ -143,7 +145,12 @@ export default function ExchangePage() {
             {/* From */}
             <div className="rounded-2xl border border-border bg-secondary/40 p-4">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">보내는 금액 ({fromCurrency})</Label>
+                <div className="flex flex-col gap-0.5">
+                  <Label className="text-xs text-muted-foreground">환전 금액 ({fromCurrency})</Label>
+                  <span className="text-[10px] text-muted-foreground/75">
+                    (최소 {fromCurrency === "KRW" ? "1,000 KRW" : "1 USD"})
+                  </span>
+                </div>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   잔액 {formatCurrency(currentBalance, fromCurrency)}
                 </span>
@@ -170,6 +177,11 @@ export default function ExchangePage() {
                   placeholder="0"
                 />
               </div>
+              {isBelowMin && (
+                <p className="mt-1 text-xs text-destructive text-right">
+                  최소 환전 금액은 {fromCurrency === "KRW" ? "1,000 KRW" : "1 USD"}입니다. (The minimum exchange amount is {fromCurrency === "KRW" ? "1,000 KRW" : "1 USD"}.)
+                </p>
+              )}
             </div>
 
             {/* Swap Button */}
@@ -186,7 +198,7 @@ export default function ExchangePage() {
 
             {/* To */}
             <div className="rounded-2xl border border-border bg-secondary/40 p-4">
-              <Label className="text-xs text-muted-foreground">받는 금액 (예상, {toCurrency})</Label>
+              <Label className="text-xs text-muted-foreground">예상 수령액 ({toCurrency})</Label>
               <div className="mt-2 flex items-center gap-3">
                 <span className="flex items-center gap-1.5 text-sm font-semibold">
                   <span className="text-xl" aria-hidden>
@@ -221,7 +233,7 @@ export default function ExchangePage() {
             </Button>
           </div>
 
-          <Button className="mt-5 w-full" size="lg" onClick={submit}>
+          <Button className="mt-5 w-full" size="lg" onClick={submit} disabled={isBelowMin || loadingQuote || !!quoteError}>
             환전하기
           </Button>
         </Card>
