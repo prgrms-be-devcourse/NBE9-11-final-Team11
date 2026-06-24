@@ -1,16 +1,14 @@
 package com.fxflow.domain.mockbankaccount.entity;
 
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
+import com.fxflow.domain.mockbankaccount.enums.MockBankAccountOwnerType;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.global.entity.BaseEntity;
 import com.fxflow.global.exception.BusinessException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
@@ -33,8 +31,9 @@ public class MockBankAccount extends BaseEntity {
     @JoinColumn(name = "user_id")
     private User user;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "owner_type", length = 20)
-    private String ownerType;
+    private MockBankAccountOwnerType ownerType;
 
     @Column(name = "currency_code", nullable = false, length = 10)
     private String currencyCode;        // KRW: 사용자가 직접 연결 / USD: 시딩 데이터(받는 가상계좌)
@@ -61,7 +60,7 @@ public class MockBankAccount extends BaseEntity {
     public static MockBankAccount create(User user, String bankName, String accountNumber) {
         MockBankAccount account = new MockBankAccount();
         account.user = user;
-        account.ownerType = "USER";
+        account.ownerType = MockBankAccountOwnerType.USER;
         account.currencyCode = "KRW";
         account.bankName = bankName;
         account.accountNumber = accountNumber;
@@ -78,7 +77,7 @@ public class MockBankAccount extends BaseEntity {
     ) {
         MockBankAccount account = new MockBankAccount();
         account.user = user;
-        account.ownerType = "USER";
+        account.ownerType = MockBankAccountOwnerType.USER;
         account.currencyCode = currencyCode;
         account.bankName = bankName;
         account.accountNumber = accountNumber;
@@ -99,7 +98,7 @@ public class MockBankAccount extends BaseEntity {
             BigDecimal initialBalance
     ) {
         MockBankAccount account = new MockBankAccount();
-        account.ownerType = "RECIPIENT";
+        account.ownerType = MockBankAccountOwnerType.RECIPIENT;
         account.currencyCode = currencyCode;
         account.bankName = bankName;
         account.accountNumber = accountNumber;

@@ -1,6 +1,7 @@
 package com.fxflow.domain.remittancetransaction.service;
 
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
+import com.fxflow.domain.mockbankaccount.enums.MockBankAccountOwnerType;
 import com.fxflow.domain.mockbankaccount.repository.MockBankAccountRepository;
 import com.fxflow.domain.remittancetransaction.entity.Recipient;
 import java.math.BigDecimal;
@@ -63,7 +64,7 @@ class RecipientPayoutAccountServiceTest {
         // then
         verify(mockBankAccountRepository).save(argThat(account ->
                 account.getUser() == null
-                        && account.getOwnerType().equals("RECIPIENT")
+                        && account.getOwnerType() == MockBankAccountOwnerType.RECIPIENT
                         && account.getAccountHolderName().equals(recipient.getName())
                         && account.getAccountNumber().equals(recipient.getAccountNumber())
         ));
