@@ -99,12 +99,17 @@ public class TokenBlacklistService {
 
     /**
      * 토큰 발급 시각이 강제 로그아웃 마커 시각보다 이전이면 무효 처리 대상이다.
+     * JWT의 iat 클레임은 초 단위 정밀도라 발급 시각이 초 단위로 절사되어 들어온다.
+     * 마커는 System.currentTimeMillis()로 밀리초 단위로 저장되므로, 그대로 비교하면
+     * 마커 등록과 같은 초 안에서 재발급된 정상 토큰까지 강제 로그아웃 대상으로 오인될 수 있다.
+     * 양쪽을 모두 초 단위로 맞춰서 비교해 이 오탐을 막는다.
      */
     public boolean isForceLogoutRequired(Long userId, Date tokenIssuedAt) {
         Object marker = redisTemplate.opsForValue().get(FORCE_LOGOUT_PREFIX + userId);
         if (marker == null || tokenIssuedAt == null) return false;
 
-        long forceLogoutAt = Long.parseLong(String.valueOf(marker));
-        return tokenIssuedAt.getTime() < forceLogoutAt;
+        long forceLogoutAtSeconds = Long.parseLong(String.valueOf(marker)) / 1000;
+        long issuedAtSeconds = tokenIssuedAt.getTime() / 1000;
+        return issuedAtSeconds < forceLogoutAtSeconds;
     }
 }

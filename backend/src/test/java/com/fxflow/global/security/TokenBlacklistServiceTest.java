@@ -272,5 +272,20 @@ class TokenBlacklistServiceTest {
 
             assertThat(tokenBlacklistService.isForceLogoutRequired(1L, issuedAt)).isFalse();
         }
+
+        @Test
+        @DisplayName("마커와 같은 초 안에서 재발급된 토큰이면 false (JWT iat 초 단위 절사로 인한 오탐 방지)")
+        void issuedWithinSameSecondAsMarker_isNotFalselyLoggedOut() {
+            // given - 마커는 밀리초 단위(예: ...500ms)로 저장되지만,
+            // 같은 초에 재발급된 토큰의 iat는 0ms로 절사되어 들어온다.
+            long markerTime = 1_719_000_000_500L;
+            Date issuedAt = new Date(1_719_000_000_000L);
+
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(valueOperations.get(FORCE_LOGOUT_PREFIX + 1L)).willReturn(markerTime);
+
+            // when & then - 초 단위로 맞춰 비교하므로 같은 초면 강제 로그아웃 대상이 아니다.
+            assertThat(tokenBlacklistService.isForceLogoutRequired(1L, issuedAt)).isFalse();
+        }
     }
 }
