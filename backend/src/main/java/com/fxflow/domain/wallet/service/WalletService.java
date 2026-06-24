@@ -68,6 +68,11 @@ public class WalletService {
         );
     }
 
+    public Wallet getWalletWithLock(Long userId, String currencyCode) {
+        return walletRepository.findByUserIdAndCurrencyCodeWithLock(userId, currencyCode)
+                .orElseThrow(() -> new BusinessException(WalletErrorCode.WALLET_NOT_FOUND));
+    }
+
     public WalletBalanceResponse getWalletBalance(Long userId) {
         List<Wallet> wallets = walletRepository.findByUserId(userId);
         List<WalletResponse> walletResponses = wallets.stream().map(WalletResponse::from).toList();
@@ -166,7 +171,7 @@ public class WalletService {
         }
 
         // check wallet balance
-        Wallet wallet = getWallet(userId, "KRW");
+        Wallet wallet = getWalletWithLock(userId, "KRW");
         Long walletId = wallet.getId();
         BigDecimal balanceBefore = wallet.getBalance();
         BigDecimal balanceAfter = balanceBefore.add(amount);
@@ -209,7 +214,6 @@ public class WalletService {
         return TransactionResponse.from(walletEntry);
     }
 
-    // withdraw 동시성 방지 X
     @Transactional
     public TransactionResponse withdraw(Long userId, WithdrawRequest request) {
 
@@ -224,7 +228,7 @@ public class WalletService {
         transactionLimitValidator.validateDailyWithdrawal(user, amount);
 
         // check wallet balance
-        Wallet wallet = getWallet(userId, "KRW");
+        Wallet wallet = getWalletWithLock(userId, "KRW");
         Long walletId = wallet.getId();
         BigDecimal balanceBefore = wallet.getBalance();
         BigDecimal balanceAfter = balanceBefore.subtract(amount);
@@ -263,6 +267,10 @@ public class WalletService {
         userDailyUsageService.addWithdrawal(userId, LocalDate.now(java.time.ZoneId.of("Asia/Seoul")), amount);
         return TransactionResponse.from(walletEntry);
     }
+
+
+    // ====== 동시성 비교 테스트용 메서드 (프로덕션 미사용) ======
+    // TODO: 테스트 완료 후 제거 예정
 
     // withdraw 낙관락
     @Retryable(

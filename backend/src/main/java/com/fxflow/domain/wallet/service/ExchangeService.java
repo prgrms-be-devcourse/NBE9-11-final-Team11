@@ -122,8 +122,8 @@ public class ExchangeService {
         // check balance in user wallet
         String fromCurrency = cache.fromCurrency();
         String toCurrency = cache.toCurrency();
-        Wallet fromWallet = walletService.getWallet(userId, cache.fromCurrency());
-        Wallet toWallet = walletService.getWallet(userId, cache.toCurrency());
+        Wallet fromWallet = walletService.getWalletWithLock(userId, cache.fromCurrency());
+        Wallet toWallet = walletService.getWalletWithLock(userId, cache.toCurrency());
 
         if (fromWallet.getBalance().compareTo(cache.totalAmount()) < 0){
             throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
