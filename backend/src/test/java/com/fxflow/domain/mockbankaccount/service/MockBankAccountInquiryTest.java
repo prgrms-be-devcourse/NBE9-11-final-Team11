@@ -84,7 +84,7 @@ class MockBankAccountInquiryTest {
             ReflectionTestUtils.setField(sender1, "id", 1L);
             ReflectionTestUtils.setField(sender2, "id", 2L);
 
-            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndAccountHolderNameAndCurrencyCode(
                     ACCOUNT_NUMBER, BANK_NAME, NAME, USD
             )).willReturn(Optional.of(account));
             given(remittanceTransactionRepository.findByRecipientAccountNumberAndStatus(
@@ -122,7 +122,7 @@ class MockBankAccountInquiryTest {
             Pageable pageable = PageRequest.of(0, 20);
             Page<RemittanceTransaction> emptyPage = new PageImpl<>(List.of(), pageable, 0);
 
-            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndAccountHolderNameAndCurrencyCode(
                     ACCOUNT_NUMBER, BANK_NAME, NAME, USD
             )).willReturn(Optional.of(account));
             given(remittanceTransactionRepository.findByRecipientAccountNumberAndStatus(
@@ -155,7 +155,7 @@ class MockBankAccountInquiryTest {
             User sender = User.create("sender3@fxflow.app", "encoded", "박민준");
             ReflectionTestUtils.setField(sender, "id", 3L);
 
-            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndAccountHolderNameAndCurrencyCode(
                     ACCOUNT_NUMBER, BANK_NAME, NAME, USD
             )).willReturn(Optional.of(account));
             given(remittanceTransactionRepository.findByRecipientAccountNumberAndStatus(
@@ -194,7 +194,7 @@ class MockBankAccountInquiryTest {
             User sender = User.create("sender1@fxflow.app", "encoded", "김철수");
             ReflectionTestUtils.setField(sender, "id", 1L);
 
-            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndAccountHolderNameAndCurrencyCode(
                     ACCOUNT_NUMBER, BANK_NAME, NAME, USD
             )).willReturn(Optional.of(account));
             given(remittanceTransactionRepository.findByRecipientAccountNumberAndStatus(
@@ -229,7 +229,7 @@ class MockBankAccountInquiryTest {
             Pageable pageable = PageRequest.of(0, 20);
             Page<RemittanceTransaction> txPage = new PageImpl<>(List.of(tx), pageable, 1);
 
-            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndAccountHolderNameAndCurrencyCode(
                     ACCOUNT_NUMBER, BANK_NAME, NAME, USD
             )).willReturn(Optional.of(account));
             given(remittanceTransactionRepository.findByRecipientAccountNumberAndStatus(
@@ -264,7 +264,7 @@ class MockBankAccountInquiryTest {
             User sender = User.create("sender@fxflow.app", "encoded", "홍길동");
             ReflectionTestUtils.setField(sender, "id", 1L);
 
-            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndAccountHolderNameAndCurrencyCode(
                     ACCOUNT_NUMBER, BANK_NAME, NAME, USD
             )).willReturn(Optional.of(account));
             given(remittanceTransactionRepository.findByRecipientAccountNumberAndStatus(
@@ -300,7 +300,7 @@ class MockBankAccountInquiryTest {
             );
             Pageable pageable = PageRequest.of(0, 20);
 
-            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndAccountHolderNameAndCurrencyCode(
                     ACCOUNT_NUMBER, BANK_NAME, NAME, USD
             )).willReturn(Optional.empty());
 
@@ -322,7 +322,7 @@ class MockBankAccountInquiryTest {
             );
             Pageable pageable = PageRequest.of(0, 20);
 
-            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndAccountHolderNameAndCurrencyCode(
                     ACCOUNT_NUMBER, BANK_NAME, "Wrong Name", USD
             )).willReturn(Optional.empty());
 
@@ -344,7 +344,7 @@ class MockBankAccountInquiryTest {
             );
             Pageable pageable = PageRequest.of(0, 20);
 
-            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndNameAndCurrencyCode(
+            given(mockBankAccountRepository.findByAccountNumberAndBankNameAndAccountHolderNameAndCurrencyCode(
                     ACCOUNT_NUMBER, "Wrong Bank", NAME, USD
             )).willReturn(Optional.empty());
 
@@ -361,9 +361,8 @@ class MockBankAccountInquiryTest {
     // ── 헬퍼 ────────────────────────────────────────────────────
 
     private MockBankAccount createMockBankAccount(BigDecimal balance) {
-        User user = User.create("recipient@fxflow.app", "encoded", NAME);
-        MockBankAccount account = MockBankAccount.createSeedAccount(
-                user, USD, BANK_NAME, ACCOUNT_NUMBER, balance
+        MockBankAccount account = MockBankAccount.createRecipientAccount(
+                NAME, USD, BANK_NAME, ACCOUNT_NUMBER, balance
         );
         return account;
     }
