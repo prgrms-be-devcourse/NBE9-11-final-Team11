@@ -1,4 +1,4 @@
-package com.fxflow.domain.user;
+package com.fxflow.domain.user.service;
 
 import com.fxflow.domain.user.dto.request.LoginRequest;
 import com.fxflow.domain.user.dto.request.SignupRequest;
@@ -6,7 +6,6 @@ import com.fxflow.domain.user.dto.response.SignupResponse;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.errorcode.UserErrorCode;
 import com.fxflow.domain.user.repository.UserRepository;
-import com.fxflow.domain.user.service.UserService;
 import com.fxflow.global.exception.BusinessException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
