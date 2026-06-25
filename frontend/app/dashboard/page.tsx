@@ -8,10 +8,101 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { TransactionRow } from "@/components/app/transaction-row"
-import { useStore, type Transaction, type TxType, type TxStatus } from "@/lib/store"
-import { formatKRW } from "@/lib/fx-data"
-import { apiRequest, getLatestRate, type FxRateLatest } from "@/lib/api"
+import { useStore, type Transaction, type TxStatus } from "@/lib/store"
+import { formatKRW, type CurrencyCode } from "@/lib/fx-data"
+import { apiRequest, getLatestRate, getTransactionHistory, type FxRateLatest, type TransactionHistoryItem } from "@/lib/api"
 import { formatFetchedAt } from "@/lib/utils"
+
+function mapRemittanceStatus(status: string): TxStatus {
+  if (status === "PENDING" || status === "FUNDED" || status === "PROCESSING") return "processing"
+  if (status === "FAILED" || status === "REFUND_FAILED") return "failed"
+  if (status === "CANCELED") return "canceled"
+  if (status === "REFUNDED") return "refunded"
+  return "completed"
+}
+
+function mapTransactionHistoryItem(tx: TransactionHistoryItem): Transaction | null {
+  const isCredit = tx.direction === "CREDIT"
+  const signedAmount = (amount: number) => Number(amount || 0) * (isCredit ? 1 : -1)
+  const id = `${tx.transactionType}-${tx.journalId}-${tx.direction}-${tx.currency}`
+
+  if (tx.transactionType === "CHARGE") {
+    return {
+      id,
+      journalId: tx.journalId,
+      type: "deposit",
+      title: "KRW 입금",
+      amountKRW: signedAmount(tx.amount),
+      toCurrency: tx.currency as CurrencyCode,
+      status: "completed",
+      createdAt: tx.createdAt,
+      detail: "모의계좌 입금",
+    }
+  }
+
+  if (tx.transactionType === "WITHDRAW") {
+    return {
+      id,
+      journalId: tx.journalId,
+      type: "withdraw",
+      title: "KRW 출금",
+      amountKRW: signedAmount(tx.amount),
+      toCurrency: tx.currency as CurrencyCode,
+      status: "completed",
+      createdAt: tx.createdAt,
+      detail: "모의계좌 출금",
+    }
+  }
+
+  if (tx.transactionType === "EXCHANGE") {
+    return {
+      id,
+      journalId: tx.journalId,
+      type: "exchange",
+      title: `${tx.fromCurrency} → ${tx.toCurrency} 환전`,
+      amountKRW: isCredit ? Number(tx.toAmount || 0) : -Number(tx.fromAmount || 0),
+      fromCurrency: tx.fromCurrency as CurrencyCode,
+      toCurrency: tx.toCurrency as CurrencyCode,
+      rate: Number(tx.exchangeRate),
+      fee: Number(tx.feeAmount),
+      status: "completed",
+      createdAt: tx.createdAt,
+      fromAmount: Number(tx.fromAmount),
+      toAmount: Number(tx.toAmount),
+    }
+  }
+
+  if (tx.transactionType === "P2P_TRANSFER") {
+    return {
+      id,
+      journalId: tx.journalId,
+      type: "transfer",
+      title: `이체 (${isCredit ? "받음" : "보냄"})`,
+      amountKRW: signedAmount(tx.amount),
+      toCurrency: tx.currency as CurrencyCode,
+      status: "completed",
+      createdAt: tx.createdAt,
+      detail: tx.counterpartyEmail ? `${isCredit ? "보낸이" : "받는이"}: ${tx.counterpartyEmail}` : tx.memo,
+    }
+  }
+
+  if (tx.transactionType === "REMITTANCE") {
+    return {
+      id,
+      journalId: tx.journalId,
+      type: "remittance",
+      title: `해외송금 · ${tx.recipientName}`,
+      amountKRW: signedAmount(tx.amount),
+      toCurrency: tx.currency as CurrencyCode,
+      status: mapRemittanceStatus(tx.status),
+      createdAt: tx.createdAt,
+      detail: `${tx.recipientBankName} · ${tx.recipientName} · ${tx.receiveAmount} ${tx.receiveCurrency}`,
+    }
+  }
+
+  console.warn("Unsupported transaction type in dashboard recent transactions:", tx)
+  return null
+}
 
 export default function DashboardPage() {
   const { user } = useStore()
@@ -28,118 +119,45 @@ export default function DashboardPage() {
     async function loadDashboardData() {
       setLoading(true)
       try {
-        // 최신 USD/KRW 환율
-        try {
-          const rateData = await getLatestRate("USD", "KRW")
-          setRate(rateData)
-        } catch (err) {
-          console.error("Failed to load latest rate:", err)
+        const [rateResult, accountResult, walletResult, transactionsResult, limitResult] = await Promise.allSettled([
+          getLatestRate("USD", "KRW"),
+          apiRequest("GET", "/api/v1/users/me/mock-account"),
+          apiRequest<{ walletResponseList: { currency: string; balance: number }[] }>("GET", "/api/v1/wallets"),
+          getTransactionHistory({ page: 0, size: 5 }),
+          apiRequest<{ annualLimitUsd: number; usedUsd: number }>("GET", "/api/v1/transfers/limit"),
+        ])
+
+        if (rateResult.status === "fulfilled") {
+          setRate(rateResult.value)
+        } else {
+          console.error("Failed to load latest rate:", rateResult.reason)
         }
 
-        // 0. 모의계좌 연결 여부 확인 — 미연결(404)이어도 나머지 대시보드는 정상 진행
-        try {
-          await apiRequest("GET", "/api/v1/users/me/mock-account")
-          setAccountLinked(true)
-        } catch (err) {
-          setAccountLinked(false)
+        setAccountLinked(accountResult.status === "fulfilled")
+
+        if (walletResult.status === "fulfilled") {
+          const krw = walletResult.value.walletResponseList?.find((w) => w.currency === "KRW")?.balance || 0
+          setKrwBalance(krw)
+        } else {
+          console.error("Failed to load wallet data:", walletResult.reason)
         }
 
-        // 1. Fetch Wallets for KRW Balance
-        const walletData = await apiRequest<{ walletResponseList: { currency: string; balance: number }[] }>(
-          "GET",
-          "/api/v1/wallets"
-        )
-        const krw = walletData.walletResponseList?.find((w) => w.currency === "KRW")?.balance || 0
-        setKrwBalance(krw)
+        if (transactionsResult.status === "fulfilled") {
+          const mapped = (transactionsResult.value.data || [])
+            .filter(Boolean)
+            .map(mapTransactionHistoryItem)
+            .filter((tx): tx is Transaction => tx !== null)
+          setTransactions(mapped)
+        } else {
+          console.error("Failed to load recent transactions:", transactionsResult.reason)
+          setTransactions([])
+        }
 
-        // 2. Fetch Recent Transactions
-        const txData = await apiRequest<{ transactionResponseList: any[] }>(
-          "GET",
-          "/api/v1/wallets/transactions?size=5"
-        )
-        const rawList = (txData.transactionResponseList || []).filter(Boolean)
-        const exchangeCounts: Record<string, number> = {}
-
-        const mapped: Transaction[] = rawList.map((tx) => {
-          let direction = tx.direction
-          let currency = tx.currency
-
-          // Fallback for exchanges if backend has not been restarted
-          if (tx.type === "EXCHANGE" && (!direction || !currency)) {
-            const count = exchangeCounts[tx.journalId] || 0
-            exchangeCounts[tx.journalId] = count + 1
-            
-            if (count % 2 === 0) {
-              direction = "DEBIT"
-              currency = tx.fromCurrency || "KRW"
-            } else {
-              direction = "CREDIT"
-              currency = tx.toCurrency || "USD"
-            }
-          }
-
-          const isCredit = direction === "CREDIT"
-          const amountSign = isCredit ? 1 : -1
-          
-          let txType: TxType = "transfer"
-          let title = ""
-          let amountKRW = Number(tx.amount || 0) * amountSign
-          let fromCurrency: CurrencyCode | undefined = undefined
-          let toCurrency: CurrencyCode | undefined = currency as CurrencyCode
-          let rate: number | undefined = undefined
-          let fee: number | undefined = undefined
-          let detailStr = tx.memo || undefined
-
-          if (tx.type === "CHARGE") {
-            txType = "deposit"
-            title = "KRW 입금"
-            detailStr = "모의계좌 입금"
-          } else if (tx.type === "WITHDRAW") {
-            txType = "withdraw"
-            title = "KRW 출금"
-            detailStr = "모의계좌 출금"
-          } else if (tx.type === "EXCHANGE") {
-            txType = "exchange"
-            title = `${tx.fromCurrency} → ${tx.toCurrency} 환전`
-            
-            amountKRW = direction === "CREDIT" ? Number(tx.toAmount) : -Number(tx.fromAmount)
-            fromCurrency = tx.fromCurrency as CurrencyCode
-            toCurrency = tx.toCurrency as CurrencyCode
-            rate = Number(tx.exchangeRate)
-            fee = Number(tx.feeAmount)
-          } else if (tx.type === "TRANSFER") {
-            txType = "transfer"
-            title = `이체 (${isCredit ? "받음" : "보냄"})`
-            detailStr = tx.counterpartyEmail ? `${isCredit ? "보낸이" : "받는이"}: ${tx.counterpartyEmail}` : tx.memo
-          }
-
-          return {
-            id: `w-${tx.journalId || Math.random()}-${currency || "KRW"}`,
-            journalId: tx.journalId,
-            type: txType,
-            title,
-            amountKRW,
-            fromCurrency,
-            toCurrency,
-            rate,
-            fee,
-            status: "completed" as TxStatus,
-            createdAt: tx.createdAt,
-            detail: detailStr,
-            fromAmount: tx.type === "EXCHANGE" ? Number(tx.fromAmount) : undefined,
-            toAmount: tx.type === "EXCHANGE" ? Number(tx.toAmount) : undefined
-          }
-        })
-        setTransactions(mapped)
-
-        // 3. Fetch Remittance Limit
-        const limitData = await apiRequest<{ annualLimitUsd: number; usedUsd: number }>(
-          "GET",
-          "/api/v1/transfers/limit"
-        )
-        if (limitData) {
-          setLimit(limitData.annualLimitUsd || 100000)
-          setAnnualUsedUSD(limitData.usedUsd || 0)
+        if (limitResult.status === "fulfilled") {
+          setLimit(limitResult.value.annualLimitUsd || 100000)
+          setAnnualUsedUSD(limitResult.value.usedUsd || 0)
+        } else {
+          console.error("Failed to load remittance limit:", limitResult.reason)
         }
       } catch (err) {
         console.error("Failed to load dashboard data:", err)

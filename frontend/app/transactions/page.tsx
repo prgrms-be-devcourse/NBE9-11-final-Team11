@@ -170,7 +170,7 @@ export default function TransactionsPage() {
           // Remittance Tab
           const res = await apiRequest<any>("GET", "/api/v1/transfers?size=1000")
           const dataList = res && res.data ? res.data : (Array.isArray(res) ? res : [])
-          let mapped = dataList.map((tx: any) => {
+          let mapped: Transaction[] = dataList.map((tx: any) => {
             let status: TxStatus = "completed"
             if (tx.status === "PENDING" || tx.status === "FUNDED" || tx.status === "PROCESSING") {
               status = "processing"
