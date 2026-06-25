@@ -5,7 +5,7 @@ const features = [
   { icon: LineChart, title: "실시간 환율 조회", desc: "USD, JPY, EUR, CNY 환율을 3분마다 갱신합니다." },
   { icon: Wallet, title: "다중 통화 지갑", desc: "여러 통화를 한 곳에서 보관하고 관리하세요." },
   { icon: CalendarClock, title: "환전 예약", desc: "목표 환율에 도달하면 자동으로 환전합니다." },
-  { icon: Send, title: "해외송금 시뮬레이션", desc: "수취인 등록부터 송금까지 단계별로 체험하세요." },
+  { icon: Send, title: "해외송금 시뮬레이션", desc: "수취인 등록부터 해외송금까지 단계별로 체험하세요." },
   { icon: ListChecks, title: "거래 추적", desc: "모든 거래 상태를 실시간으로 확인합니다." },
 ]
 

@@ -101,7 +101,7 @@ export default function LinkAccountPage() {
           <div>
             <h2 className="text-lg font-bold">모의계좌 연결</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              입출금·환전·송금을 이용하려면 KRW 모의계좌 연결이 필요합니다.
+              입출금·환전·해외송금을 이용하려면 KRW 모의계좌 연결이 필요합니다.
             </p>
           </div>
 

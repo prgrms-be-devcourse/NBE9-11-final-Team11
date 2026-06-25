@@ -13,20 +13,20 @@ import type { TxStatus } from "@/lib/store"
 interface AdminTx {
   id: string
   user: string
-  type: "환전" | "송금" | "입금" | "출금"
+  type: "환전" | "해외송금" | "입금" | "출금"
   amountKRW: number
   status: TxStatus
   createdAt: string
 }
 
 const SEED: AdminTx[] = [
-  { id: "atx-1042", user: "김민준", type: "송금", amountKRW: 1390275, status: "processing", createdAt: "2026-06-09T22:14:00Z" },
+  { id: "atx-1042", user: "김민준", type: "해외송금", amountKRW: 1390275, status: "processing", createdAt: "2026-06-09T22:14:00Z" },
   { id: "atx-1041", user: "이서연", type: "환전", amountKRW: 693750, status: "completed", createdAt: "2026-06-09T21:02:00Z" },
   { id: "atx-1040", user: "박도윤", type: "입금", amountKRW: 3000000, status: "completed", createdAt: "2026-06-09T18:47:00Z" },
-  { id: "atx-1039", user: "최지우", type: "송금", amountKRW: 2450000, status: "failed", createdAt: "2026-06-09T16:33:00Z" },
+  { id: "atx-1039", user: "최지우", type: "해외송금", amountKRW: 2450000, status: "failed", createdAt: "2026-06-09T16:33:00Z" },
   { id: "atx-1038", user: "정하준", type: "환전", amountKRW: 456400, status: "completed", createdAt: "2026-06-09T15:10:00Z" },
   { id: "atx-1037", user: "강수아", type: "출금", amountKRW: 800000, status: "refunded", createdAt: "2026-06-09T12:21:00Z" },
-  { id: "atx-1036", user: "윤지호", type: "송금", amountKRW: 5120000, status: "completed", createdAt: "2026-06-09T09:58:00Z" },
+  { id: "atx-1036", user: "윤지호", type: "해외송금", amountKRW: 5120000, status: "completed", createdAt: "2026-06-09T09:58:00Z" },
   { id: "atx-1035", user: "임채원", type: "환전", amountKRW: 1200000, status: "completed", createdAt: "2026-06-08T23:40:00Z" },
 ]
 
