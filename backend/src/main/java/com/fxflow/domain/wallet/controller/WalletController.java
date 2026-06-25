@@ -6,6 +6,7 @@ import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
 import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
 import com.fxflow.domain.wallet.dto.response.TransactionResponse;
 import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
+import com.fxflow.domain.wallet.dto.response.WalletProfitResponse;
 import com.fxflow.domain.wallet.service.WalletService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -63,5 +64,13 @@ public class WalletController {
     ){
         TransactionResponse res = walletService.withdraw(userId, request);
         return ResponseEntity.ok(res);
+    }
+
+    @GetMapping("/{currency}/profit")
+    public ResponseEntity<WalletProfitResponse> getUsdWalletProfit(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable String currency
+    ) {
+        return ResponseEntity.ok(walletService.getWalletProfit(userId, currency));
     }
 }
