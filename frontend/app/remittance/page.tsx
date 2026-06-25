@@ -52,6 +52,10 @@ function createIdempotencyKey() {
   return Math.random().toString(36).substring(2) + Date.now().toString(36)
 }
 
+function floorToTwoDecimals(value: number) {
+  return Math.floor(value * 100) / 100
+}
+
 interface Recipient {
   id: string
   name: string
@@ -234,7 +238,7 @@ export default function RemittancePage() {
 
   function toggleAmountMode() {
     if (amountMode === "send") {
-      setReceiveInput(received > 0 ? received.toFixed(2) : "")
+      setReceiveInput(received > 0 ? floorToTwoDecimals(received).toFixed(2) : "")
       setAmountMode("receive")
       return
     }
