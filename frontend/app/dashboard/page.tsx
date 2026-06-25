@@ -21,7 +21,7 @@ function mapRemittanceStatus(status: string): TxStatus {
   return "completed"
 }
 
-function mapTransactionHistoryItem(tx: TransactionHistoryItem): Transaction {
+function mapTransactionHistoryItem(tx: TransactionHistoryItem): Transaction | null {
   const isCredit = tx.direction === "CREDIT"
   const signedAmount = (amount: number) => Number(amount || 0) * (isCredit ? 1 : -1)
   const id = `${tx.transactionType}-${tx.journalId}-${tx.direction}-${tx.currency}`
@@ -100,8 +100,8 @@ function mapTransactionHistoryItem(tx: TransactionHistoryItem): Transaction {
     }
   }
 
-  const exhaustiveCheck: never = tx
-  throw new Error(`Unsupported transaction type: ${exhaustiveCheck}`)
+  console.warn("Unsupported transaction type in dashboard recent transactions:", tx)
+  return null
 }
 
 export default function DashboardPage() {
@@ -119,42 +119,45 @@ export default function DashboardPage() {
     async function loadDashboardData() {
       setLoading(true)
       try {
-        // 최신 USD/KRW 환율
-        try {
-          const rateData = await getLatestRate("USD", "KRW")
-          setRate(rateData)
-        } catch (err) {
-          console.error("Failed to load latest rate:", err)
+        const [rateResult, accountResult, walletResult, transactionsResult, limitResult] = await Promise.allSettled([
+          getLatestRate("USD", "KRW"),
+          apiRequest("GET", "/api/v1/users/me/mock-account"),
+          apiRequest<{ walletResponseList: { currency: string; balance: number }[] }>("GET", "/api/v1/wallets"),
+          getTransactionHistory({ page: 0, size: 5 }),
+          apiRequest<{ annualLimitUsd: number; usedUsd: number }>("GET", "/api/v1/transfers/limit"),
+        ])
+
+        if (rateResult.status === "fulfilled") {
+          setRate(rateResult.value)
+        } else {
+          console.error("Failed to load latest rate:", rateResult.reason)
         }
 
-        // 0. 모의계좌 연결 여부 확인 — 미연결(404)이어도 나머지 대시보드는 정상 진행
-        try {
-          await apiRequest("GET", "/api/v1/users/me/mock-account")
-          setAccountLinked(true)
-        } catch (err) {
-          setAccountLinked(false)
+        setAccountLinked(accountResult.status === "fulfilled")
+
+        if (walletResult.status === "fulfilled") {
+          const krw = walletResult.value.walletResponseList?.find((w) => w.currency === "KRW")?.balance || 0
+          setKrwBalance(krw)
+        } else {
+          console.error("Failed to load wallet data:", walletResult.reason)
         }
 
-        // 1. Fetch Wallets for KRW Balance
-        const walletData = await apiRequest<{ walletResponseList: { currency: string; balance: number }[] }>(
-          "GET",
-          "/api/v1/wallets"
-        )
-        const krw = walletData.walletResponseList?.find((w) => w.currency === "KRW")?.balance || 0
-        setKrwBalance(krw)
+        if (transactionsResult.status === "fulfilled") {
+          const mapped = (transactionsResult.value.data || [])
+            .filter(Boolean)
+            .map(mapTransactionHistoryItem)
+            .filter((tx): tx is Transaction => tx !== null)
+          setTransactions(mapped)
+        } else {
+          console.error("Failed to load recent transactions:", transactionsResult.reason)
+          setTransactions([])
+        }
 
-        // 2. Fetch Recent Transactions from the unified transaction history API
-        const txData = await getTransactionHistory({ page: 0, size: 5 })
-        setTransactions((txData.data || []).filter(Boolean).map(mapTransactionHistoryItem))
-
-        // 3. Fetch Remittance Limit
-        const limitData = await apiRequest<{ annualLimitUsd: number; usedUsd: number }>(
-          "GET",
-          "/api/v1/transfers/limit"
-        )
-        if (limitData) {
-          setLimit(limitData.annualLimitUsd || 100000)
-          setAnnualUsedUSD(limitData.usedUsd || 0)
+        if (limitResult.status === "fulfilled") {
+          setLimit(limitResult.value.annualLimitUsd || 100000)
+          setAnnualUsedUSD(limitResult.value.usedUsd || 0)
+        } else {
+          console.error("Failed to load remittance limit:", limitResult.reason)
         }
       } catch (err) {
         console.error("Failed to load dashboard data:", err)
