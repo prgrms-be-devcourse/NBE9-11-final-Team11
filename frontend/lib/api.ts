@@ -91,6 +91,72 @@ export const getRebalanceHistory = () =>
 export const getLatestRate = (base = "USD", quote = "KRW") =>
   apiRequest<FxRateLatest>("GET", `/api/v1/fxrates/latest?base=${base}&quote=${quote}`)
 
+// ── Reservation (지정가 예약) API ───────────────────────────────
+
+export type ReservationAction = "EXCHANGE" | "REMITTANCE"
+export type ReservationStatusCode =
+  | "ACTIVE"
+  | "TRIGGERED"
+  | "COMPLETED"
+  | "CANCELED"
+  | "FAILED"
+  | "EXPIRED"
+
+// 백엔드 ReservationResponse (null 필드는 응답에서 생략됨)
+export interface ReservationResponse {
+  reservationId: number
+  action: ReservationAction
+  status: ReservationStatusCode
+  fromCurrency: string
+  toCurrency: string
+  amount: number
+  targetRate: number
+  expiresAt: string // ISO LocalDateTime (예: "2026-07-09T23:59:59")
+  recipientId?: number
+  remittanceReason?: string
+  remittanceReasonDetail?: string
+  triggeredAt?: string
+  executedAt?: string
+  resultExchangeTransactionId?: number
+  resultRemittanceTransactionId?: number
+  failureReason?: string
+  createdAt: string
+}
+
+export interface ReservationPageResponse {
+  data: ReservationResponse[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export interface CreateReservationRequest {
+  action: ReservationAction
+  fromCurrency: string
+  toCurrency: string
+  amount: number
+  targetRate: number
+  expiresAt: string // LocalDateTime — 타임존 없는 ISO (예: "2026-07-09T23:59:59")
+  recipientId?: number | null
+  remittanceReason?: string | null
+  remittanceReasonDetail?: string | null
+}
+
+// 예약 목록 (최신순 페이지)
+export const getReservations = (page = 0, size = 20) =>
+  apiRequest<ReservationPageResponse>("GET", `/api/v1/reservations?page=${page}&size=${size}`)
+
+// 예약 생성 — 멱등 키는 헤더로 전달 (요청마다 새 UUID)
+export const createReservation = (body: CreateReservationRequest, idempotencyKey: string) =>
+  apiRequest<ReservationResponse>("POST", "/api/v1/reservations", body, {
+    "Idempotency-Key": idempotencyKey,
+  })
+
+// 예약 취소 — 체결 전(ACTIVE)만 가능
+export const cancelReservation = (reservationId: number) =>
+  apiRequest<ReservationResponse>("PATCH", `/api/v1/reservations/${reservationId}/cancel`)
+
 // ── 핵심: fetch 단일 실행 ───────────────────────────────────────
 
 async function fetchOnce(
