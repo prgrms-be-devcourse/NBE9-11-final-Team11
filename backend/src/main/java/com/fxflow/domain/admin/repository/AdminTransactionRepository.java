@@ -11,7 +11,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 
 @Repository
@@ -21,7 +20,8 @@ public class AdminTransactionRepository {
     private final JdbcTemplate jdbcTemplate;
 
     private static final LocalDateTime MIN_DATE = LocalDateTime.of(2000, 1, 1, 0, 0);
-    private static final LocalDateTime MAX_DATE = LocalDateTime.of(2099, 12, 31, 23, 59, 59);
+    // to 필터는 exclusive 상한(< toExclusive)으로 처리하므로, sentinel은 다음 세기 첫날 자정
+    private static final LocalDateTime MAX_DATE = LocalDateTime.of(2100, 1, 1, 0, 0);
 
     private static final String UNION_SQL = """
             SELECT 'LEDGER'      AS source_type,
@@ -33,7 +33,7 @@ public class AdminTransactionRepository {
                    l.journal_id,
                    NULL          AS trigger_type
             FROM ledger_entries l
-            WHERE l.created_at >= ? AND l.created_at <= ?
+            WHERE l.created_at >= ? AND l.created_at < ?
 
             UNION ALL
 
@@ -46,12 +46,13 @@ public class AdminTransactionRepository {
                    NULL          AS journal_id,
                    r.trigger_type
             FROM rebalancing_orders r
-            WHERE r.created_at >= ? AND r.created_at <= ?
+            WHERE r.created_at >= ? AND r.created_at < ?
             """;
 
     public List<AdminTransactionItem> findAll(AdminTransactionFilter filter, int page, int size) {
-        Timestamp from = toTimestamp(filter.from() != null ? filter.from().atStartOfDay() : MIN_DATE);
-        Timestamp to   = toTimestamp(filter.to()   != null ? filter.to().atTime(LocalTime.MAX) : MAX_DATE);
+        LocalDateTime from = filter.from() != null ? filter.from().atStartOfDay() : MIN_DATE;
+        // filter.to() 당일 포함을 위해 exclusive 상한으로 변환 (다음 날 자정 미만)
+        LocalDateTime to   = filter.to()   != null ? filter.to().plusDays(1).atStartOfDay() : MAX_DATE;
 
         String sql = UNION_SQL + " ORDER BY created_at DESC LIMIT ? OFFSET ?";
 
@@ -60,8 +61,8 @@ public class AdminTransactionRepository {
     }
 
     public long count(AdminTransactionFilter filter) {
-        Timestamp from = toTimestamp(filter.from() != null ? filter.from().atStartOfDay() : MIN_DATE);
-        Timestamp to   = toTimestamp(filter.to()   != null ? filter.to().atTime(LocalTime.MAX) : MAX_DATE);
+        LocalDateTime from = filter.from() != null ? filter.from().atStartOfDay() : MIN_DATE;
+        LocalDateTime to   = filter.to()   != null ? filter.to().plusDays(1).atStartOfDay() : MAX_DATE;
 
         String sql = "SELECT COUNT(*) FROM (" + UNION_SQL + ") AS t";
 
@@ -82,9 +83,5 @@ public class AdminTransactionRepository {
                 rs.getString("journal_id"),
                 rs.getString("trigger_type")
         );
-    }
-
-    private static Timestamp toTimestamp(LocalDateTime ldt) {
-        return Timestamp.valueOf(ldt);
     }
 }
