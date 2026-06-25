@@ -25,6 +25,7 @@ import {
   CURRENCY_META,
   RATES,
   REMITTANCE_REASONS,
+  floorToTwoDecimals,
   formatKRW,
   formatCurrency,
   krwPerUnit,
@@ -50,10 +51,6 @@ function createIdempotencyKey() {
   }
 
   return Math.random().toString(36).substring(2) + Date.now().toString(36)
-}
-
-function floorToTwoDecimals(value: number) {
-  return Math.floor(value * 100) / 100
 }
 
 interface Recipient {
