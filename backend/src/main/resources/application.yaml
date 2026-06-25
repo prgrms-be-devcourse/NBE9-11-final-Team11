@@ -29,8 +29,8 @@ twelvedata:
 exchange:
   fee:
     rates:
-      KRW-USD: 0.001
-      USD-KRW: 0.001
+      KRW-USD: 0.000
+      USD-KRW: 0.000
   quote-expiration-minutes: 5
 
 jwt:

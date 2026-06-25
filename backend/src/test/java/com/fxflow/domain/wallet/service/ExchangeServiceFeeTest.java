@@ -78,8 +78,8 @@ class ExchangeServiceFeeTest {
                 new BigDecimal("368.53")
         );
 
-        given(walletService.getWallet(userId, "KRW")).willReturn(fromWallet);
-        given(walletService.getWallet(userId, "USD")).willReturn(toWallet);
+        given(walletService.getWalletWithLock(userId, "KRW")).willReturn(fromWallet);
+        given(walletService.getWalletWithLock(userId, "USD")).willReturn(toWallet);
         given(userService.getUser(userId)).willReturn(user);
         given(valueOperations.get("quote:" + quoteId)).willReturn(cache);
         given(exchangeTransactionRepository.save(any(ExchangeTransaction.class)))

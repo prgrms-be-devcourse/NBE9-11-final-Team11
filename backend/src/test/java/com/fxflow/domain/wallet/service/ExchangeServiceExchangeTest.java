@@ -90,8 +90,8 @@ class ExchangeServiceExchangeTest {
         // given
         ExchangeRequest request = new ExchangeRequest(quoteId);
         given(valueOperations.get("quote:" + quoteId)).willReturn(cache);
-        given(walletService.getWallet(userId, "KRW")).willReturn(fromWallet);
-        given(walletService.getWallet(userId, "USD")).willReturn(toWallet);
+        given(walletService.getWalletWithLock(userId, "KRW")).willReturn(fromWallet);
+        given(walletService.getWalletWithLock(userId, "USD")).willReturn(toWallet);
         given(userService.getUser(userId)).willReturn(user);
         given(exchangeTransactionRepository.save(any(ExchangeTransaction.class)))
                 .willAnswer(invocation -> {
@@ -156,8 +156,8 @@ class ExchangeServiceExchangeTest {
         ReflectionTestUtils.setField(poorWallet, "id", 10L);
 
         given(valueOperations.get("quote:" + quoteId)).willReturn(cache);
-        given(walletService.getWallet(userId, "KRW")).willReturn(poorWallet);
-        given(walletService.getWallet(userId, "USD")).willReturn(toWallet);
+        given(walletService.getWalletWithLock(userId, "KRW")).willReturn(poorWallet);
+        given(walletService.getWalletWithLock(userId, "USD")).willReturn(toWallet);
 
         // when & then
         assertThatThrownBy(() -> exchangeService.exchange(userId, request))
@@ -175,8 +175,8 @@ class ExchangeServiceExchangeTest {
         // given
         ExchangeRequest request = new ExchangeRequest(quoteId);
         given(valueOperations.get("quote:" + quoteId)).willReturn(cache);
-        given(walletService.getWallet(userId, "KRW")).willReturn(fromWallet);
-        given(walletService.getWallet(userId, "USD")).willReturn(toWallet);
+        given(walletService.getWalletWithLock(userId, "KRW")).willReturn(fromWallet);
+        given(walletService.getWalletWithLock(userId, "USD")).willReturn(toWallet);
         given(userService.getUser(userId)).willReturn(user);
 
         willThrow(new BusinessException(TransactionLimitErrorCode.DAILY_EXCHANGE_LIMIT_EXCEEDED))
@@ -200,8 +200,8 @@ class ExchangeServiceExchangeTest {
         // given
         ExchangeRequest request = new ExchangeRequest(quoteId);
         given(valueOperations.get("quote:" + quoteId)).willReturn(cache);
-        given(walletService.getWallet(userId, "KRW")).willReturn(fromWallet);
-        given(walletService.getWallet(userId, "USD")).willReturn(toWallet);
+        given(walletService.getWalletWithLock(userId, "KRW")).willReturn(fromWallet);
+        given(walletService.getWalletWithLock(userId, "USD")).willReturn(toWallet);
         given(userService.getUser(userId)).willReturn(user);
         given(exchangeTransactionRepository.save(any(ExchangeTransaction.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));

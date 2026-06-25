@@ -14,7 +14,7 @@ import java.math.BigDecimal;
         name = "user_exchange_annual_usages",
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_user_exchange_year",
-                columnNames = {"user_id", "year"}
+                columnNames = {"user_id", "usage_year"}
         )
 )
 @Getter
@@ -25,7 +25,7 @@ public class UserExchangeAnnualUsage extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "year", nullable = false)
+    @Column(name = "usage_year", nullable = false)
     private Integer year;
 
     /**

@@ -50,8 +50,8 @@ class P2pTransferServiceTest {
     private P2pTransferRequest request;
 
     private void givenWalletsSetUp() {
-        given(walletService.getWallet(1L, "USD")).willReturn(senderWallet);
-        given(walletService.getWallet(2L, "USD")).willReturn(recipientWallet);
+        given(walletService.getWalletWithLock(1L, "USD")).willReturn(senderWallet);
+        given(walletService.getWalletWithLock(2L, "USD")).willReturn(recipientWallet);
         given(recipientWallet.getBalance()).willReturn(new BigDecimal("500.00"));
     }
 
@@ -160,7 +160,7 @@ class P2pTransferServiceTest {
     @Test
     @DisplayName("잔액 부족 시 INSUFFICIENT_BALANCE 예외가 발생한다")
     void transfer_insufficientBalance_throwsException() {
-        given(walletService.getWallet(1L, "USD")).willReturn(senderWallet);
+        given(walletService.getWalletWithLock(1L, "USD")).willReturn(senderWallet);
         given(senderWallet.getBalance()).willReturn(new BigDecimal("100.00"));
 
         assertThatThrownBy(() -> p2pTransferService.transfer(1L, request))

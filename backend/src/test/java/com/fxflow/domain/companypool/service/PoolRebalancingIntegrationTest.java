@@ -1,8 +1,5 @@
 package com.fxflow.domain.companypool.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.BDDMockito.given;
-
 import com.fxflow.domain.companypool.entity.CompanyPool;
 import com.fxflow.domain.companypool.entity.RebalancingOrder;
 import com.fxflow.domain.companypool.enums.CappedBy;
@@ -11,10 +8,6 @@ import com.fxflow.domain.companypool.repository.RebalancingRepository;
 import com.fxflow.domain.fxrate.service.FxRateQueryService;
 import com.fxflow.global.fx.FxRateSnapshot;
 import com.fxflow.support.AbstractIntegrationTest;
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +16,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+
+// test container
 /**
  * 풀 리밸런싱 체인 통합 테스트
  *

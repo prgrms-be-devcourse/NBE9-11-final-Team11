@@ -46,14 +46,14 @@ public class P2pTransferService {
         }
 
         // 본인 월렛 잔액 검증
-        Wallet senderWallet = walletService.getWallet(userId, request.currency());
+        Wallet senderWallet = walletService.getWalletWithLock(userId, request.currency());
         BigDecimal amount = request.amount();
         if (senderWallet.getBalance().compareTo(amount) < 0) {
             throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
         }
 
         // 상대 월렛 한도 검증
-        Wallet recipientWallet = walletService.getWallet(recipient.getId(), request.currency());
+        Wallet recipientWallet = walletService.getWalletWithLock(recipient.getId(), request.currency());
         transactionLimitValidator.validateWalletHolding(recipient, recipientWallet.getBalance().add(amount));
 
         // 양쪽 wallet balance 업데이트

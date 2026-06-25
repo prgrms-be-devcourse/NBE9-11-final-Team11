@@ -27,9 +27,13 @@ import com.fxflow.domain.wallet.repository.P2pTransferRepository;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -43,6 +47,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class WalletService {
 
     private final WalletRepository walletRepository;
@@ -61,6 +66,11 @@ public class WalletService {
         return walletRepository.findByUserIdAndCurrencyCode(userId, currencyCode).orElseThrow(
                 () -> new BusinessException(WalletErrorCode.WALLET_NOT_FOUND)
         );
+    }
+
+    public Wallet getWalletWithLock(Long userId, String currencyCode) {
+        return walletRepository.findByUserIdAndCurrencyCodeWithLock(userId, currencyCode)
+                .orElseThrow(() -> new BusinessException(WalletErrorCode.WALLET_NOT_FOUND));
     }
 
     public WalletBalanceResponse getWalletBalance(Long userId) {
@@ -148,6 +158,11 @@ public class WalletService {
         return TransactionHistoryResponse.from(responsePage);
     }
 
+    // 지갑 충전, mock bank account -> 지갑
+    // 지갑 출금, 지갑 -> mock bank account
+    // 지갑 <-> 지갑 P2P 송금
+    // 지갑 내 환전
+
     @Transactional
     public TransactionResponse charge(Long userId, ChargeRequest request) {
         BigDecimal amount = request.amount();
@@ -156,7 +171,7 @@ public class WalletService {
         }
 
         // check wallet balance
-        Wallet wallet = getWallet(userId, "KRW");
+        Wallet wallet = getWalletWithLock(userId, "KRW");
         Long walletId = wallet.getId();
         BigDecimal balanceBefore = wallet.getBalance();
         BigDecimal balanceAfter = balanceBefore.add(amount);
@@ -213,6 +228,70 @@ public class WalletService {
         transactionLimitValidator.validateDailyWithdrawal(user, amount);
 
         // check wallet balance
+        Wallet wallet = getWalletWithLock(userId, "KRW");
+        Long walletId = wallet.getId();
+        BigDecimal balanceBefore = wallet.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
+        }
+
+        String journalId = LedgerEntry.generateJournalId();
+
+        // mock bank account credit
+        mockBankAccountService.deposit(userId, journalId, amount, "KRW");
+
+        // wallet credit
+        wallet.withdraw(amount);
+        walletRepository.save(wallet);
+
+        companyPoolService.withdraw(journalId, "KRW", amount);
+
+        LedgerEntry walletEntry =
+                LedgerEntry.create(
+                        journalId,
+                        LedgerEntryType.WITHDRAW,
+                        LedgerDirection.DEBIT,
+                        walletId,
+                        null,
+                        null,
+                        "KRW",
+                        amount,
+                        balanceBefore,
+                        balanceAfter,
+                        null,
+                        null
+                );
+        ledgerEntryRepository.save(walletEntry);
+
+        userDailyUsageService.addWithdrawal(userId, LocalDate.now(java.time.ZoneId.of("Asia/Seoul")), amount);
+        return TransactionResponse.from(walletEntry);
+    }
+
+
+    // ====== 동시성 비교 테스트용 메서드 (프로덕션 미사용) ======
+    // TODO: 테스트 완료 후 제거 예정
+
+    // withdraw 낙관락
+    @Retryable(
+            includes = ObjectOptimisticLockingFailureException.class,
+            maxRetries = 3,
+            delay = 100
+    )
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public TransactionResponse withdrawWithOptimisticLock(Long userId, WithdrawRequest request) {
+        // 기존 withdraw()와 완전히 동일 (@Version이 이미 있으니까)
+        BigDecimal amount = request.amount();
+        if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(WalletPolicy.MAX_KRW_BALANCE) > 0) {
+            throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
+        }
+
+        // daily withdrawal limit check
+        User user = userService.getUser(userId);
+        transactionLimitValidator.validatePerWithdrawal(user, amount);
+        transactionLimitValidator.validateDailyWithdrawal(user, amount);
+
+        // check wallet balance
         Wallet wallet = getWallet(userId, "KRW");
         Long walletId = wallet.getId();
         BigDecimal balanceBefore = wallet.getBalance();
@@ -231,7 +310,177 @@ public class WalletService {
         walletRepository.save(wallet);
 
         companyPoolService.withdraw(journalId, "KRW", amount);
-//        companyPoolService.apply(List.of(PoolChange.decrease(“KRW", amount)));
+
+        LedgerEntry walletEntry =
+                LedgerEntry.create(
+                        journalId,
+                        LedgerEntryType.WITHDRAW,
+                        LedgerDirection.DEBIT,
+                        walletId,
+                        null,
+                        null,
+                        "KRW",
+                        amount,
+                        balanceBefore,
+                        balanceAfter,
+                        null,
+                        null
+                );
+        ledgerEntryRepository.save(walletEntry);
+
+        userDailyUsageService.addWithdrawal(userId, LocalDate.now(java.time.ZoneId.of("Asia/Seoul")), amount);
+        return TransactionResponse.from(walletEntry);
+    }
+
+    // withdraw 비관락
+    @Transactional
+    public TransactionResponse withdrawWithPessimisticLock(Long userId, WithdrawRequest request) {
+        // getWallet → getWalletWithLock 으로만 교체, 나머지 동일
+        BigDecimal amount = request.amount();
+        if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(WalletPolicy.MAX_KRW_BALANCE) > 0) {
+            throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
+        }
+
+        // daily withdrawal limit check
+        User user = userService.getUser(userId);
+        transactionLimitValidator.validatePerWithdrawal(user, amount);
+        transactionLimitValidator.validateDailyWithdrawal(user, amount);
+
+        // check wallet balance
+        Wallet wallet = walletRepository.findByUserIdAndCurrencyCodeWithLock(userId, "KRW")
+                .orElseThrow(() -> new BusinessException(WalletErrorCode.WALLET_NOT_FOUND));
+
+        Long walletId = wallet.getId();
+        BigDecimal balanceBefore = wallet.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
+        }
+
+        String journalId = LedgerEntry.generateJournalId();
+
+        // mock bank account credit
+        mockBankAccountService.deposit(userId, journalId, amount, "KRW");
+
+        // wallet credit
+        wallet.withdraw(amount);
+        walletRepository.save(wallet);
+
+        companyPoolService.withdraw(journalId, "KRW", amount);
+
+        LedgerEntry walletEntry =
+                LedgerEntry.create(
+                        journalId,
+                        LedgerEntryType.WITHDRAW,
+                        LedgerDirection.DEBIT,
+                        walletId,
+                        null,
+                        null,
+                        "KRW",
+                        amount,
+                        balanceBefore,
+                        balanceAfter,
+                        null,
+                        null
+                );
+        ledgerEntryRepository.save(walletEntry);
+
+        userDailyUsageService.addWithdrawal(userId, LocalDate.now(java.time.ZoneId.of("Asia/Seoul")), amount);
+        return TransactionResponse.from(walletEntry);
+    }
+
+    // withdraw 비관락 delay O (test용)
+    @Transactional
+    public TransactionResponse withdrawWithPessimisticLockWithDelay(Long userId, WithdrawRequest request) {
+        // getWallet → getWalletWithLock 으로만 교체, 나머지 동일
+        BigDecimal amount = request.amount();
+        if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(WalletPolicy.MAX_KRW_BALANCE) > 0) {
+            throw new BusinessException(WalletErrorCode.INVALID_AMOUNT);
+        }
+
+        // daily withdrawal limit check
+        User user = userService.getUser(userId);
+        transactionLimitValidator.validatePerWithdrawal(user, amount);
+        transactionLimitValidator.validateDailyWithdrawal(user, amount);
+
+        // check wallet balance
+        log.info("before wallet lock");
+        Wallet wallet = walletRepository.findByUserIdAndCurrencyCodeWithLock(userId, "KRW")
+                .orElseThrow(() -> new BusinessException(WalletErrorCode.WALLET_NOT_FOUND));
+        log.info("after wallet lock");
+
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        Long walletId = wallet.getId();
+        BigDecimal balanceBefore = wallet.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
+        }
+
+        String journalId = LedgerEntry.generateJournalId();
+
+        // mock bank account credit
+        mockBankAccountService.deposit(userId, journalId, amount, "KRW");
+
+        // wallet credit
+        wallet.withdraw(amount);
+        walletRepository.save(wallet);
+
+        companyPoolService.withdraw(journalId, "KRW", amount);
+
+        LedgerEntry walletEntry =
+                LedgerEntry.create(
+                        journalId,
+                        LedgerEntryType.WITHDRAW,
+                        LedgerDirection.DEBIT,
+                        walletId,
+                        null,
+                        null,
+                        "KRW",
+                        amount,
+                        balanceBefore,
+                        balanceAfter,
+                        null,
+                        null
+                );
+        ledgerEntryRepository.save(walletEntry);
+
+        userDailyUsageService.addWithdrawal(userId, LocalDate.now(java.time.ZoneId.of("Asia/Seoul")), amount);
+        return TransactionResponse.from(walletEntry);
+    }
+
+    // withdraw 원자적
+    @Transactional
+    public TransactionResponse withdrawWithAtomicQuery(Long userId, WithdrawRequest request) {
+        BigDecimal amount = request.amount();
+
+        User user = userService.getUser(userId);
+        transactionLimitValidator.validatePerWithdrawal(user, amount);
+        transactionLimitValidator.validateDailyWithdrawal(user, amount);
+
+        int updated = walletRepository.withdrawAtomic(userId, amount);
+        if (updated == 0) throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
+
+        Wallet wallet = getWallet(userId, "KRW"); // 차감 후 잔액
+        Long walletId = wallet.getId();
+        BigDecimal balanceAfter = wallet.getBalance();           // 이미 차감된 값
+        BigDecimal balanceBefore = balanceAfter.add(amount);    // 역산
+        if (balanceAfter.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
+        }
+
+        String journalId = LedgerEntry.generateJournalId();
+
+        // mock bank account credit
+        mockBankAccountService.deposit(userId, journalId, amount, "KRW");
+
+
+        companyPoolService.withdraw(journalId, "KRW", amount);
 
         LedgerEntry walletEntry =
                 LedgerEntry.create(
