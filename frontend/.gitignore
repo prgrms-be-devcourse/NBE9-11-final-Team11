@@ -21,3 +21,6 @@ yarn-error.log
 # Build output
 dist/
 build/
+
+# Next.js auto-generated (changes on each dev/build run)
+next-env.d.ts
