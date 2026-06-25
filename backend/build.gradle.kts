@@ -2,6 +2,8 @@ plugins {
 	java
 	id("org.springframework.boot") version "4.1.0"
 	id("io.spring.dependency-management") version "1.1.7"
+
+    jacoco
 }
 
 group = "com.fxflow"
@@ -56,6 +58,34 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-testcontainers") // @ServiceConnection
 }
 
-tasks.withType<Test> {
+jacoco {
+	toolVersion = "0.8.13"
+}
+
+tasks.test {
 	useJUnitPlatform()
+}
+
+tasks.jacocoTestReport {
+	dependsOn(tasks.test)
+	val isCI = System.getenv("CI") == "true"
+	reports {
+		xml.required = isCI
+		html.required = isCI
+	}
+	classDirectories.setFrom(
+		files(classDirectories.files.map {
+			fileTree(it) {
+				exclude(
+					"**/*Application*",
+					"**/dto/**",
+					"**/enums/**",
+					"**/config/**",
+					"**/errorcode/**",
+					"**/exception/**",
+					"**/event/**",
+				)
+			}
+		})
+	)
 }
