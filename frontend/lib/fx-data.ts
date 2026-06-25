@@ -68,14 +68,16 @@ export function krwPerUnit(code: CurrencyCode): number {
 }
 
 export function formatKRW(amount: number): string {
-  return "₩" + Math.round(amount).toLocaleString("ko-KR")
+  return "₩" + Math.floor(amount).toLocaleString("ko-KR")
 }
 
 export function formatCurrency(amount: number, code: CurrencyCode): string {
   const meta = CURRENCY_META[code]
-  if (code === "KRW") return "₩" + Math.round(amount).toLocaleString("ko-KR")
-  if (code === "JPY") return meta.symbol + Math.round(amount).toLocaleString("ko-KR")
-  return meta.symbol + amount.toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (code === "KRW") return "₩" + Math.floor(amount).toLocaleString("ko-KR")
+  if (code === "JPY") return meta.symbol + Math.floor(amount).toLocaleString("ko-KR")
+
+  const floored = Math.floor(amount * 100) / 100
+  return meta.symbol + floored.toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 // 30-day rate history generator (deterministic so it stays stable)
