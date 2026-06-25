@@ -159,7 +159,7 @@ public class ExchangeService {
 
         // lot 정산
         String transferId = ExchangeTransaction.generateTransferId();
-        currencyLotService.settleLots(fromWallet, toWallet, cache.fromAmount(), cache.toAmount(), cache.finalRate(), transferId);
+        currencyLotService.settleLots(fromWallet, toWallet, cache.fromAmount(), cache.finalRate(), transferId);
 
         // Exchange transaction 저장
         String journalId = LedgerEntry.generateJournalId();

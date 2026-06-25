@@ -92,7 +92,7 @@ class CurrencyLotServiceTest {
         CurrencyLot lotB = CurrencyLot.create(usdWallet, "USD", new BigDecimal("100"), new BigDecimal("1500"), "tx2");
         given(currencyLotRepository.findAvailableLotsFIFO(1L)).willReturn(List.of(lotA, lotB));
 
-        BigDecimal realizedProfit = currencyLotService.consumeLots(usdWallet, new BigDecimal("200"), new BigDecimal("1600")).realizedProfit();
+        BigDecimal realizedProfit = currencyLotService.consumeLots(usdWallet, new BigDecimal("200"), new BigDecimal("1600"));
 
         // lotA: (1600 - 1300) * 100 = 30000
         // lotB: (1600 - 1500) * 100 = 10000
@@ -115,7 +115,7 @@ class CurrencyLotServiceTest {
     @Test
     @DisplayName("KRW→USD settleLots: from lot 미소비, to lot 생성")
     void settleLots_krwToUsd() {
-        currencyLotService.settleLots(krwWallet, usdWallet, new BigDecimal("500000"), new BigDecimal("100"), new BigDecimal("1363.5"), "tx1");
+        currencyLotService.settleLots(krwWallet, usdWallet, new BigDecimal("100"), new BigDecimal("1363.5"), "tx1");
 
         verify(currencyLotRepository).save(any(CurrencyLot.class));
         verify(currencyLotRepository, never()).findAvailableLotsFIFO(any());

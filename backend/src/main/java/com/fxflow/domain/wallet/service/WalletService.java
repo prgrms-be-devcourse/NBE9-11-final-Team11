@@ -279,9 +279,6 @@ public class WalletService {
 
         // 실현손익
         BigDecimal realizedProfit = currencyLotRepository.sumRealizedProfitByWalletId(wallet.getId());
-        if (realizedProfit == null) {
-            realizedProfit = BigDecimal.ZERO;
-        }
 
         // 미실현손익 — 환율은 currencyCode 기준으로 조회
         FxRateSnapshot snapshot = exchangeRateProvider.getLatestRate(currencyCode, "KRW")

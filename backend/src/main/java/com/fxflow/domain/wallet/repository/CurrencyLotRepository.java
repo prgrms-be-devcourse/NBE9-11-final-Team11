@@ -14,6 +14,6 @@ public interface CurrencyLotRepository extends JpaRepository<CurrencyLot, Long> 
     @Query("SELECT l FROM CurrencyLot l WHERE l.wallet.id = :walletId AND l.exhausted = false ORDER BY l.createdAt ASC")
     List<CurrencyLot> findAvailableLotsFIFO(@Param("walletId") Long walletId);
 
-    @Query("SELECT SUM(l.realizedProfit) FROM CurrencyLot l WHERE l.wallet.id = :walletId")
+    @Query("SELECT COALESCE(SUM(l.realizedProfit), 0) FROM CurrencyLot l WHERE l.wallet.id = :walletId")
     BigDecimal sumRealizedProfitByWalletId(@Param("walletId") Long walletId);
 }
