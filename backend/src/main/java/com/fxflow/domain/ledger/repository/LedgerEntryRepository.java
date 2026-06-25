@@ -40,12 +40,7 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
                 OR (
                     l.refType = :remittanceRefType
                     AND l.ledgerDirection = :debitDirection
-                    AND l.mockBankAccountId IS NOT NULL
-                    AND l.refId IN (
-                        SELECT r.journalId
-                        FROM RemittanceTransaction r
-                        WHERE r.userId = :userId
-                    )
+                    AND l.mockBankAccountId = :mockBankAccountId
                 )
             )
             AND (cast(:currency as string) IS NULL OR l.currencyCode = :currency)
@@ -54,8 +49,8 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
             AND (cast(:to as localdatetime) IS NULL OR l.createdAt <= :to)
             """)
     Page<LedgerEntry> findUnifiedTransactionHistory(
-            @Param("userId") Long userId,
             @Param("walletIds") List<Long> walletIds,
+            @Param("mockBankAccountId") Long mockBankAccountId,
             @Param("remittanceRefType") LedgerRefType remittanceRefType,
             @Param("debitDirection") LedgerDirection debitDirection,
             @Param("currency") String currency,

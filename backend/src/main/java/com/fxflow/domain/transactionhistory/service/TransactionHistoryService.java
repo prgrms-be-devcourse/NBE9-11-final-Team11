@@ -5,6 +5,8 @@ import com.fxflow.domain.ledger.enums.LedgerDirection;
 import com.fxflow.domain.ledger.enums.LedgerEntryType;
 import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
+import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
+import com.fxflow.domain.mockbankaccount.repository.MockBankAccountRepository;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.transactionhistory.dto.response.TransactionHistoryItemResponse;
@@ -33,7 +35,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TransactionHistoryService {
 
+    private static final String KRW = "KRW";
+    private static final long MISSING_MOCK_ACCOUNT_ID = -1L;
+
     private final WalletRepository walletRepository;
+    private final MockBankAccountRepository mockBankAccountRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final ExchangeTransactionRepository exchangeTransactionRepository;
     private final P2pTransferRepository p2pTransferRepository;
@@ -58,14 +64,19 @@ public class TransactionHistoryService {
                 .map(Wallet::getId)
                 .toList();
 
+        Long mockBankAccountId = mockBankAccountRepository
+                .findFirstByUser_IdAndCurrencyCodeAndDeletedAtIsNull(userId, KRW)
+                .map(MockBankAccount::getId)
+                .orElse(MISSING_MOCK_ACCOUNT_ID);
+
         LocalDateTime fromDateTime = from != null ? from.atStartOfDay() : null;
         LocalDateTime toDateTime = to != null ? to.atTime(23, 59, 59) : null;
 
         // 해외송금은 원화풀/외화풀/수취인 입금까지 여러 LedgerEntry가 생기므로,
         // 사용자 목록에는 송금자 모의계좌에서 빠져나간 DEBIT 한 줄만 포함한다.
         Page<LedgerEntry> entries = ledgerEntryRepository.findUnifiedTransactionHistory(
-                userId,
                 toInClauseIds(walletIds),
+                mockBankAccountId,
                 LedgerRefType.REMITTANCE,
                 LedgerDirection.DEBIT,
                 currency,
