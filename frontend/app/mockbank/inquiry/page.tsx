@@ -185,7 +185,7 @@ export default function UsdInquiryPage() {
                           <span className="text-base font-bold tabular-nums text-accent">{formatUSD(r.receiveAmount)}</span>
                         </div>
                         <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                          <span>송금액 {formatKRW(r.sendAmount)} · {formatRate(r.exchangeRate)}</span>
+                          <span>해외송금액 {formatKRW(r.sendAmount)} · {formatRate(r.exchangeRate)}</span>
                           <span>{formatDateTime(r.createdAt)}</span>
                         </div>
                       </div>
@@ -197,8 +197,8 @@ export default function UsdInquiryPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>송금인</TableHead>
-                          <TableHead className="text-right">송금액 (KRW)</TableHead>
+                          <TableHead>해외송금인</TableHead>
+                          <TableHead className="text-right">해외송금액 (KRW)</TableHead>
                           <TableHead className="text-right">수취액 (USD)</TableHead>
                           <TableHead className="text-right">적용 환율</TableHead>
                           <TableHead className="text-right">수취 일시</TableHead>

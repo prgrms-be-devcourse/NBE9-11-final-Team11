@@ -541,7 +541,7 @@ export default function TransactionsPage() {
 
               {detail.type === "remittance" && (
                 <Button render={<Link href={`/remittance/${detail.id.replace("r-", "")}`} />} variant="outline" className="w-full">
-                  <ExternalLink className="size-4" /> 송금 추적 보기
+                  <ExternalLink className="size-4" /> 해외송금 추적 보기
                 </Button>
               )}
             </div>
