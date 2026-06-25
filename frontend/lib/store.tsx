@@ -75,7 +75,7 @@ interface StoreState {
 }
 
 interface StoreContextValue extends StoreState {
-  login: (email: string, name?: string) => void
+  login: (email: string, name?: string, verified?: boolean) => void
   logout: () => void
   setVerified: () => void
   deposit: (amount: number, bank: string, account: string) => void
@@ -253,8 +253,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (ready) localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   }, [state, ready])
 
-  const login = useCallback((email: string, name?: string) => {
-    setState((s) => ({ ...s, user: { email, name: name ?? s.user?.name ?? "사용자", verified: s.user?.verified ?? false } }))
+  const login = useCallback((email: string, name?: string, verified?: boolean) => {
+    setState((s) => ({ ...s, user: { email, name: name ?? s.user?.name ?? "사용자", verified: verified ?? s.user?.verified ?? false } }))
   }, [])
 
   // 로그아웃 시 user뿐 아니라 잔액·거래내역·예약·수취인·알림 등 전체 상태를
