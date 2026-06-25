@@ -45,12 +45,12 @@ public class CurrencyLotService {
     }
 
     // exchange settle lots
-    public void settleLots(Wallet fromWallet, Wallet toWallet, BigDecimal amount, BigDecimal rate, String sourceTransactionId) {
+    public void settleLots(Wallet fromWallet, Wallet toWallet, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal rate, String sourceTransactionId) {
         if (fromWallet.getCurrencyCode().equals("USD")) {
-            consumeLots(fromWallet, amount, rate);
+            consumeLots(fromWallet, fromAmount, rate);
         }
         if (toWallet.getCurrencyCode().equals("USD")) {
-            CurrencyLot newLot = CurrencyLot.create(toWallet, toWallet.getCurrencyCode(), amount, rate, sourceTransactionId);
+            CurrencyLot newLot = CurrencyLot.create(toWallet, toWallet.getCurrencyCode(), toAmount, rate, sourceTransactionId);
             currencyLotRepository.save(newLot);
         }
     }
