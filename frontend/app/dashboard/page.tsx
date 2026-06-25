@@ -2,15 +2,16 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Wallet, ArrowLeftRight, Send, Plus, TrendingUp, TrendingDown, Landmark } from "lucide-react"
+import { Wallet, ArrowLeftRight, Send, Plus, Landmark } from "lucide-react"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { TransactionRow } from "@/components/app/transaction-row"
 import { useStore, type Transaction, type TxType, type TxStatus } from "@/lib/store"
-import { RATES, formatKRW } from "@/lib/fx-data"
-import { apiRequest } from "@/lib/api"
+import { formatKRW } from "@/lib/fx-data"
+import { apiRequest, getLatestRate, type FxRateLatest } from "@/lib/api"
+import { formatFetchedAt } from "@/lib/utils"
 
 export default function DashboardPage() {
   const { user } = useStore()
@@ -21,11 +22,20 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   // null = 확인 중, true = 연결됨, false = 미연결
   const [accountLinked, setAccountLinked] = useState<boolean | null>(null)
+  const [rate, setRate] = useState<FxRateLatest | null>(null)
 
   useEffect(() => {
     async function loadDashboardData() {
       setLoading(true)
       try {
+        // 최신 USD/KRW 환율
+        try {
+          const rateData = await getLatestRate("USD", "KRW")
+          setRate(rateData)
+        } catch (err) {
+          console.error("Failed to load latest rate:", err)
+        }
+
         // 0. 모의계좌 연결 여부 확인 — 미연결(404)이어도 나머지 대시보드는 정상 진행
         try {
           await apiRequest("GET", "/api/v1/users/me/mock-account")
@@ -141,7 +151,6 @@ export default function DashboardPage() {
   }, [])
 
   const pct = Math.min(100, (annualUsedUSD / limit) * 100)
-  const usd = RATES.USD
 
   return (
     <AppShell title="대시보드">
@@ -218,16 +227,10 @@ export default function DashboardPage() {
           {/* Today rate */}
           <Card className="gap-2 p-6">
             <span className="text-sm font-medium text-muted-foreground">오늘의 환율 · USD/KRW</span>
-            <p className="mt-2 text-3xl font-bold tabular-nums">{formatKRW(usd.rate)}</p>
-            <span
-              className={`flex items-center gap-1 text-sm font-medium ${
-                usd.change >= 0 ? "text-accent" : "text-destructive"
-              }`}
-            >
-              {usd.change >= 0 ? <TrendingUp className="size-4" /> : <TrendingDown className="size-4" />}
-              {usd.change >= 0 ? "+" : ""}
-              {usd.change}% 오늘
-            </span>
+            <p className="mt-2 text-3xl font-bold tabular-nums">
+              {rate ? formatKRW(rate.midRate) : loading ? "로딩 중..." : "-"}
+            </p>
+            {rate && <p className="text-sm text-muted-foreground">{formatFetchedAt(rate.fetchedAt)} 기준</p>}
           </Card>
 
           {/* Annual limit */}

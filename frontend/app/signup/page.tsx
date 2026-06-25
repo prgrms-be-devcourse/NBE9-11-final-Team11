@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { AlertCircle, Check, Loader2, CircleCheck } from "lucide-react"
+import { AlertCircle, Check, Loader2, CircleCheck, Eye, EyeOff } from "lucide-react"
 import { AuthShell } from "@/components/auth/auth-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,6 +34,8 @@ export default function SignupPage() {
   const [confirm, setConfirm] = useState("")
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [error, setError] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [bankName, setBankName] = useState("국민은행")
   const [accountNumber, setAccountNumber] = useState("123456789012")
 
@@ -343,7 +345,23 @@ export default function SignupPage() {
             />
           </Field>
           <Field id="password" label="비밀번호" error={errors.password}>
-            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pr-8"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
+                aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 표시"}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
              <ul className="mt-1 flex flex-col gap-1 text-xs text-muted-foreground">
               <li className={`flex items-center gap-1.5 ${password.length >= 8 ? "text-accent" : ""}`}>
                 <Check className="size-3" /> 8자 이상
@@ -363,7 +381,23 @@ export default function SignupPage() {
             </ul>
           </Field>
           <Field id="confirm" label="비밀번호 확인" error={errors.confirm}>
-            <Input id="confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            <div className="relative">
+              <Input
+                id="confirm"
+                type={showConfirm ? "text" : "password"}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                className="pr-8"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm((v) => !v)}
+                className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
+                aria-label={showConfirm ? "비밀번호 숨기기" : "비밀번호 표시"}
+              >
+                {showConfirm ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
           </Field>
           <Button type="submit" className="mt-2 w-full">
             다음 · KYC 인증

@@ -5,13 +5,15 @@ import com.fxflow.domain.user.entity.User;
 public record LoginResponse(
         Long userId,
         String name,
-        String email
+        String email,
+        boolean verified
 ) {
     public static LoginResponse of(User user){
         return new LoginResponse(
                 user.getId(),
                 user.getName(),
-                user.getEmail()
+                user.getEmail(),
+                "COMPLETED".equals(user.getKycStatus())
         );
     }
 }
