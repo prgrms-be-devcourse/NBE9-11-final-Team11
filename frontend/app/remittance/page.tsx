@@ -153,7 +153,7 @@ export default function RemittancePage() {
       return data
     } catch (err: any) {
       console.error(err)
-      toast.error(err.message || "송금 견적을 불러오지 못했습니다.")
+      toast.error(err.message || "해외송금 견적을 불러오지 못했습니다.")
       return null
     } finally {
       setLoadingQuote(false)
@@ -245,12 +245,12 @@ export default function RemittancePage() {
   async function next() {
     if (step === 0 && !recipient) return toast.error("수취인을 선택하거나 추가하세요.")
     if (step === 1) {
-      if (krwAmount <= 0) return toast.error("송금 금액을 입력하세요.")
+      if (krwAmount <= 0) return toast.error("해외송금 금액을 입력하세요.")
       if (krwAmount < MIN_SEND_AMOUNT_KRW) {
-        return toast.error(`최소 송금 금액은 ${formatKRW(MIN_SEND_AMOUNT_KRW)}입니다.`)
+        return toast.error(`최소 해외송금 금액은 ${formatKRW(MIN_SEND_AMOUNT_KRW)}입니다.`)
       }
       if (estimatedAmountUsd > PER_TRANSFER_LIMIT_USD) {
-        return toast.error(`건당 최대 송금 한도는 ${formatCurrency(PER_TRANSFER_LIMIT_USD, "USD")}입니다.`)
+        return toast.error(`건당 최대 해외송금 한도는 ${formatCurrency(PER_TRANSFER_LIMIT_USD, "USD")}입니다.`)
       }
       const nextQuote = quote ?? await fetchQuote()
       if (!nextQuote) return
@@ -276,11 +276,11 @@ export default function RemittancePage() {
         },
         { "Idempotency-Key": idempotencyKey }
       )
-      toast.success("송금이 신청되었습니다.")
+      toast.success("해외송금이 신청되었습니다.")
       router.push(`/remittance/${response.transferId}`)
     } catch (err: any) {
       console.error(err)
-      toast.error(err.message || "송금 신청에 실패했습니다.")
+      toast.error(err.message || "해외송금 신청에 실패했습니다.")
     } finally {
       setSubmitting(false)
     }
@@ -428,7 +428,7 @@ export default function RemittancePage() {
         {/* Step 2: amount */}
         {step === 1 && (
           <Card className="p-5">
-            <h2 className="text-base font-bold">송금 금액</h2>
+            <h2 className="text-base font-bold">해외송금 금액</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {recipient?.name} · {recipient?.country} · {currency}
             </p>
@@ -479,7 +479,7 @@ export default function RemittancePage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="reason">송금 목적</Label>
+                <Label htmlFor="reason">해외송금 목적</Label>
                 <Select value={reason} onValueChange={(v) => setReason(v ?? REMITTANCE_REASONS[0])}>
                   <SelectTrigger id="reason">
                     <SelectValue />
@@ -511,15 +511,15 @@ export default function RemittancePage() {
         {/* Step 3: confirm */}
         {step === 2 && recipient && (
           <Card className="p-5">
-            <h2 className="text-base font-bold">송금 확인</h2>
+            <h2 className="text-base font-bold">해외송금 확인</h2>
             <dl className="mt-4 space-y-2.5 text-sm">
               <Row label="수취인" value={recipient.name} />
               <Row label="국가 / 통화" value={`${recipient.country} · ${currency}`} />
               <Row label="은행 / 계좌" value={`${recipient.bank} · ${recipient.account}`} />
-              <Row label="송금 목적" value={reason} />
+              <Row label="해외송금 목적" value={reason} />
               {reasonDetail.trim() && <Row label="상세 사유" value={reasonDetail.trim()} />}
               <Separator />
-              <Row label="송금 금액" value={formatKRW(krwAmount)} />
+              <Row label="해외송금 금액" value={formatKRW(krwAmount)} />
               <Row label="적용 환율" value={`${formatRate(quote?.exchangeRate ?? rate.rate)} / ${currency}`} />
               <Row label="수수료" value={formatKRW(fee)} />
               <Separator />
@@ -527,7 +527,7 @@ export default function RemittancePage() {
               <Row label="수취 금액" value={formatCurrency(received, currency)} bold accent />
             </dl>
             <p className="mt-4 rounded-xl bg-secondary px-3 py-2 text-xs text-muted-foreground">
-              실제 송금이 아닌 시뮬레이션입니다. 신청 후 약 1~2일 내 처리되는 과정을 추적할 수 있습니다.
+              실제 해외송금이 아닌 시뮬레이션입니다. 신청 후 약 1~2일 내 처리되는 과정을 추적할 수 있습니다.
             </p>
           </Card>
         )}
@@ -545,7 +545,7 @@ export default function RemittancePage() {
             </Button>
           ) : (
             <Button className="flex-1" size="lg" onClick={submit} disabled={submitting}>
-              {submitting ? "신청 중..." : "송금 신청하기"}
+              {submitting ? "신청 중..." : "해외송금 신청하기"}
             </Button>
           )}
         </div>
@@ -555,7 +555,7 @@ export default function RemittancePage() {
           <DialogHeader>
             <DialogTitle>수취인 삭제</DialogTitle>
             <DialogDescription>
-              {deleteTarget?.name} 수취인을 삭제합니다. 삭제 후에도 기존 송금 내역에서는 해당 수취인 정보가 유지됩니다.
+              {deleteTarget?.name} 수취인을 삭제합니다. 삭제 후에도 기존 해외송금 내역에서는 해당 수취인 정보가 유지됩니다.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

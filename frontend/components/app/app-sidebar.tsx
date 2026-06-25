@@ -23,7 +23,7 @@ const nav = [
   { href: "/wallet", label: "지갑", icon: Wallet },
   { href: "/rates", label: "환율", icon: LineChart },
   { href: "/exchange", label: "환전", icon: ArrowLeftRight },
-  { href: "/remittance", label: "송금", icon: Send },
+  { href: "/remittance", label: "해외송금", icon: Send },
   { href: "/reservations", label: "예약", icon: CalendarClock },
   { href: "/transactions", label: "거래내역", icon: Receipt },
   { href: "/notifications", label: "알림", icon: Bell },

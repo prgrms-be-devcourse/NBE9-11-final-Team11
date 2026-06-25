@@ -91,7 +91,7 @@ export default function AdminPolicyPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">송금 수수료율 (%)</Label>
+              <Label className="text-xs text-muted-foreground">해외송금 수수료율 (%)</Label>
               <Input
                 inputMode="decimal"
                 value={fees.remittance}
@@ -99,7 +99,7 @@ export default function AdminPolicyPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">송금 고정 수수료 (KRW)</Label>
+              <Label className="text-xs text-muted-foreground">해외송금 고정 수수료 (KRW)</Label>
               <Input
                 inputMode="numeric"
                 value={fees.remittanceFlat}
