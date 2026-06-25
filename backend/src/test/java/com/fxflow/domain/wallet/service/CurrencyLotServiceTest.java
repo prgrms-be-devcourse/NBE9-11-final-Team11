@@ -92,7 +92,7 @@ class CurrencyLotServiceTest {
         CurrencyLot lotB = CurrencyLot.create(usdWallet, "USD", new BigDecimal("100"), new BigDecimal("1500"), "tx2");
         given(currencyLotRepository.findAvailableLotsFIFO(1L)).willReturn(List.of(lotA, lotB));
 
-        BigDecimal realizedProfit = currencyLotService.consumeLots(usdWallet, new BigDecimal("200"), new BigDecimal("1600"));
+        BigDecimal realizedProfit = currencyLotService.consumeLots(usdWallet, new BigDecimal("200"), new BigDecimal("1600")).realizedProfit();
 
         // lotA: (1600 - 1300) * 100 = 30000
         // lotB: (1600 - 1500) * 100 = 10000
