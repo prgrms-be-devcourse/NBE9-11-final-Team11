@@ -71,12 +71,16 @@ export function formatKRW(amount: number): string {
   return "₩" + Math.floor(amount).toLocaleString("ko-KR")
 }
 
+export function floorToTwoDecimals(value: number): number {
+  return Math.floor(value * 100) / 100
+}
+
 export function formatCurrency(amount: number, code: CurrencyCode): string {
   const meta = CURRENCY_META[code]
-  if (code === "KRW") return "₩" + Math.floor(amount).toLocaleString("ko-KR")
+  if (code === "KRW") return formatKRW(amount)
   if (code === "JPY") return meta.symbol + Math.floor(amount).toLocaleString("ko-KR")
 
-  const floored = Math.floor(amount * 100) / 100
+  const floored = floorToTwoDecimals(amount)
   return meta.symbol + floored.toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
