@@ -1,6 +1,11 @@
 package com.fxflow.domain.remittancetransaction.service;
 
 import com.fxflow.domain.companypool.service.CompanyPoolService;
+import com.fxflow.domain.ledger.entity.LedgerEntry;
+import com.fxflow.domain.ledger.enums.LedgerDirection;
+import com.fxflow.domain.ledger.enums.LedgerEntryType;
+import com.fxflow.domain.ledger.enums.LedgerRefType;
+import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
 import com.fxflow.domain.remittancetransaction.dto.cache.RemittanceQuoteCache;
 import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionCreateRequest;
@@ -79,6 +84,9 @@ class RemittanceTransactionServiceTest {
 
     @Mock
     private VirtualAccountRepository virtualAccountRepository;
+
+    @Mock
+    private LedgerEntryRepository ledgerEntryRepository;
 
     @Mock
     private RemittanceQuoteProvider remittanceQuoteProvider;
@@ -900,6 +908,68 @@ class RemittanceTransactionServiceTest {
         assertThat(response.virtualAccount().accountNumber()).isEqualTo("123-456789-123456");
         assertThat(response.virtualAccount().amount()).isEqualByComparingTo(new BigDecimal("1008000"));
         assertThat(response.createdAt()).isEqualTo(remittanceTransaction.getCreatedAt());
+    }
+
+    @Test
+    @DisplayName("성공: 특정 송금의 LedgerEntry 목록을 조회한다")
+    void getTransferLedgerEntries_success() {
+        // given
+        Long userId = 1L;
+        Long transferId = 10L;
+        RemittanceTransaction remittanceTransaction = createPendingTransaction(userId, transferId);
+        LedgerEntry debitEntry = LedgerEntry.create(
+                remittanceTransaction.getJournalId(),
+                LedgerEntryType.TRANSFER,
+                LedgerDirection.DEBIT,
+                null,
+                100L,
+                null,
+                "KRW",
+                new BigDecimal("1000000.00"),
+                new BigDecimal("10000000.00"),
+                new BigDecimal("9000000.00"),
+                LedgerRefType.REMITTANCE,
+                remittanceTransaction.getJournalId()
+        );
+        LedgerEntry creditEntry = LedgerEntry.create(
+                remittanceTransaction.getJournalId(),
+                LedgerEntryType.TRANSFER,
+                LedgerDirection.CREDIT,
+                null,
+                null,
+                200L,
+                "KRW",
+                new BigDecimal("1000000.00"),
+                new BigDecimal("0.00"),
+                new BigDecimal("1000000.00"),
+                LedgerRefType.REMITTANCE,
+                remittanceTransaction.getJournalId()
+        );
+
+        when(remittanceTransactionRepository.findByIdAndUserId(transferId, userId))
+                .thenReturn(Optional.of(remittanceTransaction));
+        when(ledgerEntryRepository.findRemittanceEntriesByJournalId(
+                LedgerRefType.REMITTANCE,
+                remittanceTransaction.getJournalId()
+        )).thenReturn(List.of(debitEntry, creditEntry));
+
+        // when
+        RemittanceLedgerEntryListResponse response =
+                remittanceTransactionService.getTransferLedgerEntries(userId, transferId);
+
+        // then
+        assertThat(response.data()).hasSize(2);
+        assertThat(response.data().getFirst())
+                .isInstanceOfSatisfying(RemittanceLedgerEntryResponse.Transfer.class, entry -> {
+                    assertThat(entry.journalId()).isEqualTo(remittanceTransaction.getJournalId());
+                    assertThat(entry.type()).isEqualTo(LedgerEntryType.TRANSFER);
+                    assertThat(entry.refType()).isEqualTo(LedgerRefType.REMITTANCE);
+                    assertThat(entry.direction()).isEqualTo(LedgerDirection.DEBIT);
+                    assertThat(entry.ledgerTarget()).isEqualTo("MOCK_BANK_ACCOUNT");
+                });
+        assertThat(response.data().get(1))
+                .isInstanceOfSatisfying(RemittanceLedgerEntryResponse.Transfer.class, entry ->
+                        assertThat(entry.ledgerTarget()).isEqualTo("COMPANY_POOL"));
     }
 
     @Test

@@ -59,6 +59,20 @@ public class RemittanceTransactionController {
     }
 
     /**
+     * 로그인한 사용자의 특정 해외송금에 연결된 LedgerEntry 목록을 조회한다.
+     */
+    @GetMapping("/transfers/{transferId}/ledger-entries")
+    public ResponseEntity<RemittanceLedgerEntryListResponse> getTransferLedgerEntries(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long transferId
+    ) {
+        RemittanceLedgerEntryListResponse response =
+                remittanceTransactionService.getTransferLedgerEntries(userId, transferId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 송금 사유를 포함해 해외송금 주문을 생성하고 가상계좌를 발급한다.
      */
     @PostMapping("/transfers")
