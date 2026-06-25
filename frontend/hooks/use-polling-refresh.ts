@@ -33,7 +33,16 @@ export function usePollingRefresh(
   useEffect(() => {
     if (!enabled) return
 
-    // 호출 시각을 기록하며 콜백 실행 (모든 호출 경로 공용)
+    let timeoutId: NodeJS.Timeout
+
+    const scheduleNext = () => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        run()
+        scheduleNext()
+      }, intervalMs)
+    }
+
     const run = () => {
       lastCalledAtRef.current = Date.now()
       callbackRef.current()
@@ -41,20 +50,21 @@ export function usePollingRefresh(
 
     // 마운트 즉시 1회 + 기본 폴링(60초)
     run()
-    const intervalId = setInterval(run, intervalMs)
+    scheduleNext()
 
     // 화면 복귀 시 재조회 — 단 throttleMs 이내 재호출은 무시
     const onFocusBack = () => {
       if (document.visibilityState === "hidden") return // 창을 떠나는 visibilitychange 는 무시
       if (Date.now() - lastCalledAtRef.current < throttleMs) return // 연속 호출 방어(throttle)
       run()
+      scheduleNext() // 타이머 리셋
     }
 
     window.addEventListener("focus", onFocusBack)
     document.addEventListener("visibilitychange", onFocusBack)
 
     return () => {
-      clearInterval(intervalId)
+      clearTimeout(timeoutId)
       window.removeEventListener("focus", onFocusBack)
       document.removeEventListener("visibilitychange", onFocusBack)
     }

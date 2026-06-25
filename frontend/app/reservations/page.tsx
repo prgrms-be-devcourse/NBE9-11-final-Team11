@@ -53,6 +53,12 @@ function directionOf(r: ReservationResponse): Direction {
   return r.fromCurrency === "USD" ? "SELL" : "BUY"
 }
 
+// 로컬 타임존 오프셋을 반영한 ISO 스트링 생성 유틸 함수
+function getLocalIsoDate(date: Date) {
+  const offset = date.getTimezoneOffset() * 60000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
+}
+
 export default function ReservationsPage() {
   const [rate, setRate] = useState<FxRateLatest | null>(null)
   const [reservations, setReservations] = useState<ReservationResponse[]>([])
@@ -64,12 +70,12 @@ export default function ReservationsPage() {
   const [expiresAt, setExpiresAt] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 14)
-    return d.toISOString().slice(0, 10)
+    return getLocalIsoDate(d)
   })
   const [submitting, setSubmitting] = useState(false)
   const [detail, setDetail] = useState<ReservationResponse | null>(null)
 
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const todayStr = useMemo(() => getLocalIsoDate(new Date()), [])
 
   const loadReservations = useCallback(async () => {
     try {
@@ -101,12 +107,12 @@ export default function ReservationsPage() {
   const amountNum = Number(amount) || 0
   const amountCurrency = direction === "BUY" ? "KRW" : "USD"
 
-  // 방향별 제약: 매수는 현재 환율보다 높게, 매도는 현재 환율보다 낮게 예약 불가
+  // 방향별 제약: 매수는 현재 환율보다 낮게, 매도는 현재 환율보다 높게 설정해야 함 (현재가와 동일한 예약 방지)
   const violatesDirection =
     currentRate > 0 &&
     targetNum > 0 &&
-    ((direction === "BUY" && targetNum > currentRate) ||
-      (direction === "SELL" && targetNum < currentRate))
+    ((direction === "BUY" && targetNum >= currentRate) ||
+      (direction === "SELL" && targetNum <= currentRate))
 
   function switchDirection(d: Direction) {
     if (d === direction) return
@@ -120,10 +126,10 @@ export default function ReservationsPage() {
       return toast.error("현재 환율을 불러오는 중입니다. 잠시 후 다시 시도하세요.")
     if (targetNum <= 0) return toast.error("목표 환율을 입력하세요.")
     if (amountNum <= 0) return toast.error("금액을 입력하세요.")
-    if (direction === "BUY" && targetNum > currentRate)
-      return toast.error("매수 예약은 현재 환율보다 높은 목표 환율로 설정할 수 없습니다.")
-    if (direction === "SELL" && targetNum < currentRate)
-      return toast.error("매도 예약은 현재 환율보다 낮은 목표 환율로 설정할 수 없습니다.")
+    if (direction === "BUY" && targetNum >= currentRate)
+      return toast.error("매수 예약은 현재 환율보다 낮은 목표 환율이어야 합니다.")
+    if (direction === "SELL" && targetNum <= currentRate)
+      return toast.error("매도 예약은 현재 환율보다 높은 목표 환율이어야 합니다.")
 
     const [fromCurrency, toCurrency] = direction === "BUY" ? ["KRW", "USD"] : ["USD", "KRW"]
 
@@ -239,8 +245,8 @@ export default function ReservationsPage() {
                 <div className="flex items-start gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">
                   <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                   {direction === "BUY"
-                    ? "매수 예약은 현재 환율보다 높은 목표 환율로 설정할 수 없습니다."
-                    : "매도 예약은 현재 환율보다 낮은 목표 환율로 설정할 수 없습니다."}
+                    ? "매수 예약은 현재 환율보다 낮은 목표 환율로 설정해야 합니다."
+                    : "매도 예약은 현재 환율보다 높은 목표 환율로 설정해야 합니다."}
                 </div>
               )}
             </div>
@@ -252,9 +258,7 @@ export default function ReservationsPage() {
                 id="res-amount"
                 inputMode={direction === "BUY" ? "numeric" : "decimal"}
                 placeholder="0"
-                value={
-                  direction === "BUY" ? (amount ? Number(amount).toLocaleString("ko-KR") : "") : amount
-                }
+                value={amount}
                 onChange={(e) =>
                   setAmount(
                     direction === "BUY"
@@ -263,6 +267,11 @@ export default function ReservationsPage() {
                   )
                 }
               />
+              {direction === "BUY" && amount && (
+                <p className="text-right text-xs text-muted-foreground tabular-nums">
+                  {Number(amount).toLocaleString("ko-KR")} 원
+                </p>
+              )}
             </div>
 
             {/* 만료일 */}
