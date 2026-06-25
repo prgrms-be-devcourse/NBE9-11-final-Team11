@@ -1,5 +1,6 @@
 package com.fxflow.domain.companypool.service;
 
+import com.fxflow.domain.companypool.PoolConstants;
 import com.fxflow.domain.companypool.dto.response.RebalancingExecuteRes;
 import com.fxflow.domain.companypool.entity.CompanyPool;
 import com.fxflow.domain.companypool.entity.RebalancingOrder;
@@ -30,7 +31,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class RebalancingService {
 
-    static final BigDecimal SPREAD = new BigDecimal("0.003");
+    private static final BigDecimal SPREAD = PoolConstants.SPREAD;
     private final AtomicBoolean executing = new AtomicBoolean(false);
 
     private final CompanyPoolRepository companyPoolRepository;
