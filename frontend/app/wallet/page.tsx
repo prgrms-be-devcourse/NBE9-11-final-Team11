@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { TransactionRow } from "@/components/app/transaction-row"
-import { useStore, type Transaction, type TxType } from "@/lib/store"
+import { useStore, type Transaction, type TxType, type TxStatus } from "@/lib/store"
 import { CURRENCY_META, formatKRW, formatCurrency, krwPerUnit, type CurrencyCode } from "@/lib/fx-data"
 import { KOREAN_BANKS } from "@/lib/fx-data"
 import { apiRequest } from "@/lib/api"

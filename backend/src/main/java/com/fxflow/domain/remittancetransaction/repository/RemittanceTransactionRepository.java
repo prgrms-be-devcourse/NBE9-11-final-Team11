@@ -37,6 +37,8 @@ public interface RemittanceTransactionRepository extends JpaRepository<Remittanc
      */
     Optional<RemittanceTransaction> findByIdempotencyKey(String idempotencyKey);
 
+    List<RemittanceTransaction> findAllByJournalIdIn(List<String> journalIds);
+
     /**
      * 상태 변경 대상 송금 거래를 잠금 조회한다.
      */

@@ -2,6 +2,8 @@ package com.fxflow.domain.remittancetransaction.service;
 
 import com.fxflow.domain.companypool.service.CompanyPoolService;
 import com.fxflow.domain.ledger.entity.LedgerEntry;
+import com.fxflow.domain.ledger.enums.LedgerRefType;
+import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.mockbankaccount.service.MockBankAccountService;
 import com.fxflow.domain.remittancetransaction.dto.cache.RemittanceQuoteCache;
 import com.fxflow.domain.remittancetransaction.dto.request.RemittanceTransactionCreateRequest;
@@ -69,6 +71,7 @@ public class RemittanceTransactionService {
     private final RecipientRepository recipientRepository;
     private final RemittanceTransactionRepository remittanceTransactionRepository;
     private final VirtualAccountRepository virtualAccountRepository;
+    private final LedgerEntryRepository ledgerEntryRepository;
     private final RemittanceQuoteProvider remittanceQuoteProvider;
     private final RemittanceValidator remittanceValidator;
     private final MockBankAccountService mockBankAccountService;
@@ -142,6 +145,27 @@ public class RemittanceTransactionService {
                 .orElse(null);
 
         return RemittanceTransactionDetailResponse.from(remittanceTransaction, recipient, virtualAccount);
+    }
+
+    /**
+     * 특정 해외송금에 연결된 LedgerEntry 목록을 조회한다.
+     * 송금 주문은 RemittanceTransaction이 원본이고, 실제 계좌/풀 이동 기록은 journalId로 묶인 LedgerEntry를 참조한다.
+     */
+    public RemittanceLedgerEntryListResponse getTransferLedgerEntries(Long userId, Long transferId) {
+        RemittanceTransaction remittanceTransaction = remittanceTransactionRepository.findByIdAndUserId(
+                        transferId,
+                        userId
+                )
+                .orElseThrow(() -> new BusinessException(
+                        RemittanceTransactionErrorCode.REMITTANCE_TRANSACTION_NOT_FOUND
+                ));
+
+        List<LedgerEntry> entries = ledgerEntryRepository.findRemittanceEntriesByJournalId(
+                LedgerRefType.REMITTANCE,
+                remittanceTransaction.getJournalId()
+        );
+
+        return RemittanceLedgerEntryListResponse.from(entries);
     }
 
     /**
