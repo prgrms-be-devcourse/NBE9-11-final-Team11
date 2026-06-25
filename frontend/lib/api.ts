@@ -76,6 +76,91 @@ export interface FxRateLatest {
   fetchedAt: string // ISO-8601 LocalDateTime (예: "2026-06-21T12:34:56")
 }
 
+// ── Unified Transaction History API ─────────────────────────────
+
+export type TransactionHistoryItemType = "CHARGE" | "WITHDRAW" | "EXCHANGE" | "P2P_TRANSFER" | "REMITTANCE"
+export type LedgerEntryType = "CHARGE" | "WITHDRAW" | "EXCHANGE" | "TRANSFER"
+export type LedgerDirection = "DEBIT" | "CREDIT"
+
+interface TransactionHistoryBaseItem {
+  transactionType: TransactionHistoryItemType
+  journalId: string
+  type: LedgerEntryType
+  direction: LedgerDirection
+  currency: string
+  createdAt: string
+}
+
+interface SimpleTransactionHistoryItem extends TransactionHistoryBaseItem {
+  refType: string
+  amount: number
+  balanceAfter: number
+}
+
+export interface ChargeTransactionHistoryItem extends SimpleTransactionHistoryItem {
+  transactionType: "CHARGE"
+}
+
+export interface WithdrawTransactionHistoryItem extends SimpleTransactionHistoryItem {
+  transactionType: "WITHDRAW"
+}
+
+export interface ExchangeTransactionHistoryItem extends TransactionHistoryBaseItem {
+  transactionType: "EXCHANGE"
+  fromCurrency: string
+  toCurrency: string
+  fromAmount: number
+  toAmount: number
+  exchangeRate: number
+  feeAmount: number
+}
+
+export interface P2pTransferTransactionHistoryItem extends TransactionHistoryBaseItem {
+  transactionType: "P2P_TRANSFER"
+  refType: string
+  amount: number
+  counterpartyEmail: string
+  memo?: string
+}
+
+export interface RemittanceTransactionHistoryItem extends TransactionHistoryBaseItem {
+  transactionType: "REMITTANCE"
+  refType: string
+  amount: number
+  balanceAfter: number
+  remittanceId: number
+  recipientName: string
+  recipientBankName: string
+  recipientAccountNumber: string
+  status: string
+  receiveAmount: number
+  receiveCurrency: string
+}
+
+export type TransactionHistoryItem =
+  | ChargeTransactionHistoryItem
+  | WithdrawTransactionHistoryItem
+  | ExchangeTransactionHistoryItem
+  | P2pTransferTransactionHistoryItem
+  | RemittanceTransactionHistoryItem
+
+export interface UnifiedTransactionHistoryResponse {
+  data: TransactionHistoryItem[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export interface TransactionHistoryParams {
+  page?: number
+  size?: number
+  currency?: string
+  type?: LedgerEntryType
+  from?: string
+  to?: string
+}
+
 // ── Admin Pool API Functions ────────────────────────────────────
 
 export const getPoolDashboard = () =>
@@ -90,6 +175,18 @@ export const getRebalanceHistory = () =>
 // 최신 매매기준율 조회 (기본 USD/KRW). 데이터가 없으면 404를 던진다.
 export const getLatestRate = (base = "USD", quote = "KRW") =>
   apiRequest<FxRateLatest>("GET", `/api/v1/fxrates/latest?base=${base}&quote=${quote}`)
+
+export const getTransactionHistory = (params: TransactionHistoryParams = {}) => {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      search.set(key, String(value))
+    }
+  })
+
+  const query = search.toString()
+  return apiRequest<UnifiedTransactionHistoryResponse>("GET", `/api/v1/transactions${query ? `?${query}` : ""}`)
+}
 
 // ── 핵심: fetch 단일 실행 ───────────────────────────────────────
 

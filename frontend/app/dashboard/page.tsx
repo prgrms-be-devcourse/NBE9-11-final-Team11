@@ -8,10 +8,101 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { TransactionRow } from "@/components/app/transaction-row"
-import { useStore, type Transaction, type TxType, type TxStatus } from "@/lib/store"
-import { formatKRW } from "@/lib/fx-data"
-import { apiRequest, getLatestRate, type FxRateLatest } from "@/lib/api"
+import { useStore, type Transaction, type TxStatus } from "@/lib/store"
+import { formatKRW, type CurrencyCode } from "@/lib/fx-data"
+import { apiRequest, getLatestRate, getTransactionHistory, type FxRateLatest, type TransactionHistoryItem } from "@/lib/api"
 import { formatFetchedAt } from "@/lib/utils"
+
+function mapRemittanceStatus(status: string): TxStatus {
+  if (status === "PENDING" || status === "FUNDED" || status === "PROCESSING") return "processing"
+  if (status === "FAILED" || status === "REFUND_FAILED") return "failed"
+  if (status === "CANCELED") return "canceled"
+  if (status === "REFUNDED") return "refunded"
+  return "completed"
+}
+
+function mapTransactionHistoryItem(tx: TransactionHistoryItem): Transaction {
+  const isCredit = tx.direction === "CREDIT"
+  const signedAmount = (amount: number) => Number(amount || 0) * (isCredit ? 1 : -1)
+  const id = `${tx.transactionType}-${tx.journalId}-${tx.direction}-${tx.currency}`
+
+  if (tx.transactionType === "CHARGE") {
+    return {
+      id,
+      journalId: tx.journalId,
+      type: "deposit",
+      title: "KRW 입금",
+      amountKRW: signedAmount(tx.amount),
+      toCurrency: tx.currency as CurrencyCode,
+      status: "completed",
+      createdAt: tx.createdAt,
+      detail: "모의계좌 입금",
+    }
+  }
+
+  if (tx.transactionType === "WITHDRAW") {
+    return {
+      id,
+      journalId: tx.journalId,
+      type: "withdraw",
+      title: "KRW 출금",
+      amountKRW: signedAmount(tx.amount),
+      toCurrency: tx.currency as CurrencyCode,
+      status: "completed",
+      createdAt: tx.createdAt,
+      detail: "모의계좌 출금",
+    }
+  }
+
+  if (tx.transactionType === "EXCHANGE") {
+    return {
+      id,
+      journalId: tx.journalId,
+      type: "exchange",
+      title: `${tx.fromCurrency} → ${tx.toCurrency} 환전`,
+      amountKRW: isCredit ? Number(tx.toAmount || 0) : -Number(tx.fromAmount || 0),
+      fromCurrency: tx.fromCurrency as CurrencyCode,
+      toCurrency: tx.toCurrency as CurrencyCode,
+      rate: Number(tx.exchangeRate),
+      fee: Number(tx.feeAmount),
+      status: "completed",
+      createdAt: tx.createdAt,
+      fromAmount: Number(tx.fromAmount),
+      toAmount: Number(tx.toAmount),
+    }
+  }
+
+  if (tx.transactionType === "P2P_TRANSFER") {
+    return {
+      id,
+      journalId: tx.journalId,
+      type: "transfer",
+      title: `이체 (${isCredit ? "받음" : "보냄"})`,
+      amountKRW: signedAmount(tx.amount),
+      toCurrency: tx.currency as CurrencyCode,
+      status: "completed",
+      createdAt: tx.createdAt,
+      detail: tx.counterpartyEmail ? `${isCredit ? "보낸이" : "받는이"}: ${tx.counterpartyEmail}` : tx.memo,
+    }
+  }
+
+  if (tx.transactionType === "REMITTANCE") {
+    return {
+      id,
+      journalId: tx.journalId,
+      type: "remittance",
+      title: `해외송금 · ${tx.recipientName}`,
+      amountKRW: signedAmount(tx.amount),
+      toCurrency: tx.currency as CurrencyCode,
+      status: mapRemittanceStatus(tx.status),
+      createdAt: tx.createdAt,
+      detail: `${tx.recipientBankName} · ${tx.recipientName} · ${tx.receiveAmount} ${tx.receiveCurrency}`,
+    }
+  }
+
+  const exhaustiveCheck: never = tx
+  throw new Error(`Unsupported transaction type: ${exhaustiveCheck}`)
+}
 
 export default function DashboardPage() {
   const { user } = useStore()
@@ -52,85 +143,9 @@ export default function DashboardPage() {
         const krw = walletData.walletResponseList?.find((w) => w.currency === "KRW")?.balance || 0
         setKrwBalance(krw)
 
-        // 2. Fetch Recent Transactions
-        const txData = await apiRequest<{ transactionResponseList: any[] }>(
-          "GET",
-          "/api/v1/wallets/transactions?size=5"
-        )
-        const rawList = (txData.transactionResponseList || []).filter(Boolean)
-        const exchangeCounts: Record<string, number> = {}
-
-        const mapped: Transaction[] = rawList.map((tx) => {
-          let direction = tx.direction
-          let currency = tx.currency
-
-          // Fallback for exchanges if backend has not been restarted
-          if (tx.type === "EXCHANGE" && (!direction || !currency)) {
-            const count = exchangeCounts[tx.journalId] || 0
-            exchangeCounts[tx.journalId] = count + 1
-            
-            if (count % 2 === 0) {
-              direction = "DEBIT"
-              currency = tx.fromCurrency || "KRW"
-            } else {
-              direction = "CREDIT"
-              currency = tx.toCurrency || "USD"
-            }
-          }
-
-          const isCredit = direction === "CREDIT"
-          const amountSign = isCredit ? 1 : -1
-          
-          let txType: TxType = "transfer"
-          let title = ""
-          let amountKRW = Number(tx.amount || 0) * amountSign
-          let fromCurrency: CurrencyCode | undefined = undefined
-          let toCurrency: CurrencyCode | undefined = currency as CurrencyCode
-          let rate: number | undefined = undefined
-          let fee: number | undefined = undefined
-          let detailStr = tx.memo || undefined
-
-          if (tx.type === "CHARGE") {
-            txType = "deposit"
-            title = "KRW 입금"
-            detailStr = "모의계좌 입금"
-          } else if (tx.type === "WITHDRAW") {
-            txType = "withdraw"
-            title = "KRW 출금"
-            detailStr = "모의계좌 출금"
-          } else if (tx.type === "EXCHANGE") {
-            txType = "exchange"
-            title = `${tx.fromCurrency} → ${tx.toCurrency} 환전`
-            
-            amountKRW = direction === "CREDIT" ? Number(tx.toAmount) : -Number(tx.fromAmount)
-            fromCurrency = tx.fromCurrency as CurrencyCode
-            toCurrency = tx.toCurrency as CurrencyCode
-            rate = Number(tx.exchangeRate)
-            fee = Number(tx.feeAmount)
-          } else if (tx.type === "TRANSFER") {
-            txType = "transfer"
-            title = `이체 (${isCredit ? "받음" : "보냄"})`
-            detailStr = tx.counterpartyEmail ? `${isCredit ? "보낸이" : "받는이"}: ${tx.counterpartyEmail}` : tx.memo
-          }
-
-          return {
-            id: `w-${tx.journalId || Math.random()}-${currency || "KRW"}`,
-            journalId: tx.journalId,
-            type: txType,
-            title,
-            amountKRW,
-            fromCurrency,
-            toCurrency,
-            rate,
-            fee,
-            status: "completed" as TxStatus,
-            createdAt: tx.createdAt,
-            detail: detailStr,
-            fromAmount: tx.type === "EXCHANGE" ? Number(tx.fromAmount) : undefined,
-            toAmount: tx.type === "EXCHANGE" ? Number(tx.toAmount) : undefined
-          }
-        })
-        setTransactions(mapped)
+        // 2. Fetch Recent Transactions from the unified transaction history API
+        const txData = await getTransactionHistory({ page: 0, size: 5 })
+        setTransactions((txData.data || []).filter(Boolean).map(mapTransactionHistoryItem))
 
         // 3. Fetch Remittance Limit
         const limitData = await apiRequest<{ annualLimitUsd: number; usedUsd: number }>(
