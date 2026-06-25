@@ -139,7 +139,7 @@ export default function TransactionsPage() {
               // For exchanges, use toAmount or fromAmount depending on direction
               amountKRW = direction === "CREDIT" ? Number(tx.toAmount) : -Number(tx.fromAmount)
               fromCurrency = tx.fromCurrency as CurrencyCode
-              toCurrency = (direction === "CREDIT" ? tx.toCurrency : tx.fromCurrency) as CurrencyCode
+              toCurrency = tx.toCurrency as CurrencyCode
               rate = Number(tx.exchangeRate)
               fee = Number(tx.feeAmount)
             } else if (tx.type === "TRANSFER") {
@@ -160,7 +160,9 @@ export default function TransactionsPage() {
               fee,
               status: "completed" as TxStatus,
               createdAt: tx.createdAt,
-              detail: detailStr
+              detail: detailStr,
+              fromAmount: tx.type === "EXCHANGE" ? Number(tx.fromAmount) : undefined,
+              toAmount: tx.type === "EXCHANGE" ? Number(tx.toAmount) : undefined
             }
           })
           setTransactions(mapped)
@@ -249,8 +251,11 @@ export default function TransactionsPage() {
 
   // 금액 표시 헬퍼: 해외송금은 항상 KRW로 표시
   function displayAmount(tx: Transaction) {
-    if (tx.type !== "remittance" && tx.toCurrency && tx.toCurrency !== "KRW") {
-      return formatCurrency(Math.abs(tx.amountKRW), tx.toCurrency)
+    const currency = tx.type === "exchange"
+      ? (tx.amountKRW >= 0 ? tx.toCurrency : tx.fromCurrency)
+      : (tx.toCurrency || "KRW");
+    if (tx.type !== "remittance" && currency && currency !== "KRW") {
+      return formatCurrency(Math.abs(tx.amountKRW), currency)
     }
     return formatKRW(Math.abs(tx.amountKRW))
   }
@@ -396,7 +401,7 @@ export default function TransactionsPage() {
                           </span>
                         </TableCell>
                         <TableCell
-                          className={`text-right font-semibold tabular-nums whitespace-nowrap ${positive ? "text-accent" : "text-foreground"}`}
+                          className={`text-right font-semibold tabular-nums whitespace-nowrap ${positive ? "text-accent" : "text-text-primary"}`}
                         >
                           {positive ? "+" : "-"}
                           {displayAmount(t)}
@@ -405,7 +410,7 @@ export default function TransactionsPage() {
                           {t.rate ? formatRate(t.rate) : "—"}
                         </TableCell>
                         <TableCell className="text-right text-sm tabular-nums">
-                          {t.fee ? formatKRW(t.fee) : "—"}
+                          {t.fee ? formatCurrency(t.fee, t.fromCurrency || "KRW") : "—"}
                         </TableCell>
                         {activeTab === "remittance" && (
                           <TableCell>
@@ -505,8 +510,15 @@ export default function TransactionsPage() {
                         value={`${detail.fromCurrency ?? "KRW"} → ${detail.toCurrency ?? "KRW"}`}
                       />
                       <Row label="체결 환율" value={formatRate(detail.rate)} />
-                      {detail.toCurrency && (
-                        <Row label="환산 금액" value={formatCurrency(received(detail), detail.toCurrency)} />
+                      {detail.fromAmount && detail.fromCurrency ? (
+                        <Row label="환전 금액" value={formatCurrency(detail.fromAmount, detail.fromCurrency)} />
+                      ) : (
+                        detail.fromCurrency && <Row label="환전 금액" value={formatCurrency(Math.abs(detail.amountKRW), detail.fromCurrency)} />
+                      )}
+                      {detail.toAmount && detail.toCurrency ? (
+                        <Row label="환산 금액" value={formatCurrency(detail.toAmount, detail.toCurrency)} />
+                      ) : (
+                        detail.toCurrency && <Row label="환산 금액" value={formatCurrency(received(detail), detail.toCurrency)} />
                       )}
                     </dl>
                   </section>
@@ -518,7 +530,7 @@ export default function TransactionsPage() {
               <section>
                 <h3 className="mb-2 text-sm font-semibold">수수료 정보</h3>
                 <dl className="space-y-2.5 text-sm">
-                  <Row label="수수료" value={detail.fee ? formatKRW(detail.fee) : "무료"} />
+                  <Row label="수수료" value={detail.fee ? formatCurrency(detail.fee, detail.fromCurrency || "KRW") : "무료"} />
                   <Row
                     label="총 금액"
                     value={displayAmount(detail)}
