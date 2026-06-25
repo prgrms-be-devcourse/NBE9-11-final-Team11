@@ -31,21 +31,51 @@ public class AdminTransactionRepository {
                    l.amount,
                    l.currency_code,
                    l.journal_id,
-                   NULL          AS trigger_type
+                   NULL          AS trigger_type,
+                   l.ledger_direction AS direction,
+                   CASE
+                       WHEN l.wallet_id IS NOT NULL THEN 'WALLET'
+                       WHEN l.mock_bank_account_id IS NOT NULL THEN 'BANK'
+                       WHEN l.company_pool_id IS NOT NULL AND l.currency_code = 'KRW' THEN 'KRW_POOL'
+                       WHEN l.company_pool_id IS NOT NULL AND l.currency_code = 'USD' THEN 'USD_POOL'
+                       ELSE NULL
+                   END           AS account_role,
+                   CASE WHEN l.company_pool_id IS NOT NULL AND l.currency_code = 'KRW'
+                        THEN CASE WHEN l.ledger_direction = 'CREDIT' THEN l.amount ELSE -l.amount END
+                        ELSE NULL
+                   END           AS krw_pool_change,
+                   CASE WHEN l.company_pool_id IS NOT NULL AND l.currency_code = 'USD'
+                        THEN CASE WHEN l.ledger_direction = 'CREDIT' THEN l.amount ELSE -l.amount END
+                        ELSE NULL
+                   END           AS usd_pool_change
             FROM ledger_entries l
             WHERE l.created_at >= ? AND l.created_at < ?
 
             UNION ALL
 
-            SELECT 'REBALANCING' AS source_type,
+            SELECT 'REBALANCING'  AS source_type,
                    r.id,
-                   r.status      AS sub_type,
+                   r.status       AS sub_type,
                    r.created_at,
-                   r.buy_amount  AS amount,
-                   NULL          AS currency_code,
-                   NULL          AS journal_id,
-                   r.trigger_type
+                   r.buy_amount   AS amount,
+                   bp.currency_code AS currency_code,
+                   NULL           AS journal_id,
+                   r.trigger_type,
+                   NULL           AS direction,
+                   NULL           AS account_role,
+                   CASE
+                       WHEN bp.currency_code = 'KRW' THEN  r.buy_amount
+                       WHEN sp.currency_code = 'KRW' THEN -r.sell_amount
+                       ELSE NULL
+                   END            AS krw_pool_change,
+                   CASE
+                       WHEN bp.currency_code = 'USD' THEN  r.buy_amount
+                       WHEN sp.currency_code = 'USD' THEN -r.sell_amount
+                       ELSE NULL
+                   END            AS usd_pool_change
             FROM rebalancing_orders r
+            LEFT JOIN company_pools bp ON r.buy_pool_id  = bp.id
+            LEFT JOIN company_pools sp ON r.sell_pool_id = sp.id
             WHERE r.created_at >= ? AND r.created_at < ?
             """;
 
@@ -81,7 +111,11 @@ public class AdminTransactionRepository {
                 amount,
                 rs.getString("currency_code"),
                 rs.getString("journal_id"),
-                rs.getString("trigger_type")
+                rs.getString("trigger_type"),
+                rs.getString("direction"),
+                rs.getString("account_role"),
+                rs.getBigDecimal("krw_pool_change"),
+                rs.getBigDecimal("usd_pool_change")
         );
     }
 }

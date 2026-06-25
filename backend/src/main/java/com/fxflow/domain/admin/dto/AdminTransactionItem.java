@@ -11,6 +11,10 @@ public record AdminTransactionItem(
         BigDecimal amount,
         String currencyCode,  // rebalancing은 null
         String journalId,     // rebalancing은 null
-        String triggerType    // ledger는 null, rebalancing은 AUTO/MANUAL/SCHEDULER
+        String triggerType,   // ledger는 null, rebalancing은 AUTO/MANUAL/SCHEDULER
+        String direction,        // DEBIT, CREDIT — rebalancing은 null
+        String accountRole,      // WALLET, BANK, KRW_POOL, USD_POOL — rebalancing은 null
+        BigDecimal krwPoolChange, // KRW 풀 변화량 (양수=증가, 음수=감소, null=미변경)
+        BigDecimal usdPoolChange  // USD 풀 변화량 (양수=증가, 음수=감소, null=미변경)
 ) {
 }
