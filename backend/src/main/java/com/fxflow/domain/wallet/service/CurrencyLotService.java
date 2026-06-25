@@ -57,18 +57,36 @@ public class CurrencyLotService {
 
     // p2p settle lots
     public void settleLots(Wallet fromWallet, Wallet toWallet, BigDecimal amount, String sourceTransactionId) {
-        // 통화 불일치는 transfer service에서 이미 검증됨
-        // 여기서는 USD 지갑에 대해서만 lot 처리
         BigDecimal acquisitionRate = BigDecimal.ZERO;
-
         if (fromWallet.getCurrencyCode().equals("USD")) {
-            LotsConsumeResult result = consumeLots(fromWallet, amount, BigDecimal.ZERO); // no saleRate for p2p
-            acquisitionRate = result.weightedAvgAcquisitionRate(); // inherit sender's cost basis
+            acquisitionRate = consumeLotsForP2p(fromWallet, amount);
         }
         if (toWallet.getCurrencyCode().equals("USD")) {
             CurrencyLot newLot = CurrencyLot.create(toWallet, toWallet.getCurrencyCode(), amount, acquisitionRate, sourceTransactionId);
             currencyLotRepository.save(newLot);
         }
+    }
+
+    private BigDecimal consumeLotsForP2p(Wallet wallet, BigDecimal amount) {
+        List<CurrencyLot> lots = currencyLotRepository.findAvailableLotsFIFO(wallet.getId());
+        BigDecimal remaining = amount;
+        BigDecimal totalAcquisitionCost = BigDecimal.ZERO;
+
+        for (CurrencyLot lot : lots) {
+            if (remaining.compareTo(BigDecimal.ZERO) == 0) break;
+            BigDecimal consumeAmount = lot.getRemainingQuantity().min(remaining);
+            BigDecimal cost = lot.getAcquisitionRate().multiply(consumeAmount);
+            totalAcquisitionCost = totalAcquisitionCost.add(cost);
+            lot.consume(consumeAmount);
+            remaining = remaining.subtract(consumeAmount);
+        }
+
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            throw new BusinessException(LotErrorCode.INSUFFICIENT_LOT_BALANCE);
+        }
+
+        currencyLotRepository.saveAll(lots);
+        return totalAcquisitionCost.divide(amount, 4, java.math.RoundingMode.HALF_UP);
     }
 
 }
