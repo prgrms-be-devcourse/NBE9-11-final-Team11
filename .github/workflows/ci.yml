@@ -42,7 +42,31 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      packages: write
+
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/prgrms-be-devcourse/nbe9-11-final-team11/backend:latest
+            ghcr.io/prgrms-be-devcourse/nbe9-11-final-team11/backend:${{ github.sha }}
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -52,4 +76,5 @@ jobs:
           script: |
             cd ${{ secrets.EC2_DEPLOY_PATH }}
             git pull origin dev
-            docker compose up -d --build
+            docker compose pull backend
+            docker compose up -d backend
