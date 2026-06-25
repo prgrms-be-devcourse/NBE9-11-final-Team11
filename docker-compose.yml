@@ -29,7 +29,6 @@ services:
       - fxflow-network
 
   backend:
-    image: ghcr.io/prgrms-be-devcourse/nbe9-11-final-team11/backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
