@@ -275,6 +275,7 @@ public class WalletService {
         if ("KRW".equals(currencyCode)) {
             throw new BusinessException(WalletErrorCode.UNSUPPORTED_CURRENCY_FOR_PROFIT);
         }
+
         Wallet wallet = getWallet(userId, currencyCode);
 
         // 실현손익
