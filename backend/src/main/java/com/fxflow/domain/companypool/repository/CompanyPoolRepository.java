@@ -16,7 +16,6 @@ public interface CompanyPoolRepository extends JpaRepository<CompanyPool, Long> 
     Optional<CompanyPool> findByCurrencyCode(String currencyCode);
 
     // 리밸런싱 : read~update 사이 다른 트랜잭션의 수정 차단
-    // TODO : 원자적으로 처리할 수 있는 방법 고민
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM CompanyPool p WHERE p.currencyCode = :code")
     Optional<CompanyPool> findByCurrencyCodeWithLock(@Param("code") String currencyCode);
