@@ -154,9 +154,12 @@ public class ExchangeService {
             transactionLimitValidator.validateAnnualExchange(user, cache.toAmount());
         }
 
-        // check wallet holding
+        // check wallet holding (KRW+USD 합산 기준, 환전으로 양쪽 지갑이 모두 바뀌므로 둘 다 갱신 후 잔액으로 계산)
+        BigDecimal fromBalanceAfter = fromWallet.getBalance().subtract(cache.totalAmount()); // 차감 전에 미리 계산
         BigDecimal toBalanceAfter = toWallet.getBalance().add(cache.toAmount()); // deposit 전에 미리 계산
-        transactionLimitValidator.validateWalletHolding(user, toBalanceAfter);
+        BigDecimal totalHoldingKrw = walletService.toKrwEquivalent(fromCurrency, fromBalanceAfter)
+                .add(walletService.toKrwEquivalent(toCurrency, toBalanceAfter));
+        transactionLimitValidator.validateWalletHolding(user, totalHoldingKrw);
 
         // -- exchange --
         BigDecimal fromBalanceBefore = fromWallet.getBalance();

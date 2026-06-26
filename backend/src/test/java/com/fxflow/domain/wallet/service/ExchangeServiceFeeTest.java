@@ -27,6 +27,7 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -87,6 +88,9 @@ class ExchangeServiceFeeTest {
         given(valueOperations.get("quote:" + quoteId)).willReturn(cache);
         given(exchangeTransactionRepository.save(any(ExchangeTransaction.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
+        // walletService가 mock이므로 KRW+USD 합산 헬퍼는 단위 변환 없이 그대로 통과시킨다.
+        lenient().when(walletService.toKrwEquivalent(anyString(), any(BigDecimal.class)))
+                .thenAnswer(invocation -> invocation.getArgument(1));
     }
 
     @Test

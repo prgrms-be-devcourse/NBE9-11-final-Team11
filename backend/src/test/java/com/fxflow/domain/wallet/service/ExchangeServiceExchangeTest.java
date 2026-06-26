@@ -67,6 +67,9 @@ class ExchangeServiceExchangeTest {
     @BeforeEach
     void setUp() {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        // walletService가 mock이므로 KRW+USD 합산 헬퍼는 단위 변환 없이 그대로 통과시킨다 (이 테스트들은 정확한 환산값을 검증하지 않음).
+        lenient().when(walletService.toKrwEquivalent(anyString(), any(BigDecimal.class)))
+                .thenAnswer(invocation -> invocation.getArgument(1));
 
         userId = 1L;
         user = User.create("email", "password", "name");

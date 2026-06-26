@@ -83,6 +83,14 @@ class WalletServiceTest {
     void setUp() {
         usdWallet = Wallet.create(null, "USD", new BigDecimal("100"));
         krwWallet = Wallet.create(null, "KRW", new BigDecimal("50000"));
+
+        // getTotalHoldingKrw()가 반대 통화 지갑/환율을 조회하므로 기본값을 깔아둔다.
+        lenient().when(walletRepository.findByUserIdAndCurrencyCode(any(Long.class), eq("USD")))
+                .thenReturn(Optional.of(usdWallet));
+        lenient().when(walletRepository.findByUserIdAndCurrencyCode(any(Long.class), eq("KRW")))
+                .thenReturn(Optional.of(krwWallet));
+        lenient().when(fxRateService.getRate(eq("USD"), eq("KRW")))
+                .thenReturn(new BigDecimal("1350"));
     }
 
     @Test
