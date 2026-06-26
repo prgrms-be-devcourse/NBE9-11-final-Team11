@@ -117,8 +117,10 @@ class ExchangeServiceExchangeTest {
         verify(ledgerEntryRepository, times(2)).save(any(LedgerEntry.class));
         verify(redisTemplate).delete("quote:" + quoteId);
 
-        // KRW -> USD 방향은 한도 검증/사용량 누적 대상이다
-        verify(transactionLimitValidator).validateExchange(eq(user), eq(cache.fromAmount()));
+        // KRW -> USD 방향은 한도 검증/사용량 누적 대상이다 (건당/일일은 KRW, 연간은 USD 단위로 검증/누적)
+        verify(transactionLimitValidator).validatePerExchange(eq(user), eq(cache.fromAmount()));
+        verify(transactionLimitValidator).validateDailyExchange(eq(user), eq(cache.fromAmount()));
+        verify(transactionLimitValidator).validateAnnualExchange(eq(user), eq(cache.toAmount()));
         verify(userExchangeUsageService).addDailyExchange(eq(userId), any(), eq(cache.fromAmount()));
         verify(userExchangeUsageService).addAnnualExchange(eq(userId), any(), eq(cache.toAmount()));
     }
@@ -151,7 +153,9 @@ class ExchangeServiceExchangeTest {
 
         // then
         assertThat(response).isNotNull();
-        verify(transactionLimitValidator, never()).validateExchange(any(), any());
+        verify(transactionLimitValidator, never()).validatePerExchange(any(), any());
+        verify(transactionLimitValidator, never()).validateDailyExchange(any(), any());
+        verify(transactionLimitValidator, never()).validateAnnualExchange(any(), any());
         verify(userExchangeUsageService, never()).addDailyExchange(any(), any(), any());
         verify(userExchangeUsageService, never()).addAnnualExchange(any(), any(), any());
 
@@ -226,7 +230,7 @@ class ExchangeServiceExchangeTest {
 
         willThrow(new BusinessException(TransactionLimitErrorCode.DAILY_EXCHANGE_LIMIT_EXCEEDED))
                 .given(transactionLimitValidator)
-                .validateExchange(eq(user), any(BigDecimal.class));
+                .validateDailyExchange(eq(user), any(BigDecimal.class));
 
         // when & then
         assertThatThrownBy(() -> exchangeService.exchange(userId, request))

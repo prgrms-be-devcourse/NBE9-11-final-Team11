@@ -148,7 +148,10 @@ public class ExchangeService {
 
         User user = userService.getUser(userId);
         if (isLimitedDirection) {
-            transactionLimitValidator.validateExchange(user, cache.fromAmount());  // 환전하려는 금액 검증
+            // 건당/일일 한도는 KRW 기준, 연간 한도는 USD 기준이므로 단위를 맞춰 각각 검증한다.
+            transactionLimitValidator.validatePerExchange(user, cache.fromAmount());
+            transactionLimitValidator.validateDailyExchange(user, cache.fromAmount());
+            transactionLimitValidator.validateAnnualExchange(user, cache.toAmount());
         }
 
         // check wallet holding
