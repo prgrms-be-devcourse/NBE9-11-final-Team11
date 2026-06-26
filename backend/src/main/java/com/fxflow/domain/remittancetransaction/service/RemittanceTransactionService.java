@@ -62,7 +62,7 @@ public class RemittanceTransactionService {
     private static final String KRW = "KRW";
     private static final String USD = "USD";
     private static final LimitTier STANDARD_TIER = LimitTier.STANDARD;
-    private static final String DEFAULT_VIRTUAL_ACCOUNT_BANK_NAME = "하나은행";
+    private static final String DEFAULT_VIRTUAL_ACCOUNT_BANK_NAME = "최강은행";
     private static final String REMITTANCE_REF_TYPE = "REMITTANCE";
 
     private final UserAnnualUsageRepository userAnnualUsageRepository;

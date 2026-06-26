@@ -286,7 +286,7 @@ class RemittanceTransactionServiceTest {
         // then
         assertThat(response.transferId()).isEqualTo(transferId);
         assertThat(response.status()).isEqualTo(TransferStatus.PENDING);
-        assertThat(response.virtualAccount().bankName()).isEqualTo("하나은행");
+        assertThat(response.virtualAccount().bankName()).isEqualTo("최강은행");
         assertThat(response.virtualAccount().amount()).isEqualTo(new BigDecimal("1010000"));
         assertThat(response.virtualAccount().expiredAt()).isNotNull();
 
@@ -904,7 +904,7 @@ class RemittanceTransactionServiceTest {
         assertThat(response.receiveAmountUsd()).isEqualByComparingTo(new BigDecimal("736.52"));
         assertThat(response.appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
         assertThat(response.totalFee()).isEqualByComparingTo(new BigDecimal("10000"));
-        assertThat(response.virtualAccount().bankName()).isEqualTo("하나은행");
+        assertThat(response.virtualAccount().bankName()).isEqualTo("최강은행");
         assertThat(response.virtualAccount().accountNumber()).isEqualTo("123-456789-123456");
         assertThat(response.virtualAccount().amount()).isEqualByComparingTo(new BigDecimal("1010000"));
         assertThat(response.createdAt()).isEqualTo(remittanceTransaction.getCreatedAt());
@@ -1123,7 +1123,7 @@ class RemittanceTransactionServiceTest {
         return VirtualAccount.create(
                 userId,
                 transferId,
-                "하나은행",
+                "최강은행",
                 "123-456789-123456",
                 new BigDecimal("1010000.00"),
                 "REMITTANCE",
