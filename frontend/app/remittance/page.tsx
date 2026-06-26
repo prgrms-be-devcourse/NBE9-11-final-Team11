@@ -558,6 +558,7 @@ export default function RemittancePage() {
               <Row label="해외송금 금액" value={formatKRW(krwAmount)} />
               <Row label="적용 환율" value={`${formatRate(activeQuote?.exchangeRate ?? krwPerUnit(currency))} / ${currency}`} />
               <Row label="수수료" value={formatKRW(fee)} />
+              {activeQuote && <FeeBreakdown quote={activeQuote} />}
               <Separator />
               <Row label="총 출금액" value={formatKRW(total)} bold />
               <Row label="수취 금액" value={formatCurrency(received, currency)} bold accent />
@@ -623,6 +624,25 @@ function mapRecipient(recipient: any): Recipient {
 
 function formatRate(rate: number) {
   return `₩${Number(rate).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function formatWon(amount: number) {
+  return `${Math.floor(amount).toLocaleString("ko-KR")}원`
+}
+
+function formatPercentRate(rate: number) {
+  return `${Number(rate).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}%`
+}
+
+function FeeBreakdown({ quote }: { quote: QuoteResponse }) {
+  const percentRate = quote.sendAmountKrw > 0 ? (quote.percentFee / quote.sendAmountKrw) * 100 : 0
+
+  return (
+    <div className="overflow-x-auto whitespace-nowrap rounded-lg bg-secondary px-3 py-2 font-mono text-xs text-muted-foreground">
+      고정 수수료 {formatWon(quote.fixedFee)} + 퍼센트 수수료 {formatWon(quote.percentFee)} (
+      {formatWon(quote.sendAmountKrw)} × {formatPercentRate(percentRate)}) → 총 수수료 {formatWon(quote.totalFee)}
+    </div>
+  )
 }
 
 function Row({ label, value, bold, accent }: { label: string; value: string; bold?: boolean; accent?: boolean }) {
