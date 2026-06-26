@@ -272,7 +272,7 @@ public class WalletService {
     }
 
     public WalletProfitResponse getWalletProfit(Long userId, String currencyCode) {
-        if (currencyCode.equals("KRW")) {
+        if ("KRW".equals(currencyCode)) {
             throw new BusinessException(WalletErrorCode.UNSUPPORTED_CURRENCY_FOR_PROFIT);
         }
         Wallet wallet = getWallet(userId, currencyCode);
