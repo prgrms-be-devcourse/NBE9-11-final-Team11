@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeftRight, Check, ChevronRight, Trash2, UserPlus } from "lucide-react"
 import { toast } from "sonner"
@@ -23,11 +23,11 @@ import {
 import {
   COUNTRIES,
   CURRENCY_META,
-  RATES,
   REMITTANCE_REASONS,
   formatKRW,
   formatCurrency,
   krwPerUnit,
+  remittanceFee,
   type CurrencyCode,
 } from "@/lib/fx-data"
 import { cn } from "@/lib/utils"
@@ -91,13 +91,14 @@ export default function RemittancePage() {
   const [submitting, setSubmitting] = useState(false)
   const [deletingRecipient, setDeletingRecipient] = useState(false)
   const [quote, setQuote] = useState<QuoteResponse | null>(null)
+  const quoteRequestId = useRef(0)
 
   const [recipientId, setRecipientId] = useState("")
   const [deleteTarget, setDeleteTarget] = useState<Recipient | null>(null)
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ name: "", country: COUNTRIES[0].name, bank: "", account: "" })
 
-  const [krwInput, setKrwInput] = useState("1000000")
+  const [krwInput, setKrwInput] = useState("")
   const [receiveInput, setReceiveInput] = useState("")
   const [amountMode, setAmountMode] = useState<"send" | "receive">("send")
   const [reason, setReason] = useState(REMITTANCE_REASONS[0])
@@ -106,14 +107,16 @@ export default function RemittancePage() {
   const recipient = recipients.find((r) => r.id === recipientId)
   const country = COUNTRIES.find((c) => c.name === (recipient?.country ?? form.country)) ?? COUNTRIES[0]
   const currency: CurrencyCode = recipient?.currency ?? country.currency
-  const rate = currency === "KRW" ? { rate: 1, unit: 1 } : RATES[currency as Exclude<CurrencyCode, "KRW">]
 
   const krwAmount = Number(krwInput.replace(/[^\d]/g, "")) || 0
+  const estimatedFee = krwAmount > 0 ? remittanceFee(krwAmount) : 0
+  const estimatedReceived = krwAmount / krwPerUnit(currency)
+  const activeQuote = quote?.sendAmountKrw === krwAmount ? quote : null
   const { fee, received } = useMemo(() => {
-    const fee = quote?.totalFee ?? 0
-    const received = quote?.receiveAmountUsd ?? krwAmount / krwPerUnit(currency)
+    const fee = activeQuote?.totalFee ?? estimatedFee
+    const received = activeQuote?.receiveAmountUsd ?? estimatedReceived
     return { fee, received }
-  }, [krwAmount, currency, quote])
+  }, [activeQuote, estimatedFee, estimatedReceived])
 
   const total = krwAmount + fee
   const estimatedAmountUsd = krwAmount / krwPerUnit(currency)
@@ -140,12 +143,10 @@ export default function RemittancePage() {
     loadInitialData()
   }, [])
 
-  useEffect(() => {
-    setQuote(null)
-  }, [recipientId, krwInput, reason])
-
-  async function fetchQuote() {
+  const fetchQuote = useCallback(async (options: { silent?: boolean } = {}) => {
     if (!recipient) return null
+    const requestId = quoteRequestId.current + 1
+    quoteRequestId.current = requestId
     setLoadingQuote(true)
     try {
       const data = await apiRequest<QuoteResponse>("POST", "/api/v1/transfers/quote", {
@@ -153,16 +154,38 @@ export default function RemittancePage() {
         sendAmountKrw: krwAmount,
         reason: REASON_TO_API[reason] ?? "ETC",
       })
-      setQuote(data)
+      if (requestId === quoteRequestId.current) {
+        setQuote(data)
+      }
       return data
     } catch (err: any) {
       console.error(err)
-      toast.error(err.message || "해외송금 견적을 불러오지 못했습니다.")
+      if (!options.silent && requestId === quoteRequestId.current) {
+        toast.error(err.message || "해외송금 견적을 불러오지 못했습니다.")
+      }
       return null
     } finally {
-      setLoadingQuote(false)
+      if (requestId === quoteRequestId.current) {
+        setLoadingQuote(false)
+      }
     }
-  }
+  }, [krwAmount, reason, recipient])
+
+  useEffect(() => {
+    quoteRequestId.current += 1
+    setQuote(null)
+    setLoadingQuote(false)
+  }, [recipientId, krwInput, reason])
+
+  useEffect(() => {
+    if (step !== 1 || !recipient || krwAmount < MIN_SEND_AMOUNT_KRW) return
+
+    const timer = window.setTimeout(() => {
+      void fetchQuote({ silent: true })
+    }, 350)
+
+    return () => window.clearTimeout(timer)
+  }, [fetchQuote, krwAmount, recipient, step])
 
   async function saveRecipient() {
     if (!form.name.trim() || !form.bank.trim() || !form.account.trim())
@@ -256,7 +279,7 @@ export default function RemittancePage() {
       if (estimatedAmountUsd > PER_TRANSFER_LIMIT_USD) {
         return toast.error(`건당 최대 해외송금 한도는 ${formatCurrency(PER_TRANSFER_LIMIT_USD, "USD")}입니다.`)
       }
-      const nextQuote = quote ?? await fetchQuote()
+      const nextQuote = activeQuote ?? await fetchQuote()
       if (!nextQuote) return
     }
     setStep((s) => Math.min(2, s + 1))
@@ -264,7 +287,7 @@ export default function RemittancePage() {
 
   async function submit() {
     if (!recipient) return
-    const currentQuote = quote ?? await fetchQuote()
+    const currentQuote = activeQuote ?? await fetchQuote()
     if (!currentQuote) return
 
     setSubmitting(true)
@@ -470,13 +493,21 @@ export default function RemittancePage() {
                     placeholder="0.00"
                   />
                 )}
-                <p className="mt-1 text-right text-sm text-muted-foreground">
-                  {loadingQuote
-                    ? "견적 계산 중..."
-                    : amountMode === "send"
-                      ? `수취 예상 ${formatCurrency(received, currency)}`
-                      : `예상 지출 비용 ${formatKRW(krwAmount)}`}
-                </p>
+                <div className="mt-1 flex flex-wrap items-center justify-end gap-x-5 gap-y-1 text-right text-sm text-muted-foreground">
+                  {loadingQuote ? (
+                    <span>견적 계산 중...</span>
+                  ) : amountMode === "send" ? (
+                    <>
+                      <span>예상 송금액 {formatCurrency(received, currency)}</span>
+                      <span>수수료 {formatKRW(fee)}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>예상 지출 비용 {formatKRW(krwAmount)}</span>
+                      <span>수수료 {formatKRW(fee)}</span>
+                    </>
+                  )}
+                </div>
                 <div className="mt-3 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   <span>최소 {formatKRW(MIN_SEND_AMOUNT_KRW)}</span>
                   <span>최대 {formatCurrency(PER_TRANSFER_LIMIT_USD, "USD")} · 약 {formatKRW(estimatedMaxKrw)}</span>
@@ -524,7 +555,7 @@ export default function RemittancePage() {
               {reasonDetail.trim() && <Row label="상세 사유" value={reasonDetail.trim()} />}
               <Separator />
               <Row label="해외송금 금액" value={formatKRW(krwAmount)} />
-              <Row label="적용 환율" value={`${formatRate(quote?.exchangeRate ?? rate.rate)} / ${currency}`} />
+              <Row label="적용 환율" value={`${formatRate(activeQuote?.exchangeRate ?? krwPerUnit(currency))} / ${currency}`} />
               <Row label="수수료" value={formatKRW(fee)} />
               <Separator />
               <Row label="총 출금액" value={formatKRW(total)} bold />
