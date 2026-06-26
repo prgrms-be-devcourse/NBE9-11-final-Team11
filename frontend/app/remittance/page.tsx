@@ -208,11 +208,19 @@ export default function RemittancePage() {
         setQuote(null)
         setQuoteSessionExpiresAt(null)
         toast.warning("견적 유효 시간이 만료되었습니다. 견적을 다시 조회해주세요.")
+        return false
       }
+
+      return true
     }
 
-    updateTimeLeft()
-    const interval = window.setInterval(updateTimeLeft, 1000)
+    if (!updateTimeLeft()) return
+
+    const interval = window.setInterval(() => {
+      if (!updateTimeLeft()) {
+        window.clearInterval(interval)
+      }
+    }, 1000)
 
     return () => window.clearInterval(interval)
   }, [quoteSessionExpiresAt])
