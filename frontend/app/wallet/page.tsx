@@ -49,6 +49,12 @@ export default function WalletPage() {
   const [open, setOpen] = useState(false)
   const [recipientName, setRecipientName] = useState("")
   const [checkingEmail, setCheckingEmail] = useState(false)
+  const [usdProfit, setUsdProfit] = useState<{
+    realizedProfit: number
+    unrealizedProfit: number
+    totalProfit: number
+    currentRate: number
+  } | null>(null)
 
   function handleAddAmount(amountToAdd: number) {
     setAmount((prev) => {
@@ -84,6 +90,18 @@ export default function WalletPage() {
       setKrwBalance(localKrw)
       setFxBalances(newFxBalances)
       setTotalKrw(balanceRes.totalKrw || 0)
+
+      try {
+        const profitRes = await apiRequest<{
+          realizedProfit: number
+          unrealizedProfit: number
+          totalProfit: number
+          currentRate: number
+        }>("GET", "/api/v1/wallets/USD/profit")
+        setUsdProfit(profitRes)
+      } catch (err) {
+        console.error("Failed to fetch USD profit", err)
+      }
 
       // 연결된 모의계좌(KRW) 잔액 조회 — 미연결 상태(404 등)면 카드를 숨긴다
       try {
@@ -497,6 +515,28 @@ export default function WalletPage() {
                     </p>
                   </div>
                 </div>
+                {c === "USD" && usdProfit && (
+                  <div className="mt-3 border-t border-border pt-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">실현 손익:</span>
+                      <span className={`font-semibold tabular-nums ${usdProfit.realizedProfit >= 0 ? "text-accent" : "text-destructive"}`}>
+                        {usdProfit.realizedProfit >= 0 ? "+" : ""}{formatKRW(usdProfit.realizedProfit)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">평가 손익:</span>
+                      <span className={`font-semibold tabular-nums ${usdProfit.unrealizedProfit >= 0 ? "text-accent" : "text-destructive"}`}>
+                        {usdProfit.unrealizedProfit >= 0 ? "+" : ""}{formatKRW(usdProfit.unrealizedProfit)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span className="text-muted-foreground">총 손익:</span>
+                      <span className={`font-bold tabular-nums ${usdProfit.totalProfit >= 0 ? "text-accent" : "text-destructive"}`}>
+                        {usdProfit.totalProfit >= 0 ? "+" : ""}{formatKRW(usdProfit.totalProfit)}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </Card>
             ))}
           </div>
