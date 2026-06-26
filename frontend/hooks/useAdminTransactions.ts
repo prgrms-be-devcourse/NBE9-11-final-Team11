@@ -20,7 +20,7 @@ export function useAdminTransactions(params: {
     setError(null)
     getAdminTransactions({ page, size, from: from || undefined, to: to || undefined })
       .then(setData)
-      .catch((e: Error) => setError(e.message ?? "조회 실패"))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "조회 실패"))
       .finally(() => setLoading(false))
   }, [page, size, from, to])
 

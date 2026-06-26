@@ -76,7 +76,7 @@ public class AdminTransactionRepository {
             FROM rebalancing_orders r
             LEFT JOIN company_pools bp ON r.buy_pool_id  = bp.id
             LEFT JOIN company_pools sp ON r.sell_pool_id = sp.id
-            WHERE r.created_at >= ? AND r.created_at < ?
+            WHERE r.status = 'SUCCESS' AND r.created_at >= ? AND r.created_at < ?
             """;
 
     public List<AdminTransactionItem> findAll(AdminTransactionFilter filter, int page, int size) {
