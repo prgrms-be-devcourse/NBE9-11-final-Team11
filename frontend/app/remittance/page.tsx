@@ -112,6 +112,7 @@ export default function RemittancePage() {
   const estimatedFee = krwAmount > 0 ? remittanceFee(krwAmount) : 0
   const estimatedReceived = krwAmount / krwPerUnit(currency)
   const activeQuote = quote?.sendAmountKrw === krwAmount ? quote : null
+  const quoteDisplayReady = Boolean(activeQuote)
   const { fee, received } = useMemo(() => {
     const fee = activeQuote?.totalFee ?? estimatedFee
     const received = activeQuote?.receiveAmountUsd ?? estimatedReceived
@@ -498,13 +499,13 @@ export default function RemittancePage() {
                     <span>견적 계산 중...</span>
                   ) : amountMode === "send" ? (
                     <>
-                      <span>예상 송금액 {formatCurrency(received, currency)}</span>
-                      <span>수수료 {formatKRW(fee)}</span>
+                      <span>예상 송금액 {quoteDisplayReady ? formatCurrency(received, currency) : "-"}</span>
+                      <span>수수료 {quoteDisplayReady ? formatKRW(fee) : "-"}</span>
                     </>
                   ) : (
                     <>
                       <span>예상 지출 비용 {formatKRW(krwAmount)}</span>
-                      <span>수수료 {formatKRW(fee)}</span>
+                      <span>수수료 {quoteDisplayReady ? formatKRW(fee) : "-"}</span>
                     </>
                   )}
                 </div>
