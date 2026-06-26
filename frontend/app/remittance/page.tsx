@@ -456,15 +456,23 @@ export default function RemittancePage() {
         {/* Step 2: amount */}
         {step === 1 && (
           <Card className="p-5">
-            <h2 className="text-base font-bold">해외송금 금액</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {recipient?.name} · {recipient?.country} · {currency}
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <div>
+                <h2 className="text-base font-bold">해외송금 금액</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {recipient?.name} · {recipient?.country} · {currency}
+                </p>
+              </div>
+              <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-x-3 gap-y-1 text-right text-xs text-muted-foreground">
+                <span>최소 {formatKRW(MIN_SEND_AMOUNT_KRW)}</span>
+                <span>최대 {formatCurrency(PER_TRANSFER_LIMIT_USD, "USD")} · 약 {formatKRW(estimatedMaxKrw)}</span>
+              </div>
+            </div>
             <div className="mt-4 space-y-4">
               <div className="rounded-2xl border border-border bg-secondary/40 p-4">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs text-muted-foreground">
-                    {amountMode === "send" ? "보내는 금액 (KRW)" : `수취 금액 (${currency})`}
+                    보낼 금액
                   </Label>
                   <Button
                     type="button"
@@ -474,7 +482,7 @@ export default function RemittancePage() {
                     className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
                   >
                     <ArrowLeftRight className="size-3.5" />
-                    {amountMode === "send" ? "수취 금액 입력" : "보내는 금액 입력"}
+                    {amountMode === "send" ? "달러로 입력" : "원화로 입력"}
                   </Button>
                 </div>
                 {amountMode === "send" ? (
@@ -508,10 +516,6 @@ export default function RemittancePage() {
                       <span>수수료 {quoteDisplayReady ? formatKRW(fee) : "-"}</span>
                     </>
                   )}
-                </div>
-                <div className="mt-3 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span>최소 {formatKRW(MIN_SEND_AMOUNT_KRW)}</span>
-                  <span>최대 {formatCurrency(PER_TRANSFER_LIMIT_USD, "USD")} · 약 {formatKRW(estimatedMaxKrw)}</span>
                 </div>
               </div>
               <div className="space-y-2">
