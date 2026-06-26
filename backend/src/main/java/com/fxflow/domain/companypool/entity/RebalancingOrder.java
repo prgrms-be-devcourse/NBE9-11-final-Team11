@@ -26,16 +26,16 @@ public class RebalancingOrder extends BaseEntity {
     @JoinColumn(name = "sell_pool_id")
     private CompanyPool sellPool;
 
-    @Column(precision = 18, scale = 2)
+    @Column(precision = 18, scale = 8)
     private BigDecimal buyAmount;
 
-    @Column(precision = 18, scale = 2)
+    @Column(precision = 18, scale = 8)
     private BigDecimal sellAmount;
 
-    @Column(precision = 18, scale = 2)
+    @Column(precision = 18, scale = 8)
     private BigDecimal buyBalanceBefore;
 
-    @Column(precision = 18, scale = 2)
+    @Column(precision = 18, scale = 8)
     private BigDecimal sellBalanceBefore;
 
     @Column(precision = 18, scale = 8)
