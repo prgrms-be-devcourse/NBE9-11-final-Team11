@@ -50,6 +50,7 @@ class ExchangeServiceExchangeTest {
     @Mock private TransactionLimitValidator transactionLimitValidator;
     @Mock private ExchangeTransactionRepository exchangeTransactionRepository;
     @Mock private LedgerEntryRepository ledgerEntryRepository;
+    @Mock private CurrencyLotService currencyLotService;
 
     @InjectMocks
     private ExchangeService exchangeService;
@@ -113,6 +114,7 @@ class ExchangeServiceExchangeTest {
         verify(walletRepository).save(toWallet);
         verify(ledgerEntryRepository, times(2)).save(any(LedgerEntry.class));
         verify(redisTemplate).delete("quote:" + quoteId);
+        verify(currencyLotService).settleLots(eq(fromWallet), eq(toWallet), eq(cache.fromAmount()), eq(cache.toAmount()), eq(cache.finalRate()), anyString());
     }
 
     @Test

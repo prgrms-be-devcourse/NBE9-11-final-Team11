@@ -54,6 +54,7 @@ public class ExchangeService {
     private final ExchangeTransactionRepository exchangeTransactionRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final CompanyPoolService companyPoolService;
+    private final CurrencyLotService currencyLotService;
 
     public ExchangeQuoteResponse getExchangeQuote(Long userId, ExchangeQuoteRequest request) {
 
@@ -84,13 +85,11 @@ public class ExchangeService {
         }
 
         BigDecimal toAmount = fromCurrency.equals("KRW")
-                ? amount.divide(appliedRate, 2, RoundingMode.HALF_UP) // 달러는 소수점 2자리까지
-                : amount.multiply(appliedRate).setScale(0, RoundingMode.HALF_DOWN); // 원화는 소수점 버림
+                ? amount.divide(appliedRate, 2, RoundingMode.FLOOR) // 소수점 버림
+                : amount.multiply(appliedRate).setScale(0, RoundingMode.FLOOR); // 소수점 버림
         BigDecimal feeAmount = amount.multiply(feeRate);  // 출발 통화 기준 수수료
         BigDecimal totalAmount = amount.add(feeAmount);  // 출발 통화 기준 총 차감액
-        LocalDateTime expiredAt =
-                LocalDateTime.now()
-                        .plusMinutes(exchangeProperties.getQuoteExpirationMinutes());
+        LocalDateTime expiredAt = LocalDateTime.now().plusMinutes(exchangeProperties.getQuoteExpirationMinutes());
         String quoteId = UUID.randomUUID().toString();
 
         // Quote redis에 저장
@@ -158,10 +157,15 @@ public class ExchangeService {
         walletRepository.save(fromWallet);
         walletRepository.save(toWallet);
 
+        // lot 정산
+        String transferId = ExchangeTransaction.generateTransferId();
+        currencyLotService.settleLots(fromWallet, toWallet, cache.fromAmount(), cache.toAmount(), cache.finalRate(), transferId);
         // Exchange transaction 저장
         String journalId = LedgerEntry.generateJournalId();
         String idempotencyKey = UUID.randomUUID().toString();
+
         ExchangeTransaction exchangeTransaction = ExchangeTransaction.create(
+                transferId,
                 user,
                 fromWallet,
                 toWallet,
@@ -173,8 +177,7 @@ public class ExchangeService {
                 cache.spreadRate(),
                 cache.finalRate(),
                 idempotencyKey,
-                cache.feeAmount()
-        );
+                cache.feeAmount());
         exchangeTransactionRepository.save(exchangeTransaction);
 
         // ledger entry 저장

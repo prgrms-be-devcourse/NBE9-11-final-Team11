@@ -13,19 +13,21 @@ import com.fxflow.domain.user.service.UserService;
 import com.fxflow.domain.userlimitusage.service.UserDailyUsageService;
 import com.fxflow.domain.wallet.dto.request.ChargeRequest;
 import com.fxflow.domain.wallet.dto.request.WithdrawRequest;
-import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
-import com.fxflow.domain.wallet.dto.response.TransactionResponse;
-import com.fxflow.domain.wallet.dto.response.WalletBalanceResponse;
-import com.fxflow.domain.wallet.dto.response.WalletResponse;
+import com.fxflow.domain.wallet.dto.response.*;
+import com.fxflow.domain.wallet.entity.CurrencyLot;
 import com.fxflow.domain.wallet.entity.ExchangeTransaction;
 import com.fxflow.domain.wallet.entity.P2pTransfer;
 import com.fxflow.domain.wallet.entity.Wallet;
+import com.fxflow.domain.wallet.errorcode.ExchangeErrorCode;
 import com.fxflow.domain.wallet.errorcode.WalletErrorCode;
 import com.fxflow.domain.wallet.policy.WalletPolicy;
+import com.fxflow.domain.wallet.repository.CurrencyLotRepository;
 import com.fxflow.domain.wallet.repository.ExchangeTransactionRepository;
 import com.fxflow.domain.wallet.repository.P2pTransferRepository;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
+import com.fxflow.global.fx.ExchangeRateProvider;
+import com.fxflow.global.fx.FxRateSnapshot;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -60,7 +62,8 @@ public class WalletService {
     private final UserDailyUsageService userDailyUsageService;
     private final ExchangeTransactionRepository exchangeTransactionRepository;
     private final P2pTransferRepository p2pTransferRepository;
-
+    private final CurrencyLotRepository currencyLotRepository;
+    private final ExchangeRateProvider exchangeRateProvider;
 
     public Wallet getWallet(Long userId, String currencyCode){
         return walletRepository.findByUserIdAndCurrencyCode(userId, currencyCode).orElseThrow(
@@ -266,6 +269,31 @@ public class WalletService {
 
         userDailyUsageService.addWithdrawal(userId, LocalDate.now(java.time.ZoneId.of("Asia/Seoul")), amount);
         return TransactionResponse.from(walletEntry);
+    }
+
+    @Transactional(readOnly = true)
+    public WalletProfitResponse getWalletProfit(Long userId, String currencyCode) {
+        if ("KRW".equals(currencyCode)) {
+            throw new BusinessException(WalletErrorCode.UNSUPPORTED_CURRENCY_FOR_PROFIT);
+        }
+
+        Wallet wallet = getWallet(userId, currencyCode);
+
+        // 실현손익
+        BigDecimal realizedProfit = currencyLotRepository.sumRealizedProfitByWalletId(wallet.getId());
+
+        // 미실현손익 — 환율은 currencyCode 기준으로 조회
+        FxRateSnapshot snapshot = exchangeRateProvider.getLatestRate(currencyCode, "KRW")
+                .orElseThrow(() -> new BusinessException(ExchangeErrorCode.FEE_RATE_NOT_FOUND));
+        BigDecimal currentRate = snapshot.sellRate();
+
+        List<CurrencyLot> availableLots = currencyLotRepository.findAvailableLotsFIFO(wallet.getId());
+        BigDecimal unrealizedProfit = availableLots.stream()
+                .map(lot -> currentRate.subtract(lot.getAcquisitionRate())
+                        .multiply(lot.getRemainingQuantity()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return WalletProfitResponse.of(realizedProfit, unrealizedProfit, currentRate);
     }
 
 
