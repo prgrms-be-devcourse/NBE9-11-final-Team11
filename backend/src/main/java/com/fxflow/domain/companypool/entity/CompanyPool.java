@@ -17,16 +17,16 @@ public class CompanyPool extends BaseEntity {
     @Column(name = "currency_code", unique = true, nullable = false, length = 3)
     private String currencyCode;
 
-    @Column(nullable = false, precision = 18, scale = 8)
+    @Column(nullable = false, precision = 23, scale = 8)
     private BigDecimal balance;
 
-    @Column(nullable = false, precision = 18, scale = 8)
+    @Column(nullable = false, precision = 23, scale = 8)
     private BigDecimal targetBalance;
 
-    @Column(nullable = false, precision = 18, scale = 8)
+    @Column(nullable = false, precision = 23, scale = 8)
     private BigDecimal floorBalance;
 
-    @Column(nullable = false, precision = 18, scale = 8)
+    @Column(nullable = false, precision = 23, scale = 8)
     private BigDecimal ceilingBalance;
 
     // 상태 판단
