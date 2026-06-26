@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeftRight, Check, ChevronRight, Clock3, Trash2, UserPlus } from "lucide-react"
 import { toast } from "sonner"
@@ -57,6 +57,26 @@ function floorToTwoDecimals(value: number) {
   return Math.floor(value * 100) / 100
 }
 
+function countDigitsBeforeCursor(value: string, cursorPosition: number) {
+  return value.slice(0, cursorPosition).replace(/\D/g, "").length
+}
+
+function findFormattedCursorPosition(value: string, digitPosition: number) {
+  if (digitPosition <= 0) return 0
+
+  let digitsSeen = 0
+  for (let index = 0; index < value.length; index += 1) {
+    if (/\d/.test(value[index])) {
+      digitsSeen += 1
+    }
+    if (digitsSeen >= digitPosition) {
+      return index + 1
+    }
+  }
+
+  return value.length
+}
+
 interface Recipient {
   id: string
   name: string
@@ -94,7 +114,10 @@ export default function RemittancePage() {
   const [quote, setQuote] = useState<QuoteResponse | null>(null)
   const [quoteTimeLeft, setQuoteTimeLeft] = useState(0)
   const [quoteSessionExpiresAt, setQuoteSessionExpiresAt] = useState<string | null>(null)
+  const [quoteExpiredCountdown, setQuoteExpiredCountdown] = useState<number | null>(null)
   const quoteRequestId = useRef(0)
+  const krwInputRef = useRef<HTMLInputElement>(null)
+  const krwCursorDigitPosition = useRef<number | null>(null)
 
   const [recipientId, setRecipientId] = useState("")
   const [deleteTarget, setDeleteTarget] = useState<Recipient | null>(null)
@@ -147,6 +170,19 @@ export default function RemittancePage() {
     loadInitialData()
   }, [])
 
+  useLayoutEffect(() => {
+    if (amountMode !== "send" || krwCursorDigitPosition.current === null) return
+
+    const input = krwInputRef.current
+    if (!input) return
+
+    const digitPosition = krwCursorDigitPosition.current
+    krwCursorDigitPosition.current = null
+
+    const nextCursor = findFormattedCursorPosition(input.value, digitPosition)
+    input.setSelectionRange(nextCursor, nextCursor)
+  }, [amountMode, krwInput])
+
   const fetchQuote = useCallback(async (options: { silent?: boolean } = {}) => {
     if (!recipient) return null
     const requestId = quoteRequestId.current + 1
@@ -160,7 +196,8 @@ export default function RemittancePage() {
       })
       if (requestId === quoteRequestId.current) {
         setQuote(data)
-        setQuoteSessionExpiresAt((prev) => prev ?? data.expiredAt)
+        setQuoteSessionExpiresAt(data.expiredAt)
+        setQuoteExpiredCountdown(null)
       }
       return data
     } catch (err: any) {
@@ -207,6 +244,7 @@ export default function RemittancePage() {
       if (nextTimeLeft <= 0) {
         setQuote(null)
         setQuoteSessionExpiresAt(null)
+        setQuoteExpiredCountdown((prev) => prev ?? 3)
         toast.warning("견적 유효 시간이 만료되었습니다. 견적을 다시 조회해주세요.")
         return false
       }
@@ -224,6 +262,30 @@ export default function RemittancePage() {
 
     return () => window.clearInterval(interval)
   }, [quoteSessionExpiresAt])
+
+  useEffect(() => {
+    if (quoteExpiredCountdown === null) return
+
+    if (quoteExpiredCountdown <= 0) {
+      quoteRequestId.current += 1
+      setStep(0)
+      setKrwInput("")
+      setReceiveInput("")
+      setAmountMode("send")
+      setQuote(null)
+      setQuoteTimeLeft(0)
+      setQuoteSessionExpiresAt(null)
+      setQuoteExpiredCountdown(null)
+      setLoadingQuote(false)
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setQuoteExpiredCountdown((prev) => (prev === null ? null : prev - 1))
+    }, 1000)
+
+    return () => window.clearTimeout(timer)
+  }, [quoteExpiredCountdown])
 
   async function saveRecipient() {
     if (!form.name.trim() || !form.bank.trim() || !form.account.trim())
@@ -281,8 +343,32 @@ export default function RemittancePage() {
     }
   }
 
-  function handleKrwInputChange(value: string) {
+  function handleKrwInputChange(value: string, cursorPosition: number | null) {
+    krwCursorDigitPosition.current = countDigitsBeforeCursor(value, cursorPosition ?? value.length)
     setKrwInput(value.replace(/[^\d]/g, ""))
+  }
+
+  function handleKrwInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Backspace" && event.key !== "Delete") return
+
+    const input = event.currentTarget
+    const selectionStart = input.selectionStart ?? 0
+    const selectionEnd = input.selectionEnd ?? selectionStart
+    if (selectionStart !== selectionEnd) return
+
+    const value = input.value
+    const isBackspaceOnSeparator = event.key === "Backspace" && selectionStart > 0 && /\D/.test(value[selectionStart - 1])
+    const isDeleteOnSeparator = event.key === "Delete" && selectionStart < value.length && /\D/.test(value[selectionStart])
+    if (!isBackspaceOnSeparator && !isDeleteOnSeparator) return
+
+    event.preventDefault()
+
+    const digitPosition = countDigitsBeforeCursor(value, selectionStart)
+    const deleteIndex = event.key === "Backspace" ? digitPosition - 1 : digitPosition
+    if (deleteIndex < 0 || deleteIndex >= krwInput.length) return
+
+    krwCursorDigitPosition.current = deleteIndex
+    setKrwInput(krwInput.slice(0, deleteIndex) + krwInput.slice(deleteIndex + 1))
   }
 
   function handleReceiveInputChange(value: string) {
@@ -311,6 +397,7 @@ export default function RemittancePage() {
     if (step === 0 && !recipient) return toast.error("수취인을 선택하거나 추가하세요.")
     if (step === 0 && recipient) {
       setQuoteSessionExpiresAt(new Date(Date.now() + QUOTE_EXPIRATION_SECONDS * 1000).toISOString())
+      setQuoteExpiredCountdown(null)
     }
     if (step === 1) {
       if (krwAmount <= 0) return toast.error("해외송금 금액을 입력하세요.")
@@ -527,9 +614,11 @@ export default function RemittancePage() {
                 </div>
                 {amountMode === "send" ? (
                   <Input
+                    ref={krwInputRef}
                     inputMode="numeric"
                     value={krwInput ? Number(krwInput).toLocaleString("ko-KR") : ""}
-                    onChange={(e) => handleKrwInputChange(e.target.value)}
+                    onKeyDown={handleKrwInputKeyDown}
+                    onChange={(e) => handleKrwInputChange(e.target.value, e.target.selectionStart)}
                     className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
                     placeholder="0"
                   />
@@ -547,12 +636,12 @@ export default function RemittancePage() {
                     <span>견적 계산 중...</span>
                   ) : amountMode === "send" ? (
                     <>
-                      <span>예상 금액 {quoteDisplayReady ? formatCurrency(received, currency) : "-"}</span>
+                      <span>보낼 금액 {quoteDisplayReady ? formatCurrency(received, currency) : "-"}</span>
                       <span>수수료 {quoteDisplayReady ? formatKRW(fee) : "-"}</span>
                     </>
                   ) : (
                     <>
-                      <span>예상 금액 {formatKRW(krwAmount)}</span>
+                      <span>보낼 금액 {formatKRW(krwAmount)}</span>
                       <span>수수료 {quoteDisplayReady ? formatKRW(fee) : "-"}</span>
                     </>
                   )}
@@ -584,7 +673,11 @@ export default function RemittancePage() {
                   className="min-h-20 resize-none"
                 />
               </div>
-              {quoteSessionExpiresAt && <QuoteExpirationNotice timeLeft={quoteTimeLeft} />}
+              {quoteExpiredCountdown !== null ? (
+                <QuoteExpiredNotice countdown={quoteExpiredCountdown} />
+              ) : (
+                quoteSessionExpiresAt && <QuoteExpirationNotice timeLeft={quoteTimeLeft} />
+              )}
             </div>
           </Card>
         )}
@@ -608,7 +701,11 @@ export default function RemittancePage() {
               <Row label="총 출금액" value={formatKRW(total)} bold />
               <Row label="수취 금액" value={formatCurrency(received, currency)} bold accent />
             </dl>
-            {quoteSessionExpiresAt && <QuoteExpirationNotice className="mt-4" timeLeft={quoteTimeLeft} />}
+            {quoteExpiredCountdown !== null ? (
+              <QuoteExpiredNotice className="mt-4" countdown={quoteExpiredCountdown} />
+            ) : (
+              quoteSessionExpiresAt && <QuoteExpirationNotice className="mt-4" timeLeft={quoteTimeLeft} />
+            )}
           </Card>
         )}
 
@@ -700,6 +797,18 @@ function QuoteExpirationNotice({ timeLeft, className }: { timeLeft: number; clas
         견적 유효 시간
       </span>
       <span className="font-mono text-xs font-bold tabular-nums">{formatTimeLeft(timeLeft)}</span>
+    </div>
+  )
+}
+
+function QuoteExpiredNotice({ countdown, className }: { countdown: number; className?: string }) {
+  return (
+    <div className={cn("flex flex-wrap items-center justify-between gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-destructive", className)}>
+      <span className="flex items-center gap-1.5 text-xs font-medium">
+        <Clock3 className="size-3.5" />
+        견적 유효 시간이 만료되었습니다
+      </span>
+      <span className="font-mono text-xs font-bold tabular-nums">{countdown}초 뒤 수취인 선택으로 이동</span>
     </div>
   )
 }
