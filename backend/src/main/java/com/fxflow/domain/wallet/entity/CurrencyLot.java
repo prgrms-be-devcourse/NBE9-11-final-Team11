@@ -1,6 +1,7 @@
 package com.fxflow.domain.wallet.entity;
 
 import com.fxflow.global.entity.BaseEntity;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -18,10 +19,14 @@ public class CurrencyLot extends BaseEntity {
     @JoinColumn(name = "wallet_id")
     private Wallet wallet;
     private String currencyCode;
+    @Column(precision = 18, scale = 8, nullable = false)
     private BigDecimal quantity;
+    @Column(precision = 18, scale = 8, nullable = false)
     private BigDecimal remainingQuantity; // 아직 쓰지 않은 금액
+    @Column(precision = 18, scale = 8, nullable = false)
     private BigDecimal acquisitionRate;
     private String sourceTransactionId;
+    @Column(precision = 18, scale = 8, nullable = false)
     private BigDecimal realizedProfit = BigDecimal.ZERO;
     private boolean exhausted = false;
 

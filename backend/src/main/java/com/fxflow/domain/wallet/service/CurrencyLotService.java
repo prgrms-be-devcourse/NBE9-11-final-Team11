@@ -22,6 +22,7 @@ public class CurrencyLotService {
         List<CurrencyLot> lots = currencyLotRepository.findAvailableLotsFIFO(wallet.getId());
         BigDecimal remaining = amount;
         BigDecimal totalRealizedProfit = BigDecimal.ZERO;
+        List<CurrencyLot> modifiedLots = new ArrayList<>();
 
         for (CurrencyLot lot : lots) {
             if (remaining.compareTo(BigDecimal.ZERO) == 0) break;
@@ -31,13 +32,14 @@ public class CurrencyLotService {
             totalRealizedProfit = totalRealizedProfit.add(profit);
             lot.consume(consumeAmount);
             remaining = remaining.subtract(consumeAmount);
+            modifiedLots.add(lot);
         }
 
         if (remaining.compareTo(BigDecimal.ZERO) > 0) {
             throw new BusinessException(LotErrorCode.INSUFFICIENT_LOT_BALANCE);
         }
 
-        currencyLotRepository.saveAll(lots);
+        currencyLotRepository.saveAll(modifiedLots);
         return totalRealizedProfit;
     }
 
@@ -61,6 +63,7 @@ public class CurrencyLotService {
 
     private void transferLotsForP2p(Wallet sender, Wallet receiver, BigDecimal amount, String sourceTransactionId) {
         List<CurrencyLot> senderLots = currencyLotRepository.findAvailableLotsFIFO(sender.getId());
+        List<CurrencyLot> modifiedSenderLots = new ArrayList<>();
         List<CurrencyLot> receiverLots = new ArrayList<>();
         BigDecimal remaining = amount;
 
@@ -78,6 +81,7 @@ public class CurrencyLotService {
                     sourceTransactionId);
 
             receiverLots.add(receiverLot);
+            modifiedSenderLots.add(lot);
             remaining = remaining.subtract(consumeAmount);
         }
 
@@ -85,7 +89,7 @@ public class CurrencyLotService {
             throw new BusinessException(LotErrorCode.INSUFFICIENT_LOT_BALANCE);
         }
 
-        currencyLotRepository.saveAll(senderLots);
+        currencyLotRepository.saveAll(modifiedSenderLots);
         currencyLotRepository.saveAll(receiverLots);
     }
 }
