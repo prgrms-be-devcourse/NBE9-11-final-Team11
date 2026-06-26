@@ -4,6 +4,7 @@ import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.service.UserService;
+import com.fxflow.domain.userlimitusage.service.UserExchangeUsageService;
 import com.fxflow.domain.wallet.dto.cache.ExchangeQuoteCache;
 import com.fxflow.domain.wallet.dto.request.ExchangeRequest;
 import com.fxflow.domain.wallet.entity.ExchangeTransaction;
@@ -41,6 +42,7 @@ class ExchangeServiceFeeTest {
     @Mock private TransactionLimitValidator transactionLimitValidator;
     @Mock private ExchangeTransactionRepository exchangeTransactionRepository;
     @Mock private LedgerEntryRepository ledgerEntryRepository;
+    @Mock private UserExchangeUsageService userExchangeUsageService;
 
     @InjectMocks
     private ExchangeService exchangeService;

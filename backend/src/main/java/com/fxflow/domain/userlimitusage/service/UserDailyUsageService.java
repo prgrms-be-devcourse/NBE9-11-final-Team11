@@ -19,7 +19,7 @@ public class UserDailyUsageService {
     private final UserRepository userRepository;
 
     public void addDeposit(Long userId, LocalDate usageDate, BigDecimal amount) {
-        UserDailyUsage usage = userDailyUsageRepository.findByUserIdAndUsageDate(
+        UserDailyUsage usage = userDailyUsageRepository.findByUserIdAndUsageDateForUpdate(
                 userId,usageDate
         ).orElseGet( () -> {
             User user = userRepository.findById(userId).orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
@@ -30,7 +30,7 @@ public class UserDailyUsageService {
     }
 
     public void addWithdrawal(Long userId, LocalDate usageDate, BigDecimal amount) {
-        UserDailyUsage usage = userDailyUsageRepository.findByUserIdAndUsageDate(
+        UserDailyUsage usage = userDailyUsageRepository.findByUserIdAndUsageDateForUpdate(
                 userId,usageDate
         ).orElseGet( () -> {
                     User user = userRepository.findById(userId).orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));

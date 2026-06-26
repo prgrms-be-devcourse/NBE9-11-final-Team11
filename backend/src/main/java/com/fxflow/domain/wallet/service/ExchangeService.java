@@ -9,6 +9,7 @@ import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.service.UserService;
+import com.fxflow.domain.userlimitusage.service.UserExchangeUsageService;
 import com.fxflow.domain.wallet.config.ExchangeFeeProperties;
 import com.fxflow.domain.wallet.config.ExchangeProperties;
 import com.fxflow.domain.wallet.dto.cache.ExchangeQuoteCache;
@@ -33,7 +34,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Service
@@ -54,6 +57,7 @@ public class ExchangeService {
     private final ExchangeTransactionRepository exchangeTransactionRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final CompanyPoolService companyPoolService;
+    private final UserExchangeUsageService userExchangeUsageService;
 
     public ExchangeQuoteResponse getExchangeQuote(Long userId, ExchangeQuoteRequest request) {
 
@@ -140,9 +144,13 @@ public class ExchangeService {
         }
 
         // -- 제한 검증 --
-        // check user's one/daily/yearly exchange limit
+        // USD -> KRW 환전은 한도 제한 없음 (KRW -> USD 방향에만 건당/일일/연간 환전 한도 적용)
+        boolean isLimitedDirection = fromCurrency.equals("KRW");
+
         User user = userService.getUser(userId);
-        transactionLimitValidator.validateExchange(user, cache.fromAmount());  // 환전하려는 금액 검증
+        if (isLimitedDirection) {
+            transactionLimitValidator.validateExchange(user, cache.fromAmount());  // 환전하려는 금액 검증
+        }
 
         // check wallet holding
         BigDecimal toBalanceAfter = toWallet.getBalance().add(cache.toAmount()); // deposit 전에 미리 계산
@@ -196,6 +204,16 @@ public class ExchangeService {
         ledgerEntryRepository.save(toEntry);
 
         // pool 갱신 X, 출금할 때 실제 자금 이동
+
+        // 일일/연간 환전 한도 사용량 갱신 (USD -> KRW는 한도 제한 대상이 아니므로 누적하지 않음)
+        // fromWallet/toWallet에 대한 비관적 락을 이미 보유한 트랜잭션 안에서 처리되므로,
+        // 같은 유저의 동시 환전 요청은 직렬화되어 usage row 동시 갱신 문제가 발생하지 않는다.
+        if (isLimitedDirection) {
+            LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+            int currentYear = today.getYear();
+            userExchangeUsageService.addDailyExchange(userId, today, cache.fromAmount());
+            userExchangeUsageService.addAnnualExchange(userId, currentYear, cache.fromAmount());
+        }
 
         // transaction 완료 후 quote 삭제
         redisTemplate.delete("quote:" + quoteId);
