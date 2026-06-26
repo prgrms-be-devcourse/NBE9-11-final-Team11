@@ -41,13 +41,13 @@ public class LedgerEntry extends BaseEntity {
     @Column(name = "currency_code", nullable = false, length = 3)
     private String currencyCode;
 
-    @Column(name = "amount", nullable = false, precision = 18, scale = 2)
+    @Column(name = "amount", nullable = false, precision = 23, scale = 8)
     private BigDecimal amount;
 
-    @Column(name = "balance_before", nullable = false, precision = 18, scale = 2)
+    @Column(name = "balance_before", nullable = false, precision = 23, scale = 8)
     private BigDecimal balanceBefore;
 
-    @Column(name = "balance_after", nullable = false, precision = 18, scale = 2)
+    @Column(name = "balance_after", nullable = false, precision = 23, scale = 8)
     private BigDecimal balanceAfter;
 
     @Enumerated(EnumType.STRING)

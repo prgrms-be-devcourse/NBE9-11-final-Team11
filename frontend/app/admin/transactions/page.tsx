@@ -1,121 +1,355 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { AdminShell } from "@/components/admin/admin-shell"
 import { Card } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { TxStatusBadge } from "@/components/app/status-badges"
-import { formatKRW } from "@/lib/fx-data"
-import type { TxStatus } from "@/lib/store"
+import { useAdminTransactions } from "@/hooks/useAdminTransactions"
+import type { AdminTransactionItem } from "@/lib/api"
+import { formatCurrency } from "@/lib/fx-data"
+import type { CurrencyCode } from "@/lib/fx-data"
 
-interface AdminTx {
-  id: string
-  user: string
-  type: "환전" | "해외송금" | "입금" | "출금"
-  amountKRW: number
-  status: TxStatus
-  createdAt: string
+const TRIGGER_LABEL: Record<string, string> = {
+  AUTO: "자동",
+  MANUAL: "수동",
+  SCHEDULER: "스케줄러",
 }
 
-const SEED: AdminTx[] = [
-  { id: "atx-1042", user: "김민준", type: "해외송금", amountKRW: 1390275, status: "processing", createdAt: "2026-06-09T22:14:00Z" },
-  { id: "atx-1041", user: "이서연", type: "환전", amountKRW: 693750, status: "completed", createdAt: "2026-06-09T21:02:00Z" },
-  { id: "atx-1040", user: "박도윤", type: "입금", amountKRW: 3000000, status: "completed", createdAt: "2026-06-09T18:47:00Z" },
-  { id: "atx-1039", user: "최지우", type: "해외송금", amountKRW: 2450000, status: "failed", createdAt: "2026-06-09T16:33:00Z" },
-  { id: "atx-1038", user: "정하준", type: "환전", amountKRW: 456400, status: "completed", createdAt: "2026-06-09T15:10:00Z" },
-  { id: "atx-1037", user: "강수아", type: "출금", amountKRW: 800000, status: "refunded", createdAt: "2026-06-09T12:21:00Z" },
-  { id: "atx-1036", user: "윤지호", type: "해외송금", amountKRW: 5120000, status: "completed", createdAt: "2026-06-09T09:58:00Z" },
-  { id: "atx-1035", user: "임채원", type: "환전", amountKRW: 1200000, status: "completed", createdAt: "2026-06-08T23:40:00Z" },
-]
+const ACCOUNT_ROLE_LABEL: Record<string, string> = {
+  WALLET: "지갑",
+  BANK: "연결계좌",
+  KRW_POOL: "원화풀",
+  USD_POOL: "달러풀",
+}
 
-function formatDateTime(iso: string) {
+
+function AccountFlow({
+  sourceType,
+  mainCurrency,
+  accountEntries,
+}: {
+  sourceType: string
+  mainCurrency: string | null
+  accountEntries: GroupedTx["accountEntries"]
+}) {
+  if (sourceType === "REBALANCING") {
+    if (!mainCurrency) return <span className="text-muted-foreground text-sm">—</span>
+    const from = mainCurrency === "KRW" ? "달러풀" : "원화풀"
+    const to   = mainCurrency === "KRW" ? "원화풀" : "달러풀"
+    return (
+      <span className="text-sm tabular-nums">
+        <span className="text-muted-foreground">{from}</span>
+        <span className="mx-1 text-muted-foreground">→</span>
+        <span>{to}</span>
+      </span>
+    )
+  }
+
+  const walletCurrencies = new Set(
+    accountEntries.filter((e) => e.accountRole === "WALLET").map((e) => e.currencyCode)
+  )
+  const multiWalletCurrency = walletCurrencies.size > 1
+
+  function label(e: GroupedTx["accountEntries"][number]) {
+    const base = ACCOUNT_ROLE_LABEL[e.accountRole ?? ""] ?? e.accountRole ?? "?"
+    if (e.accountRole === "WALLET" && multiWalletCurrency && e.currencyCode) {
+      return `${base}(${e.currencyCode})`
+    }
+    return base
+  }
+
+  const froms = accountEntries.filter((e) => e.direction === "DEBIT"  && e.accountRole).map(label)
+  const tos   = accountEntries.filter((e) => e.direction === "CREDIT" && e.accountRole).map(label)
+
+  if (froms.length === 0 && tos.length === 0) {
+    return <span className="text-muted-foreground text-sm">—</span>
+  }
+
+  return (
+    <span className="text-sm whitespace-nowrap">
+      {froms.length > 0 && <span className="text-muted-foreground">{froms.join(", ")}</span>}
+      {froms.length > 0 && tos.length > 0 && <span className="mx-1.5 text-muted-foreground">→</span>}
+      {tos.length > 0 && <span>{tos.join(", ")}</span>}
+    </span>
+  )
+}
+
+type CategoryKey = "지갑충전" | "지갑출금" | "P2P이체" | "환전" | "해외송금" | "리밸런싱"
+
+const CATEGORY_COLOR: Record<CategoryKey, string> = {
+  지갑충전: "bg-emerald-100 text-emerald-700",
+  지갑출금: "bg-red-100 text-red-700",
+  P2P이체: "bg-sky-100 text-sky-700",
+  환전: "bg-violet-100 text-violet-700",
+  해외송금: "bg-amber-100 text-amber-700",
+  리밸런싱: "bg-indigo-100 text-indigo-700",
+}
+
+function getCategory(sourceType: string, subType: string): CategoryKey | string {
+  if (sourceType === "REBALANCING") return "리밸런싱"
+  const map: Record<string, CategoryKey> = {
+    CHARGE: "지갑충전",
+    WITHDRAW: "지갑출금",
+    TRANSFER: "P2P이체",
+    EXCHANGE: "환전",
+    REMITTANCE: "해외송금",
+  }
+  return map[subType] ?? subType
+}
+
+function CategoryBadge({ sourceType, subType }: { sourceType: string; subType: string }) {
+  const category = getCategory(sourceType, subType)
+  const color = CATEGORY_COLOR[category as CategoryKey] ?? "bg-muted text-muted-foreground"
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>
+      {category}
+    </span>
+  )
+}
+
+function formatAmount(amount: number | null | undefined, currencyCode: string | null | undefined): string {
+  if (amount == null || currencyCode == null) return "—"
+  return formatCurrency(amount, currencyCode as CurrencyCode)
+}
+
+function formatDateTime(iso: string): string {
   const d = new Date(iso)
-  return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
+interface GroupedTx {
+  key: string
+  journalId: string | null
+  sourceType: string
+  subType: string
+  createdAt: string
+  mainAmount: number | null
+  mainCurrency: string | null
+  krwPoolChange: number | null
+  usdPoolChange: number | null
+  triggerType: string | null
+  accountEntries: Array<{ accountRole: string | null; direction: string | null; currencyCode: string | null }>
+}
+
+function buildGroups(items: AdminTransactionItem[]): GroupedTx[] {
+  const map = new Map<string, AdminTransactionItem[]>()
+  items.forEach((item) => {
+    const key = item.journalId ?? `reb-${item.id}`
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(item)
+  })
+
+  const result: GroupedTx[] = []
+  map.forEach((entries, key) => {
+    const first = entries[0]
+    const walletEntry =
+      entries.find((e) => e.accountRole === "WALLET" && e.direction === "DEBIT") ??
+      entries.find((e) => e.accountRole === "WALLET")
+
+    const krwChange = entries.find((e) => e.krwPoolChange != null)?.krwPoolChange ?? null
+    const usdChange = entries.find((e) => e.usdPoolChange != null)?.usdPoolChange ?? null
+
+    const subType = entries.some((e) => e.subType === "REMITTANCE") ? "REMITTANCE" : first.subType
+
+    result.push({
+      key,
+      journalId: first.journalId,
+      sourceType: first.sourceType,
+      subType,
+      createdAt: first.createdAt,
+      mainAmount: walletEntry?.amount ?? first.amount ?? null,
+      mainCurrency: walletEntry?.currencyCode ?? first.currencyCode ?? null,
+      krwPoolChange: krwChange,
+      usdPoolChange: usdChange,
+      triggerType: first.triggerType,
+      accountEntries: entries.map((e) => ({
+        accountRole: e.accountRole,
+        direction: e.direction,
+        currencyCode: e.currencyCode,
+      })),
+    })
+  })
+
+  return result
+}
+
+function PoolChange({ amount, currency }: { amount: number | null; currency: string }) {
+  if (amount == null) return <span className="text-muted-foreground">—</span>
+  const positive = amount >= 0
+  return (
+    <span className={`tabular-nums font-medium ${positive ? "text-emerald-600" : "text-red-500"}`}>
+      {positive ? "+" : "-"}{formatAmount(Math.abs(amount), currency)}
+    </span>
+  )
+}
+
+function TransactionTable({ items }: { items: AdminTransactionItem[] }) {
+  const grouped = buildGroups(items)
+
+  if (grouped.length === 0) {
+    return (
+      <div className="py-16 text-center text-sm text-muted-foreground">
+        조회된 거래내역이 없습니다.
+      </div>
+    )
+  }
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="text-center">유형</TableHead>
+            <TableHead className="text-center">계정 흐름</TableHead>
+            <TableHead className="text-center">금액</TableHead>
+            <TableHead className="text-center">원화풀 변화</TableHead>
+            <TableHead className="text-center">달러풀 변화</TableHead>
+            <TableHead className="text-center">저널 ID</TableHead>
+            <TableHead className="text-center">트리거</TableHead>
+            <TableHead className="text-center">일시</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {grouped.map((t) => (
+            <TableRow key={t.key}>
+              <TableCell className="text-center">
+                <CategoryBadge sourceType={t.sourceType} subType={t.subType} />
+              </TableCell>
+              <TableCell className="text-center">
+                <AccountFlow
+                  sourceType={t.sourceType}
+                  mainCurrency={t.mainCurrency}
+                  accountEntries={t.accountEntries}
+                />
+              </TableCell>
+              <TableCell className="text-center font-semibold tabular-nums">
+                {formatAmount(t.mainAmount, t.mainCurrency)}
+              </TableCell>
+              <TableCell className="text-center text-sm">
+                <PoolChange amount={t.krwPoolChange} currency="KRW" />
+              </TableCell>
+              <TableCell className="text-center text-sm">
+                <PoolChange amount={t.usdPoolChange} currency="USD" />
+              </TableCell>
+              <TableCell className="text-center font-mono text-xs text-muted-foreground">
+                {t.journalId ?? `#${t.key}`}
+              </TableCell>
+              <TableCell className="text-center text-sm">
+                {t.triggerType ? (TRIGGER_LABEL[t.triggerType] ?? t.triggerType) : "—"}
+              </TableCell>
+              <TableCell className="text-center text-sm text-muted-foreground tabular-nums">
+                {formatDateTime(t.createdAt)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
 }
 
 export default function AdminTransactionsPage() {
-  const [status, setStatus] = useState<TxStatus | "all">("all")
+  const [fromInput, setFromInput] = useState("")
+  const [toInput, setToInput] = useState("")
+  const [appliedFrom, setAppliedFrom] = useState("")
+  const [appliedTo, setAppliedTo] = useState("")
+  const [page, setPage] = useState(0)
+  const PAGE_SIZE = 30
 
-  const filtered = useMemo(() => (status === "all" ? SEED : SEED.filter((t) => t.status === status)), [status])
-  const volume = filtered.reduce((s, t) => s + t.amountKRW, 0)
+  const { data, loading, error } = useAdminTransactions({
+    page,
+    size: PAGE_SIZE,
+    from: appliedFrom,
+    to: appliedTo,
+  })
+
+  function handleSearch() {
+    setPage(0)
+    setAppliedFrom(fromInput)
+    setAppliedTo(toInput)
+  }
+
+  function handleReset() {
+    setFromInput("")
+    setToInput("")
+    setPage(0)
+    setAppliedFrom("")
+    setAppliedTo("")
+  }
+
+  const totalPages = data?.totalPages ?? 1
 
   return (
     <AdminShell title="전체 거래내역" active="/admin/transactions">
       <div className="space-y-6">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Card className="p-5">
-            <p className="text-sm text-muted-foreground">총 거래 건수</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">{filtered.length}건</p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-sm text-muted-foreground">총 거래 금액</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">{formatKRW(volume)}</p>
-          </Card>
-          <Card className="p-5">
-            <p className="text-sm text-muted-foreground">실패 / 환불</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-destructive">
-              {SEED.filter((t) => t.status === "failed" || t.status === "refunded").length}건
-            </p>
-          </Card>
-        </div>
-
         <Card className="overflow-hidden p-0">
-          <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex flex-wrap items-center gap-3 px-5 py-4">
             <h2 className="text-base font-bold">거래 모니터링</h2>
-            <Select value={status} onValueChange={(v) => setStatus((v as TxStatus | "all") ?? "all")}>
-              <SelectTrigger className="w-36">
-                <SelectValue>
-                  {{ all: "전체 상태", completed: "완료", processing: "처리중", failed: "실패", refunded: "환불됨", canceled: "취소" }[status]}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 상태</SelectItem>
-                <SelectItem value="completed">완료</SelectItem>
-                <SelectItem value="processing">처리중</SelectItem>
-                <SelectItem value="failed">실패</SelectItem>
-                <SelectItem value="refunded">환불됨</SelectItem>
-                <SelectItem value="canceled">취소</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Input
+                type="date"
+                value={fromInput}
+                onChange={(e) => setFromInput(e.target.value)}
+                className="w-36"
+                placeholder="시작일"
+              />
+              <span className="text-sm text-muted-foreground">~</span>
+              <Input
+                type="date"
+                value={toInput}
+                onChange={(e) => setToInput(e.target.value)}
+                className="w-36"
+                placeholder="종료일"
+              />
+              <Button size="sm" onClick={handleSearch}>
+                조회
+              </Button>
+              {(appliedFrom || appliedTo) && (
+                <Button size="sm" variant="outline" onClick={handleReset}>
+                  초기화
+                </Button>
+              )}
+            </div>
           </div>
           <Separator />
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>거래번호</TableHead>
-                  <TableHead>사용자</TableHead>
-                  <TableHead>유형</TableHead>
-                  <TableHead className="text-right">금액</TableHead>
-                  <TableHead>상태</TableHead>
-                  <TableHead>일시</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell className="font-mono text-xs">{t.id.toUpperCase()}</TableCell>
-                    <TableCell className="font-medium">{t.user}</TableCell>
-                    <TableCell>{t.type}</TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">{formatKRW(t.amountKRW)}</TableCell>
-                    <TableCell>
-                      <TxStatusBadge status={t.status} />
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground tabular-nums">
-                      {formatDateTime(t.createdAt)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
 
-        <p className="text-center text-xs text-muted-foreground">
-          본 데이터는 시뮬레이션용 목업이며 실제 사용자 거래가 아닙니다.
-        </p>
+          {error ? (
+            <div className="py-16 text-center text-sm text-destructive">{error}</div>
+          ) : loading ? (
+            <div className="py-16 text-center text-sm text-muted-foreground">불러오는 중...</div>
+          ) : (
+            <TransactionTable items={data?.data ?? []} />
+          )}
+
+          {!loading && !error && totalPages > 1 && (
+            <>
+              <Separator />
+              <div className="flex items-center justify-between px-5 py-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page === 0}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  이전
+                </Button>
+                <span className="text-sm text-muted-foreground tabular-nums">
+                  {page + 1} / {totalPages}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page >= totalPages - 1}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  다음
+                </Button>
+              </div>
+            </>
+          )}
+        </Card>
       </div>
     </AdminShell>
   )

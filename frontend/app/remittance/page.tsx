@@ -1,8 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeftRight, Check, ChevronRight, Clock3, Trash2, UserPlus } from "lucide-react"
+import { ArrowLeftRight, Check, ChevronRight, Trash2, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -23,11 +23,12 @@ import {
 import {
   COUNTRIES,
   CURRENCY_META,
+  RATES,
   REMITTANCE_REASONS,
+  floorToTwoDecimals,
   formatKRW,
   formatCurrency,
   krwPerUnit,
-  remittanceFee,
   type CurrencyCode,
 } from "@/lib/fx-data"
 import { cn } from "@/lib/utils"
@@ -36,7 +37,6 @@ import { apiRequest } from "@/lib/api"
 const STEPS = ["수취인", "금액", "확인"]
 const MIN_SEND_AMOUNT_KRW = 10000
 const PER_TRANSFER_LIMIT_USD = 5000
-const QUOTE_EXPIRATION_SECONDS = 300
 const REASON_TO_API: Record<string, string> = {
   가족생활비: "FAMILY_SUPPORT",
   유학경비: "TUITION",
@@ -51,30 +51,6 @@ function createIdempotencyKey() {
   }
 
   return Math.random().toString(36).substring(2) + Date.now().toString(36)
-}
-
-function floorToTwoDecimals(value: number) {
-  return Math.floor(value * 100) / 100
-}
-
-function countDigitsBeforeCursor(value: string, cursorPosition: number) {
-  return value.slice(0, cursorPosition).replace(/\D/g, "").length
-}
-
-function findFormattedCursorPosition(value: string, digitPosition: number) {
-  if (digitPosition <= 0) return 0
-
-  let digitsSeen = 0
-  for (let index = 0; index < value.length; index += 1) {
-    if (/\d/.test(value[index])) {
-      digitsSeen += 1
-    }
-    if (digitsSeen >= digitPosition) {
-      return index + 1
-    }
-  }
-
-  return value.length
 }
 
 interface Recipient {
@@ -112,19 +88,13 @@ export default function RemittancePage() {
   const [submitting, setSubmitting] = useState(false)
   const [deletingRecipient, setDeletingRecipient] = useState(false)
   const [quote, setQuote] = useState<QuoteResponse | null>(null)
-  const [quoteTimeLeft, setQuoteTimeLeft] = useState(0)
-  const [quoteSessionExpiresAt, setQuoteSessionExpiresAt] = useState<string | null>(null)
-  const [quoteExpiredCountdown, setQuoteExpiredCountdown] = useState<number | null>(null)
-  const quoteRequestId = useRef(0)
-  const krwInputRef = useRef<HTMLInputElement>(null)
-  const krwCursorDigitPosition = useRef<number | null>(null)
 
   const [recipientId, setRecipientId] = useState("")
   const [deleteTarget, setDeleteTarget] = useState<Recipient | null>(null)
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ name: "", country: COUNTRIES[0].name, bank: "", account: "" })
 
-  const [krwInput, setKrwInput] = useState("")
+  const [krwInput, setKrwInput] = useState("1000000")
   const [receiveInput, setReceiveInput] = useState("")
   const [amountMode, setAmountMode] = useState<"send" | "receive">("send")
   const [reason, setReason] = useState(REMITTANCE_REASONS[0])
@@ -133,17 +103,14 @@ export default function RemittancePage() {
   const recipient = recipients.find((r) => r.id === recipientId)
   const country = COUNTRIES.find((c) => c.name === (recipient?.country ?? form.country)) ?? COUNTRIES[0]
   const currency: CurrencyCode = recipient?.currency ?? country.currency
+  const rate = currency === "KRW" ? { rate: 1, unit: 1 } : RATES[currency as Exclude<CurrencyCode, "KRW">]
 
   const krwAmount = Number(krwInput.replace(/[^\d]/g, "")) || 0
-  const estimatedFee = krwAmount > 0 ? remittanceFee(krwAmount) : 0
-  const estimatedReceived = krwAmount / krwPerUnit(currency)
-  const activeQuote = quote?.sendAmountKrw === krwAmount ? quote : null
-  const quoteDisplayReady = Boolean(activeQuote)
   const { fee, received } = useMemo(() => {
-    const fee = activeQuote?.totalFee ?? estimatedFee
-    const received = activeQuote?.receiveAmountUsd ?? estimatedReceived
+    const fee = quote?.totalFee ?? 0
+    const received = quote?.receiveAmountUsd ?? krwAmount / krwPerUnit(currency)
     return { fee, received }
-  }, [activeQuote, estimatedFee, estimatedReceived])
+  }, [krwAmount, currency, quote])
 
   const total = krwAmount + fee
   const estimatedAmountUsd = krwAmount / krwPerUnit(currency)
@@ -170,23 +137,12 @@ export default function RemittancePage() {
     loadInitialData()
   }, [])
 
-  useLayoutEffect(() => {
-    if (amountMode !== "send" || krwCursorDigitPosition.current === null) return
+  useEffect(() => {
+    setQuote(null)
+  }, [recipientId, krwInput, reason])
 
-    const input = krwInputRef.current
-    if (!input) return
-
-    const digitPosition = krwCursorDigitPosition.current
-    krwCursorDigitPosition.current = null
-
-    const nextCursor = findFormattedCursorPosition(input.value, digitPosition)
-    input.setSelectionRange(nextCursor, nextCursor)
-  }, [amountMode, krwInput])
-
-  const fetchQuote = useCallback(async (options: { silent?: boolean } = {}) => {
+  async function fetchQuote() {
     if (!recipient) return null
-    const requestId = quoteRequestId.current + 1
-    quoteRequestId.current = requestId
     setLoadingQuote(true)
     try {
       const data = await apiRequest<QuoteResponse>("POST", "/api/v1/transfers/quote", {
@@ -194,98 +150,16 @@ export default function RemittancePage() {
         sendAmountKrw: krwAmount,
         reason: REASON_TO_API[reason] ?? "ETC",
       })
-      if (requestId === quoteRequestId.current) {
-        setQuote(data)
-        setQuoteSessionExpiresAt(data.expiredAt)
-        setQuoteExpiredCountdown(null)
-      }
+      setQuote(data)
       return data
     } catch (err: any) {
       console.error(err)
-      if (!options.silent && requestId === quoteRequestId.current) {
-        toast.error(err.message || "해외송금 견적을 불러오지 못했습니다.")
-      }
+      toast.error(err.message || "해외송금 견적을 불러오지 못했습니다.")
       return null
     } finally {
-      if (requestId === quoteRequestId.current) {
-        setLoadingQuote(false)
-      }
-    }
-  }, [krwAmount, reason, recipient])
-
-  useEffect(() => {
-    quoteRequestId.current += 1
-    setQuote(null)
-    setLoadingQuote(false)
-  }, [recipientId, krwInput, reason])
-
-  useEffect(() => {
-    if (step !== 1 || !recipient || krwAmount < MIN_SEND_AMOUNT_KRW) return
-
-    const timer = window.setTimeout(() => {
-      void fetchQuote({ silent: true })
-    }, 350)
-
-    return () => window.clearTimeout(timer)
-  }, [fetchQuote, krwAmount, recipient, step])
-
-  useEffect(() => {
-    if (!quoteSessionExpiresAt) {
-      setQuoteTimeLeft(0)
-      return
-    }
-
-    const expiresAt = quoteSessionExpiresAt
-
-    function updateTimeLeft() {
-      const nextTimeLeft = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000))
-      setQuoteTimeLeft(nextTimeLeft)
-
-      if (nextTimeLeft <= 0) {
-        setQuote(null)
-        setQuoteSessionExpiresAt(null)
-        setQuoteExpiredCountdown((prev) => prev ?? 3)
-        toast.warning("견적 유효 시간이 만료되었습니다. 견적을 다시 조회해주세요.")
-        return false
-      }
-
-      return true
-    }
-
-    if (!updateTimeLeft()) return
-
-    const interval = window.setInterval(() => {
-      if (!updateTimeLeft()) {
-        window.clearInterval(interval)
-      }
-    }, 1000)
-
-    return () => window.clearInterval(interval)
-  }, [quoteSessionExpiresAt])
-
-  useEffect(() => {
-    if (quoteExpiredCountdown === null) return
-
-    if (quoteExpiredCountdown <= 0) {
-      quoteRequestId.current += 1
-      setStep(0)
-      setKrwInput("")
-      setReceiveInput("")
-      setAmountMode("send")
-      setQuote(null)
-      setQuoteTimeLeft(0)
-      setQuoteSessionExpiresAt(null)
-      setQuoteExpiredCountdown(null)
       setLoadingQuote(false)
-      return
     }
-
-    const timer = window.setTimeout(() => {
-      setQuoteExpiredCountdown((prev) => (prev === null ? null : prev - 1))
-    }, 1000)
-
-    return () => window.clearTimeout(timer)
-  }, [quoteExpiredCountdown])
+  }
 
   async function saveRecipient() {
     if (!form.name.trim() || !form.bank.trim() || !form.account.trim())
@@ -343,32 +217,8 @@ export default function RemittancePage() {
     }
   }
 
-  function handleKrwInputChange(value: string, cursorPosition: number | null) {
-    krwCursorDigitPosition.current = countDigitsBeforeCursor(value, cursorPosition ?? value.length)
+  function handleKrwInputChange(value: string) {
     setKrwInput(value.replace(/[^\d]/g, ""))
-  }
-
-  function handleKrwInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "Backspace" && event.key !== "Delete") return
-
-    const input = event.currentTarget
-    const selectionStart = input.selectionStart ?? 0
-    const selectionEnd = input.selectionEnd ?? selectionStart
-    if (selectionStart !== selectionEnd) return
-
-    const value = input.value
-    const isBackspaceOnSeparator = event.key === "Backspace" && selectionStart > 0 && /\D/.test(value[selectionStart - 1])
-    const isDeleteOnSeparator = event.key === "Delete" && selectionStart < value.length && /\D/.test(value[selectionStart])
-    if (!isBackspaceOnSeparator && !isDeleteOnSeparator) return
-
-    event.preventDefault()
-
-    const digitPosition = countDigitsBeforeCursor(value, selectionStart)
-    const deleteIndex = event.key === "Backspace" ? digitPosition - 1 : digitPosition
-    if (deleteIndex < 0 || deleteIndex >= krwInput.length) return
-
-    krwCursorDigitPosition.current = deleteIndex
-    setKrwInput(krwInput.slice(0, deleteIndex) + krwInput.slice(deleteIndex + 1))
   }
 
   function handleReceiveInputChange(value: string) {
@@ -395,10 +245,6 @@ export default function RemittancePage() {
 
   async function next() {
     if (step === 0 && !recipient) return toast.error("수취인을 선택하거나 추가하세요.")
-    if (step === 0 && recipient) {
-      setQuoteSessionExpiresAt(new Date(Date.now() + QUOTE_EXPIRATION_SECONDS * 1000).toISOString())
-      setQuoteExpiredCountdown(null)
-    }
     if (step === 1) {
       if (krwAmount <= 0) return toast.error("해외송금 금액을 입력하세요.")
       if (krwAmount < MIN_SEND_AMOUNT_KRW) {
@@ -407,7 +253,7 @@ export default function RemittancePage() {
       if (estimatedAmountUsd > PER_TRANSFER_LIMIT_USD) {
         return toast.error(`건당 최대 해외송금 한도는 ${formatCurrency(PER_TRANSFER_LIMIT_USD, "USD")}입니다.`)
       }
-      const nextQuote = activeQuote ?? await fetchQuote()
+      const nextQuote = quote ?? await fetchQuote()
       if (!nextQuote) return
     }
     setStep((s) => Math.min(2, s + 1))
@@ -415,7 +261,7 @@ export default function RemittancePage() {
 
   async function submit() {
     if (!recipient) return
-    const currentQuote = activeQuote ?? await fetchQuote()
+    const currentQuote = quote ?? await fetchQuote()
     if (!currentQuote) return
 
     setSubmitting(true)
@@ -583,23 +429,15 @@ export default function RemittancePage() {
         {/* Step 2: amount */}
         {step === 1 && (
           <Card className="p-5">
-            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-              <div>
-                <h2 className="text-base font-bold">해외송금 금액</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {recipient?.name} · {recipient?.country} · {currency}
-                </p>
-              </div>
-              <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-x-3 gap-y-1 text-right text-xs text-muted-foreground">
-                <span>최소 {formatKRW(MIN_SEND_AMOUNT_KRW)}</span>
-                <span>최대 {formatCurrency(PER_TRANSFER_LIMIT_USD, "USD")} · 약 {formatKRW(estimatedMaxKrw)}</span>
-              </div>
-            </div>
+            <h2 className="text-base font-bold">해외송금 금액</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {recipient?.name} · {recipient?.country} · {currency}
+            </p>
             <div className="mt-4 space-y-4">
               <div className="rounded-2xl border border-border bg-secondary/40 p-4">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs text-muted-foreground">
-                    보낼 금액
+                    {amountMode === "send" ? "보내는 금액 (KRW)" : `수취 금액 (${currency})`}
                   </Label>
                   <Button
                     type="button"
@@ -609,16 +447,14 @@ export default function RemittancePage() {
                     className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
                   >
                     <ArrowLeftRight className="size-3.5" />
-                    {amountMode === "send" ? "달러로 입력" : "원화로 입력"}
+                    {amountMode === "send" ? "수취 금액 입력" : "보내는 금액 입력"}
                   </Button>
                 </div>
                 {amountMode === "send" ? (
                   <Input
-                    ref={krwInputRef}
                     inputMode="numeric"
                     value={krwInput ? Number(krwInput).toLocaleString("ko-KR") : ""}
-                    onKeyDown={handleKrwInputKeyDown}
-                    onChange={(e) => handleKrwInputChange(e.target.value, e.target.selectionStart)}
+                    onChange={(e) => handleKrwInputChange(e.target.value)}
                     className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
                     placeholder="0"
                   />
@@ -631,20 +467,16 @@ export default function RemittancePage() {
                     placeholder="0.00"
                   />
                 )}
-                <div className="mt-1 flex flex-wrap items-center justify-end gap-x-5 gap-y-1 text-right text-sm text-muted-foreground">
-                  {loadingQuote ? (
-                    <span>견적 계산 중...</span>
-                  ) : amountMode === "send" ? (
-                    <>
-                      <span>보낼 금액 {quoteDisplayReady ? formatCurrency(received, currency) : "-"}</span>
-                      <span>수수료 {quoteDisplayReady ? formatKRW(fee) : "-"}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>보낼 금액 {formatKRW(krwAmount)}</span>
-                      <span>수수료 {quoteDisplayReady ? formatKRW(fee) : "-"}</span>
-                    </>
-                  )}
+                <p className="mt-1 text-right text-sm text-muted-foreground">
+                  {loadingQuote
+                    ? "견적 계산 중..."
+                    : amountMode === "send"
+                      ? `수취 예상 ${formatCurrency(received, currency)}`
+                      : `예상 지출 비용 ${formatKRW(krwAmount)}`}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span>최소 {formatKRW(MIN_SEND_AMOUNT_KRW)}</span>
+                  <span>최대 {formatCurrency(PER_TRANSFER_LIMIT_USD, "USD")} · 약 {formatKRW(estimatedMaxKrw)}</span>
                 </div>
               </div>
               <div className="space-y-2">
@@ -673,11 +505,6 @@ export default function RemittancePage() {
                   className="min-h-20 resize-none"
                 />
               </div>
-              {quoteExpiredCountdown !== null ? (
-                <QuoteExpiredNotice countdown={quoteExpiredCountdown} />
-              ) : (
-                quoteSessionExpiresAt && <QuoteExpirationNotice timeLeft={quoteTimeLeft} />
-              )}
             </div>
           </Card>
         )}
@@ -694,18 +521,15 @@ export default function RemittancePage() {
               {reasonDetail.trim() && <Row label="상세 사유" value={reasonDetail.trim()} />}
               <Separator />
               <Row label="해외송금 금액" value={formatKRW(krwAmount)} />
-              <Row label="적용 환율" value={`${formatRate(activeQuote?.exchangeRate ?? krwPerUnit(currency))} / ${currency}`} />
+              <Row label="적용 환율" value={`${formatRate(quote?.exchangeRate ?? rate.rate)} / ${currency}`} />
               <Row label="수수료" value={formatKRW(fee)} />
-              {activeQuote && <FeeBreakdown quote={activeQuote} />}
               <Separator />
               <Row label="총 출금액" value={formatKRW(total)} bold />
               <Row label="수취 금액" value={formatCurrency(received, currency)} bold accent />
             </dl>
-            {quoteExpiredCountdown !== null ? (
-              <QuoteExpiredNotice className="mt-4" countdown={quoteExpiredCountdown} />
-            ) : (
-              quoteSessionExpiresAt && <QuoteExpirationNotice className="mt-4" timeLeft={quoteTimeLeft} />
-            )}
+            <p className="mt-4 rounded-xl bg-secondary px-3 py-2 text-xs text-muted-foreground">
+              실제 해외송금이 아닌 시뮬레이션입니다. 신청 후 약 1~2일 내 처리되는 과정을 추적할 수 있습니다.
+            </p>
           </Card>
         )}
 
@@ -764,53 +588,6 @@ function mapRecipient(recipient: any): Recipient {
 
 function formatRate(rate: number) {
   return `₩${Number(rate).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function formatWon(amount: number) {
-  return `${Math.floor(amount).toLocaleString("ko-KR")}원`
-}
-
-function formatPercentRate(rate: number) {
-  return `${Number(rate).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}%`
-}
-
-function formatTimeLeft(seconds: number) {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
-}
-
-function FeeBreakdown({ quote }: { quote: QuoteResponse }) {
-  const percentRate = quote.sendAmountKrw > 0 ? (quote.percentFee / quote.sendAmountKrw) * 100 : 0
-
-  return (
-    <div className="overflow-x-auto whitespace-nowrap rounded-lg bg-secondary px-3 py-2 font-mono text-xs text-muted-foreground">
-      고정 수수료 {formatWon(quote.fixedFee)} + 퍼센트 수수료 {formatWon(quote.percentFee)} (
-      {formatWon(quote.sendAmountKrw)} × {formatPercentRate(percentRate)}) → 총 수수료 {formatWon(quote.totalFee)}
-    </div>
-  )
-}
-
-function QuoteExpirationNotice({ timeLeft, className }: { timeLeft: number; className?: string }) {
-  return (
-    <div className={cn("flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2 text-amber-500", className)}>
-      <span className="flex items-center gap-1.5 text-xs font-medium">
-        <Clock3 className="size-3.5" />
-        견적 유효 시간
-      </span>
-      <span className="font-mono text-xs font-bold tabular-nums">{formatTimeLeft(timeLeft)}</span>
-    </div>
-  )
-}
-
-function QuoteExpiredNotice({ countdown, className }: { countdown: number; className?: string }) {
-  return (
-    <div className={cn("flex flex-wrap items-center justify-between gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-destructive", className)}>
-      <span className="flex items-center gap-1.5 text-xs font-medium">
-        <Clock3 className="size-3.5" />
-        견적 유효 시간이 만료되었습니다
-      </span>
-      <span className="font-mono text-xs font-bold tabular-nums">{countdown}초 뒤 수취인 선택으로 이동</span>
-    </div>
-  )
 }
 
 function Row({ label, value, bold, accent }: { label: string; value: string; bold?: boolean; accent?: boolean }) {

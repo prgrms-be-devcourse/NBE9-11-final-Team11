@@ -14,6 +14,7 @@ public enum WalletErrorCode implements ErrorCode {
     INVALID_CURRENCY(HttpStatus.BAD_REQUEST, "INVALID_CURRENCY", "지원하지 않는 통화입니다."),
     INVALID_AMOUNT(HttpStatus.BAD_REQUEST, "INVALID_AMOUNT", "금액은 0보다 커야 합니다."),
     INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE", "조회 기간이 올바르지 않습니다."),
+    UNSUPPORTED_CURRENCY_FOR_PROFIT(HttpStatus.BAD_REQUEST, "UNSUPPORTED_CURRENCY_FOR_PROFIT", "손익이 지원되지 않는 통화입니다."),
 
     // 충전/인출
     BANK_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "BANK_ACCOUNT_NOT_FOUND", "모의계좌를 찾을 수 없습니다."),

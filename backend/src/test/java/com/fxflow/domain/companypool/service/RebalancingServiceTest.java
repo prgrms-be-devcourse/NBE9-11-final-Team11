@@ -11,6 +11,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fxflow.domain.companypool.PoolTestFixtures;
 import com.fxflow.domain.companypool.dto.response.RebalancingExecuteRes;
 import com.fxflow.domain.companypool.service.AdminAlertService;
@@ -252,5 +255,58 @@ class RebalancingServiceTest {
         rebalancingService.execute(TriggerType.MANUAL, null);
 
         verify(rebalancingRepository).save(any(RebalancingOrder.class));
+    }
+
+    // ── 동시성 ────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("execute() 동시 호출 → 먼저 진입한 스레드만 완료, 나머지는 REBALANCE_IN_PROGRESS")
+    void execute_concurrent_onlyOneSucceeds() throws InterruptedException {
+        // KRW floor 미만 → 실제 리밸런싱 로직이 실행됨
+        givenPools(new BigDecimal("7000000000"), new BigDecimal("6500000"));
+
+        CountDownLatch thread1InProgress = new CountDownLatch(1);
+        CountDownLatch releaseThread1 = new CountDownLatch(1);
+
+        // 환율 조회 시점에서 Thread 1을 잡아두어 executing = true 상태를 유지시킨다.
+        // Thread 2는 이 시점에 doExecute() 진입을 시도하여 REBALANCE_IN_PROGRESS를 받아야 한다.
+        given(exchangeRateProvider.getLatestRate("USD", "KRW")).willAnswer(inv -> {
+            thread1InProgress.countDown();
+            releaseThread1.await();
+            return Optional.of(new FxRateSnapshot(
+                    "USD", "KRW", MID_RATE, new BigDecimal("0.01"), java.time.LocalDateTime.now()));
+        });
+
+        AtomicReference<RebalancingExecuteRes> thread1Result = new AtomicReference<>();
+        AtomicReference<Exception> thread1Error = new AtomicReference<>();
+        AtomicReference<BusinessException> thread2Error = new AtomicReference<>();
+
+        Thread thread1 = new Thread(() -> {
+            try {
+                thread1Result.set(rebalancingService.execute(TriggerType.MANUAL, null));
+            } catch (Exception e) {
+                thread1Error.set(e);
+            }
+        });
+        thread1.start();
+        thread1InProgress.await(); // Thread 1이 환율 조회에서 블로킹 중 (executing = true 보유)
+
+        // 현재 테스트 스레드(Thread 2)가 동시 진입 시도
+        try {
+            rebalancingService.execute(TriggerType.MANUAL, null);
+        } catch (BusinessException e) {
+            thread2Error.set(e);
+        }
+
+        releaseThread1.countDown(); // Thread 1 계속 진행
+        thread1.join();
+
+        // Thread 2는 REBALANCE_IN_PROGRESS를 받아야 함
+        assertThat(thread2Error.get()).isNotNull();
+        assertThat(thread2Error.get().getErrorCode()).isEqualTo(PoolErrorCode.REBALANCE_IN_PROGRESS);
+
+        // Thread 1은 정상 완료
+        assertThat(thread1Error.get()).isNull();
+        assertThat(thread1Result.get().executed()).isTrue();
     }
 }

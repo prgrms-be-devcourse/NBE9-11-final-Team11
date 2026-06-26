@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Getter
@@ -23,8 +24,11 @@ public class Wallet extends BaseEntity {
     @Column(name = "currency_code", length = 3, nullable = false)
     private String currencyCode;
 
-    @Column(nullable = false)
+    @Column(precision = 18, scale = 8, nullable = false)
     private BigDecimal balance = BigDecimal.ZERO;;
+
+    @OneToMany(mappedBy = "wallet", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CurrencyLot> currencyLots;
 
     @Version
     @Column(nullable = false)

@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Entity
 @Table(name = "exchange_transactions")
@@ -36,10 +37,10 @@ public class ExchangeTransaction extends BaseEntity {
     @Column(name = "to_currency_code", length = 3, nullable = false)
     private String toCurrencyCode;
 
-    @Column(name = "from_amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "from_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal fromAmount;
 
-    @Column(name = "to_amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "to_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal toAmount;
 
     @Column(name = "base_rate", precision = 18, scale = 8, nullable = false)
@@ -54,12 +55,12 @@ public class ExchangeTransaction extends BaseEntity {
     @Column(length = 100, nullable = false, unique = true)
     private String idempotencyKey;
 
-    @Column(name = "fee_amount", nullable = false)
+    @Column(name = "fee_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal feeAmount;
 
 
-    private ExchangeTransaction(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, String idempotencyKey, BigDecimal feeAmount) {
-        this.transactionId = "EX_" + java.util.UUID.randomUUID().toString().replace("-", "");
+    private ExchangeTransaction(String transferId, User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, String idempotencyKey, BigDecimal feeAmount) {
+        this.transactionId = transferId;
         this.user = user;
         this.fromWallet = fromWallet;
         this.toWallet = toWallet;
@@ -74,7 +75,11 @@ public class ExchangeTransaction extends BaseEntity {
         this.feeAmount = feeAmount;
     }
 
-    public static ExchangeTransaction create(User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, String idempotencyKey, BigDecimal feeAmount) {
-        return new ExchangeTransaction(user, fromWallet, toWallet, fromCurrencyCode, toCurrencyCode, fromAmount, toAmount, baseRate, spreadRate, finalRate, idempotencyKey, feeAmount);
+    public static ExchangeTransaction create(String transferId, User user, Wallet fromWallet, Wallet toWallet, String fromCurrencyCode, String toCurrencyCode, BigDecimal fromAmount, BigDecimal toAmount, BigDecimal baseRate, BigDecimal spreadRate, BigDecimal finalRate, String idempotencyKey, BigDecimal feeAmount) {
+        return new ExchangeTransaction(transferId, user, fromWallet, toWallet, fromCurrencyCode, toCurrencyCode, fromAmount, toAmount, baseRate, spreadRate, finalRate, idempotencyKey, feeAmount);
+    }
+
+    public static String generateTransferId() {
+        return "EX-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
     }
 }

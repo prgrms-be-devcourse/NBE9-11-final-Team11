@@ -32,6 +32,7 @@ public class P2pTransferService {
     private final P2pTransferRepository p2pTransferRepository;
     private final UserService userService;
     private final TransactionLimitValidator transactionLimitValidator;
+    private final CurrencyLotService currencyLotService;
 
     @Transactional
     public P2pTransferResponse transfer(Long userId, P2pTransferRequest request) {
@@ -62,8 +63,11 @@ public class P2pTransferService {
         BigDecimal senderAfterBalance = senderWallet.withdraw(amount);
         BigDecimal recipientAfterBalance = recipientWallet.deposit(amount);
 
-        // p2p transfer 기록
+        // lot 정산
         String transferId = P2pTransfer.generateTransferId();
+        currencyLotService.settleLots(senderWallet, recipientWallet, amount, transferId);
+
+        // p2p transfer 기록
         P2pTransfer transfer = P2pTransfer.create(
                 transferId,
                 senderWallet,

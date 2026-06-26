@@ -41,6 +41,7 @@ class ExchangeServiceFeeTest {
     @Mock private TransactionLimitValidator transactionLimitValidator;
     @Mock private ExchangeTransactionRepository exchangeTransactionRepository;
     @Mock private LedgerEntryRepository ledgerEntryRepository;
+    @Mock private CurrencyLotService currencyLotService;
 
     @InjectMocks
     private ExchangeService exchangeService;
