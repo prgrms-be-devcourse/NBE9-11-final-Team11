@@ -176,12 +176,11 @@ export default function RemittancePage() {
   }, [recipientId, krwInput, reason])
 
   useEffect(() => {
-    if (step === 1 && !quoteSessionExpiresAt) {
+    if (step === 1 && !quoteSessionExpiresAt && quoteExpiredCountdown === null) {
       setQuoteSessionExpiresAt(new Date(Date.now() + QUOTE_EXPIRATION_SECONDS * 1000).toISOString())
       setQuoteTimeLeft(QUOTE_EXPIRATION_SECONDS)
-      setQuoteExpiredCountdown(null)
     }
-  }, [quoteSessionExpiresAt, step])
+  }, [quoteExpiredCountdown, quoteSessionExpiresAt, step])
 
   useEffect(() => {
     if (step === 0) {
@@ -192,7 +191,7 @@ export default function RemittancePage() {
   }, [step])
 
   useEffect(() => {
-    if (!quoteSessionExpiresAt || step !== 1 || quoteExpiredCountdown !== null) return
+    if (!quoteSessionExpiresAt || (step !== 1 && step !== 2) || quoteExpiredCountdown !== null) return
 
     function updateQuoteTimeLeft() {
       if (!quoteSessionExpiresAt) return false
