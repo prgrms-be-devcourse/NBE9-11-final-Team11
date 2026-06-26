@@ -130,7 +130,7 @@ class CurrencyLotServiceTest {
     @Test
     @DisplayName("KRW→USD settleLots: from lot 미소비, to lot 생성")
     void settleLots_krwToUsd() {
-        currencyLotService.settleLots(krwWallet, usdWallet, new BigDecimal("100"), new BigDecimal("1363.5"), "tx1");
+        currencyLotService.settleLots(krwWallet, usdWallet, new BigDecimal("500000"), new BigDecimal("100"), new BigDecimal("1363.5"), "tx1");
 
         verify(currencyLotRepository).save(any(CurrencyLot.class));
         verify(currencyLotRepository, never()).findAvailableLotsFIFO(any());
