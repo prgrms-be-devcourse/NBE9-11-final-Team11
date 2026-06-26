@@ -166,8 +166,8 @@ public class RebalancingService {
                                                BigDecimal appliedRate, boolean buyingKrw) {
         BigDecimal desiredBuyAmount = buyPool.shortageToTarget();
         BigDecimal maxBuyableFromSell = buyingKrw
-                ? sellPool.surplusAboveFloor().multiply(appliedRate).setScale(2, RoundingMode.FLOOR)
-                : sellPool.surplusAboveFloor().divide(appliedRate, 2, RoundingMode.FLOOR);
+                ? sellPool.surplusAboveFloor().multiply(appliedRate).setScale(8, RoundingMode.FLOOR)
+                : sellPool.surplusAboveFloor().divide(appliedRate, 8, RoundingMode.FLOOR);
 
         CappedBy cappedBy = null;
         BigDecimal buyAmount;
@@ -180,8 +180,8 @@ public class RebalancingService {
         }
 
         BigDecimal sellAmount = buyingKrw
-                ? buyAmount.divide(appliedRate, 2, RoundingMode.FLOOR)
-                : buyAmount.multiply(appliedRate).setScale(2, RoundingMode.FLOOR);
+                ? buyAmount.divide(appliedRate, 8, RoundingMode.FLOOR)
+                : buyAmount.multiply(appliedRate).setScale(8, RoundingMode.FLOOR);
 
         return new TradeAmounts(buyAmount, sellAmount, cappedBy);
     }
