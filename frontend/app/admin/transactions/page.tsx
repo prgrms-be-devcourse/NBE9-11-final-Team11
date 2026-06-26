@@ -135,12 +135,8 @@ interface GroupedTx {
 }
 
 function buildGroups(items: AdminTransactionItem[]): GroupedTx[] {
-  const filtered = items.filter(
-    (t) => !(t.sourceType === "REBALANCING" && t.subType !== "SUCCESS")
-  )
-
   const map = new Map<string, AdminTransactionItem[]>()
-  filtered.forEach((item) => {
+  items.forEach((item) => {
     const key = item.journalId ?? `reb-${item.id}`
     if (!map.has(key)) map.set(key, [])
     map.get(key)!.push(item)
