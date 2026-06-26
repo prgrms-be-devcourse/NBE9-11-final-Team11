@@ -120,7 +120,7 @@ class ExchangeServiceExchangeTest {
         // KRW -> USD 방향은 한도 검증/사용량 누적 대상이다
         verify(transactionLimitValidator).validateExchange(eq(user), eq(cache.fromAmount()));
         verify(userExchangeUsageService).addDailyExchange(eq(userId), any(), eq(cache.fromAmount()));
-        verify(userExchangeUsageService).addAnnualExchange(eq(userId), any(), eq(cache.fromAmount()));
+        verify(userExchangeUsageService).addAnnualExchange(eq(userId), any(), eq(cache.toAmount()));
     }
 
     @Test
@@ -157,7 +157,7 @@ class ExchangeServiceExchangeTest {
 
         // 보유 한도 검증은 방향과 무관하게 그대로 수행된다
         verify(transactionLimitValidator).validateWalletHolding(eq(user), any(BigDecimal.class));
-        verify(currencyLotService).settleLots(eq(fromWallet), eq(toWallet), eq(cache.fromAmount()), eq(cache.toAmount()), eq(cache.finalRate()), anyString());
+        verify(currencyLotService).settleLots(eq(usdFromWallet), eq(krwToWallet), eq(usdToKrwCache.fromAmount()), eq(usdToKrwCache.toAmount()), eq(usdToKrwCache.finalRate()), anyString());
     }
 
     @Test

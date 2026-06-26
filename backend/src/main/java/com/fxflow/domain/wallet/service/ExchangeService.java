@@ -214,8 +214,8 @@ public class ExchangeService {
         if (isLimitedDirection) {
             LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
             int currentYear = today.getYear();
-            userExchangeUsageService.addDailyExchange(userId, today, cache.fromAmount());
-            userExchangeUsageService.addAnnualExchange(userId, currentYear, cache.fromAmount());
+            userExchangeUsageService.addDailyExchange(userId, today, cache.fromAmount()); // KRW 기준
+            userExchangeUsageService.addAnnualExchange(userId, currentYear, cache.toAmount()); // USD 기준 (KRW -> USD 환전 결과 수령액)
         }
 
         // transaction 완료 후 quote 삭제
