@@ -41,17 +41,16 @@ class AdminTransactionRepositoryTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("LEDGER와 REBALANCING 항목이 createdAt 내림차순으로 합쳐져 반환된다")
+    @DisplayName("LEDGER와 SUCCESS 리밸런싱 항목이 createdAt 내림차순으로 합쳐져 반환된다 (MANUAL_REQUIRED 제외)")
     void findAll_returnsUnionInDescOrder() {
         AdminTransactionFilter filter = new AdminTransactionFilter(null, null);
 
         List<AdminTransactionItem> result = adminTransactionRepository.findAll(filter, 0, 10);
 
-        assertThat(result).hasSize(5);
-        assertThat(result.get(0).sourceType()).isEqualTo("REBALANCING"); // 오늘
-        assertThat(result.get(0).subType()).isEqualTo("MANUAL_REQUIRED");
-        assertThat(result.get(1).sourceType()).isEqualTo("LEDGER");      // 1일 전
-        assertThat(result.get(1).subType()).isEqualTo("TRANSFER");
+        // MANUAL_REQUIRED 리밸런싱은 status = 'SUCCESS' 조건으로 제외 → 4건
+        assertThat(result).hasSize(4);
+        assertThat(result.get(0).sourceType()).isEqualTo("LEDGER");  // 1일 전 (오늘 항목은 MANUAL_REQUIRED라 제외)
+        assertThat(result.get(0).subType()).isEqualTo("TRANSFER");
 
         for (int i = 0; i < result.size() - 1; i++) {
             assertThat(result.get(i).createdAt())
@@ -77,12 +76,12 @@ class AdminTransactionRepositoryTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("from 날짜 필터가 적용된다")
     void findAll_fromFilter() {
-        // 2일 전 이후: EXCHANGE(2일 전), TRANSFER(1일 전), MANUAL_REQUIRED(오늘) = 3건
+        // 2일 전 이후: EXCHANGE(2일 전), TRANSFER(1일 전) = 2건 (MANUAL_REQUIRED는 SUCCESS 아니므로 제외)
         AdminTransactionFilter filter = new AdminTransactionFilter(LocalDate.now().minusDays(2), null);
 
         List<AdminTransactionItem> result = adminTransactionRepository.findAll(filter, 0, 10);
 
-        assertThat(result).hasSize(3);
+        assertThat(result).hasSize(2);
         assertThat(result).allMatch(item ->
                 !item.createdAt().toLocalDate().isBefore(LocalDate.now().minusDays(2))
         );
@@ -109,18 +108,19 @@ class AdminTransactionRepositoryTest extends AbstractIntegrationTest {
 
         long count = adminTransactionRepository.count(filter);
 
-        assertThat(count).isEqualTo(5);
+        // MANUAL_REQUIRED 리밸런싱 제외 → 4건
+        assertThat(count).isEqualTo(4);
     }
 
     @Test
     @DisplayName("count에 날짜 필터가 적용된다")
     void count_withDateFilter() {
-        // 1일 전 이후: TRANSFER(1일 전), MANUAL_REQUIRED(오늘) = 2건
+        // 1일 전 이후: TRANSFER(1일 전) = 1건 (MANUAL_REQUIRED는 SUCCESS 아니므로 제외)
         AdminTransactionFilter filter = new AdminTransactionFilter(LocalDate.now().minusDays(1), null);
 
         long count = adminTransactionRepository.count(filter);
 
-        assertThat(count).isEqualTo(2);
+        assertThat(count).isEqualTo(1);
     }
 
     private void insertLedgerEntry(String journalId, String entryType, String direction,
