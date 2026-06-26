@@ -59,6 +59,13 @@ export default function TransactionsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
 
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab")
+    if (tab === "remittance") {
+      setActiveTab("remittance")
+    }
+  }, [])
+
   // Reset page when tab, filter, or type changes
   useEffect(() => {
     setCurrentPage(1)

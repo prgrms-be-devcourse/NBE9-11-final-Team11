@@ -62,7 +62,7 @@ public class RemittanceTransactionService {
     private static final String KRW = "KRW";
     private static final String USD = "USD";
     private static final LimitTier STANDARD_TIER = LimitTier.STANDARD;
-    private static final String DEFAULT_VIRTUAL_ACCOUNT_BANK_NAME = "하나은행";
+    private static final String DEFAULT_VIRTUAL_ACCOUNT_BANK_NAME = "최강은행";
     private static final String REMITTANCE_REF_TYPE = "REMITTANCE";
 
     private final UserAnnualUsageRepository userAnnualUsageRepository;
@@ -79,8 +79,9 @@ public class RemittanceTransactionService {
     private final RecipientPayoutAccountService recipientPayoutAccountService;
     private final ApplicationEventPublisher eventPublisher;
 
-    private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("3000.00000000");
+    private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("5000.00000000");
     private static final BigDecimal PERCENT_FEE_RATE = new BigDecimal("0.005");
+    private static final BigDecimal REMITTANCE_EXCHANGE_SPREAD_RATE = new BigDecimal("0.000");
     private static final long QUOTE_EXPIRATION_MINUTES = 5L;
     private static final long VIRTUAL_ACCOUNT_EXPIRATION_MINUTES = 10L;
     private static final String REMITTANCE_QUOTE_KEY_PREFIX = "remittance:quote:";
@@ -568,7 +569,7 @@ public class RemittanceTransactionService {
                         RemittanceTransactionErrorCode.REMITTANCE_EXCHANGE_RATE_NOT_FOUND
                 ));
 
-        BigDecimal exchangeRate = fxRateSnapshot.buyRate();
+        BigDecimal exchangeRate = applyRemittanceExchangeSpread(fxRateSnapshot.midRate());
         BigDecimal sendAmountKrw = request.sendAmountKrw().setScale(8, RoundingMode.DOWN);
         BigDecimal receiveAmountUsd = sendAmountKrw.divide(exchangeRate, 8, RoundingMode.DOWN);
         BigDecimal percentFee = sendAmountKrw.multiply(PERCENT_FEE_RATE).setScale(8, RoundingMode.DOWN);
@@ -609,6 +610,10 @@ public class RemittanceTransactionService {
                 quoteId,
                 expiredAt
         );
+    }
+
+    private BigDecimal applyRemittanceExchangeSpread(BigDecimal midRate) {
+        return midRate.multiply(BigDecimal.ONE.add(REMITTANCE_EXCHANGE_SPREAD_RATE));
     }
 
     /**
