@@ -23,7 +23,7 @@ public class Wallet extends BaseEntity {
     @Column(name = "currency_code", length = 3, nullable = false)
     private String currencyCode;
 
-    @Column(nullable = false)
+    @Column(precision = 18, scale = 8, nullable = false)
     private BigDecimal balance = BigDecimal.ZERO;;
 
     @Version
