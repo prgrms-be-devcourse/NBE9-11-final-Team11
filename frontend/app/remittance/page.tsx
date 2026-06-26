@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeftRight, Check, ChevronRight, Trash2, UserPlus } from "lucide-react"
+import { ArrowLeftRight, Check, ChevronRight, Clock3, Trash2, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -36,6 +36,7 @@ import { apiRequest } from "@/lib/api"
 const STEPS = ["수취인", "금액", "확인"]
 const MIN_SEND_AMOUNT_KRW = 10000
 const PER_TRANSFER_LIMIT_USD = 5000
+const QUOTE_EXPIRATION_SECONDS = 300
 const REASON_TO_API: Record<string, string> = {
   가족생활비: "FAMILY_SUPPORT",
   유학경비: "TUITION",
@@ -91,6 +92,8 @@ export default function RemittancePage() {
   const [submitting, setSubmitting] = useState(false)
   const [deletingRecipient, setDeletingRecipient] = useState(false)
   const [quote, setQuote] = useState<QuoteResponse | null>(null)
+  const [quoteTimeLeft, setQuoteTimeLeft] = useState(0)
+  const [quoteSessionExpiresAt, setQuoteSessionExpiresAt] = useState<string | null>(null)
   const quoteRequestId = useRef(0)
 
   const [recipientId, setRecipientId] = useState("")
@@ -157,6 +160,7 @@ export default function RemittancePage() {
       })
       if (requestId === quoteRequestId.current) {
         setQuote(data)
+        setQuoteSessionExpiresAt((prev) => prev ?? data.expiredAt)
       }
       return data
     } catch (err: any) {
@@ -187,6 +191,31 @@ export default function RemittancePage() {
 
     return () => window.clearTimeout(timer)
   }, [fetchQuote, krwAmount, recipient, step])
+
+  useEffect(() => {
+    if (!quoteSessionExpiresAt) {
+      setQuoteTimeLeft(0)
+      return
+    }
+
+    const expiresAt = quoteSessionExpiresAt
+
+    function updateTimeLeft() {
+      const nextTimeLeft = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000))
+      setQuoteTimeLeft(nextTimeLeft)
+
+      if (nextTimeLeft <= 0) {
+        setQuote(null)
+        setQuoteSessionExpiresAt(null)
+        toast.warning("견적 유효 시간이 만료되었습니다. 견적을 다시 조회해주세요.")
+      }
+    }
+
+    updateTimeLeft()
+    const interval = window.setInterval(updateTimeLeft, 1000)
+
+    return () => window.clearInterval(interval)
+  }, [quoteSessionExpiresAt])
 
   async function saveRecipient() {
     if (!form.name.trim() || !form.bank.trim() || !form.account.trim())
@@ -272,6 +301,9 @@ export default function RemittancePage() {
 
   async function next() {
     if (step === 0 && !recipient) return toast.error("수취인을 선택하거나 추가하세요.")
+    if (step === 0 && recipient) {
+      setQuoteSessionExpiresAt(new Date(Date.now() + QUOTE_EXPIRATION_SECONDS * 1000).toISOString())
+    }
     if (step === 1) {
       if (krwAmount <= 0) return toast.error("해외송금 금액을 입력하세요.")
       if (krwAmount < MIN_SEND_AMOUNT_KRW) {
@@ -507,12 +539,12 @@ export default function RemittancePage() {
                     <span>견적 계산 중...</span>
                   ) : amountMode === "send" ? (
                     <>
-                      <span>예상 송금액 {quoteDisplayReady ? formatCurrency(received, currency) : "-"}</span>
+                      <span>예상 금액 {quoteDisplayReady ? formatCurrency(received, currency) : "-"}</span>
                       <span>수수료 {quoteDisplayReady ? formatKRW(fee) : "-"}</span>
                     </>
                   ) : (
                     <>
-                      <span>예상 지출 비용 {formatKRW(krwAmount)}</span>
+                      <span>예상 금액 {formatKRW(krwAmount)}</span>
                       <span>수수료 {quoteDisplayReady ? formatKRW(fee) : "-"}</span>
                     </>
                   )}
@@ -544,6 +576,7 @@ export default function RemittancePage() {
                   className="min-h-20 resize-none"
                 />
               </div>
+              {quoteSessionExpiresAt && <QuoteExpirationNotice timeLeft={quoteTimeLeft} />}
             </div>
           </Card>
         )}
@@ -567,9 +600,7 @@ export default function RemittancePage() {
               <Row label="총 출금액" value={formatKRW(total)} bold />
               <Row label="수취 금액" value={formatCurrency(received, currency)} bold accent />
             </dl>
-            <p className="mt-4 rounded-xl bg-secondary px-3 py-2 text-xs text-muted-foreground">
-              실제 해외송금이 아닌 시뮬레이션입니다. 신청 후 약 1~2일 내 처리되는 과정을 추적할 수 있습니다.
-            </p>
+            {quoteSessionExpiresAt && <QuoteExpirationNotice className="mt-4" timeLeft={quoteTimeLeft} />}
           </Card>
         )}
 
@@ -638,6 +669,10 @@ function formatPercentRate(rate: number) {
   return `${Number(rate).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}%`
 }
 
+function formatTimeLeft(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
+}
+
 function FeeBreakdown({ quote }: { quote: QuoteResponse }) {
   const percentRate = quote.sendAmountKrw > 0 ? (quote.percentFee / quote.sendAmountKrw) * 100 : 0
 
@@ -645,6 +680,18 @@ function FeeBreakdown({ quote }: { quote: QuoteResponse }) {
     <div className="overflow-x-auto whitespace-nowrap rounded-lg bg-secondary px-3 py-2 font-mono text-xs text-muted-foreground">
       고정 수수료 {formatWon(quote.fixedFee)} + 퍼센트 수수료 {formatWon(quote.percentFee)} (
       {formatWon(quote.sendAmountKrw)} × {formatPercentRate(percentRate)}) → 총 수수료 {formatWon(quote.totalFee)}
+    </div>
+  )
+}
+
+function QuoteExpirationNotice({ timeLeft, className }: { timeLeft: number; className?: string }) {
+  return (
+    <div className={cn("flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2 text-amber-500", className)}>
+      <span className="flex items-center gap-1.5 text-xs font-medium">
+        <Clock3 className="size-3.5" />
+        견적 유효 시간
+      </span>
+      <span className="font-mono text-xs font-bold tabular-nums">{formatTimeLeft(timeLeft)}</span>
     </div>
   )
 }
