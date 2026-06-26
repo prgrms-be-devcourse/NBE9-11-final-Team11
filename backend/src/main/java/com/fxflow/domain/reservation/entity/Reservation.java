@@ -40,7 +40,7 @@ public class Reservation extends BaseEntity {
     @Column(name = "to_currency", length = 3, nullable = false)
     private String toCurrency;                    // 받는 통화
 
-    @Column(name = "amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal amount;                    // 예약 금액 (fromCurrency 기준)
 
     @Column(name = "target_rate", precision = 18, scale = 8, nullable = false)

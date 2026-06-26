@@ -1,5 +1,6 @@
 package com.fxflow.domain.companypool.service;
 
+import com.fxflow.domain.companypool.PoolConstants;
 import com.fxflow.domain.companypool.dto.PoolChange;
 import com.fxflow.domain.companypool.dto.response.PoolDashboardRes;
 import com.fxflow.domain.companypool.entity.CompanyPool;
@@ -26,7 +27,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CompanyPoolService {
 
-    private static final BigDecimal SPREAD = RebalancingService.SPREAD;
+    private static final BigDecimal SPREAD = PoolConstants.SPREAD;
 
     private final CompanyPoolRepository companyPoolRepository;
     private final ApplicationEventPublisher eventPublisher;
