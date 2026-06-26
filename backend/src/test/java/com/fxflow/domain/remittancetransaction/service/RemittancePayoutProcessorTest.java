@@ -100,7 +100,7 @@ class RemittancePayoutProcessorTest {
                 "USD",
                 new BigDecimal("736.52"),
                 new BigDecimal("1351.00000000"),
-                new BigDecimal("8000.00"),
+                new BigDecimal("10000.00"),
                 new BigDecimal("1000000.00"),
                 new BigDecimal("736.52"),
                 RemittanceReason.LIVING_EXPENSES.name(),

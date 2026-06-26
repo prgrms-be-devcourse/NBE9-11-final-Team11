@@ -2,6 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { ArrowLeft, Check, Loader2, Package, Building2, Globe, CheckCircle2, CreditCard } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
@@ -42,6 +43,7 @@ interface TransferDetailResponse {
 
 export default function RemittanceTrackingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const router = useRouter()
   const transferId = id.replace(/^r-/, "")
   const { transactions } = useStore()
   const tx = transactions.find((t) => t.id === id)
@@ -49,6 +51,9 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
   const [loading, setLoading] = useState(true)
   const [funding, setFunding] = useState(false)
   const [canceling, setCanceling] = useState(false)
+  const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null)
+  const [depositTimeLeft, setDepositTimeLeft] = useState(0)
+  const [depositExpiredCountdown, setDepositExpiredCountdown] = useState<number | null>(null)
 
   async function loadTransfer(showLoading = true) {
     if (showLoading) {
@@ -127,6 +132,83 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
     return 0
   }, [transfer, tx])
 
+  const failed = transfer?.status === "FAILED" || transfer?.status === "REFUND_FAILED" || tx?.status === "failed"
+  const pendingDeposit = transfer?.status === "PENDING"
+  const canceled = transfer?.status === "CANCELED" || tx?.status === "canceled"
+  const stopped = failed || canceled
+  const completed = !stopped && stageIndex >= STAGES.length
+
+  useEffect(() => {
+    if (!completed) {
+      setRedirectCountdown(null)
+      return
+    }
+
+    setRedirectCountdown((prev) => prev ?? 5)
+  }, [completed, transferId])
+
+  useEffect(() => {
+    if (redirectCountdown === null) return
+
+    if (redirectCountdown <= 0) {
+      router.push("/transactions?tab=remittance")
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setRedirectCountdown((prev) => (prev === null ? null : prev - 1))
+    }, 1000)
+
+    return () => window.clearTimeout(timer)
+  }, [redirectCountdown, router])
+
+  useEffect(() => {
+    if (!pendingDeposit || !transfer?.virtualAccount?.expiredAt) {
+      setDepositTimeLeft(0)
+      setDepositExpiredCountdown(null)
+      return
+    }
+
+    const expiresAt = transfer.virtualAccount.expiredAt
+
+    function updateDepositTimeLeft() {
+      const nextTimeLeft = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000))
+      setDepositTimeLeft(nextTimeLeft)
+
+      if (nextTimeLeft <= 0) {
+        setDepositExpiredCountdown((prev) => prev ?? 3)
+        return false
+      }
+
+      return true
+    }
+
+    if (!updateDepositTimeLeft()) return
+
+    const interval = window.setInterval(() => {
+      if (!updateDepositTimeLeft()) {
+        window.clearInterval(interval)
+      }
+    }, 1000)
+
+    return () => window.clearInterval(interval)
+  }, [pendingDeposit, transfer?.virtualAccount?.expiredAt])
+
+  useEffect(() => {
+    if (depositExpiredCountdown === null) return
+
+    if (depositExpiredCountdown <= 0) {
+      router.push("/remittance")
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setDepositExpiredCountdown((prev) => (prev === null ? null : prev - 1))
+    }, 1000)
+
+    return () => window.clearTimeout(timer)
+  }, [depositExpiredCountdown, router])
+
   if (loading) {
     return (
       <AppShell title="해외송금 추적">
@@ -150,11 +232,6 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
     )
   }
 
-  const failed = transfer?.status === "FAILED" || transfer?.status === "REFUND_FAILED" || tx?.status === "failed"
-  const pendingDeposit = transfer?.status === "PENDING"
-  const canceled = transfer?.status === "CANCELED" || tx?.status === "canceled"
-  const stopped = failed || canceled
-  const completed = !stopped && stageIndex >= STAGES.length
   const title = transfer ? `해외송금 · ${transfer.recipient.name}` : tx!.title
   const amountKrw = transfer ? Number(transfer.sendAmountKrw) + Number(transfer.totalFee) : Math.abs(tx!.amountKRW)
   const receiveCurrency = (tx?.toCurrency ?? "USD") as CurrencyCode
@@ -166,6 +243,10 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
   const detail = transfer
     ? `${transfer.recipient.name} · ${transfer.recipient.bankName} · ${transfer.recipient.accountNumber}`
     : tx!.detail
+  const virtualAccountBankName = transfer?.virtualAccount
+    ? normalizeVirtualAccountBankName(transfer.virtualAccount.bankName)
+    : ""
+  const depositExpired = depositExpiredCountdown !== null
 
   return (
     <AppShell title="해외송금 추적">
@@ -217,20 +298,47 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
               <div className="min-w-0 flex-1">
                 <h2 className="text-sm font-semibold">가상계좌 입금 안내</h2>
                 <dl className="mt-3 space-y-2.5 text-sm">
-                  <InfoRow label="은행" value={transfer.virtualAccount.bankName} />
+                  <InfoRow label="은행" value={virtualAccountBankName} />
                   <InfoRow label="계좌번호" value={transfer.virtualAccount.accountNumber} mono />
                   <InfoRow label="입금 금액" value={formatKRW(Number(transfer.virtualAccount.amount))} bold />
                   <InfoRow label="입금 기한" value={formatDateTime(transfer.virtualAccount.expiredAt)} />
                 </dl>
+                {depositExpired ? (
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-destructive">
+                    <span className="text-xs font-semibold">입금 시간이 만료되었습니다</span>
+                    <span className="font-mono text-xs font-bold tabular-nums">
+                      {depositExpiredCountdown}초 뒤 수취인 등록으로 이동
+                    </span>
+                  </div>
+                ) : (
+                  <div className="mt-4 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2 text-amber-500">
+                    <span className="text-xs font-semibold">입금 유효 시간</span>
+                    <span className="font-mono text-xs font-bold tabular-nums">{formatCountdown(depositTimeLeft)}</span>
+                  </div>
+                )}
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <Button onClick={mockFundTransfer} disabled={funding || canceling}>
+                  <Button onClick={mockFundTransfer} disabled={funding || canceling || depositExpired}>
                     {funding ? "입금 처리 중..." : "가상계좌 입금하기"}
                   </Button>
-                  <Button variant="outline" onClick={cancelTransfer} disabled={funding || canceling}>
+                  <Button variant="outline" onClick={cancelTransfer} disabled={funding || canceling || depositExpired}>
                     {canceling ? "취소 처리 중..." : "해외송금 취소하기"}
                   </Button>
                 </div>
               </div>
+            </div>
+          </Card>
+        )}
+
+        {completed && redirectCountdown !== null && (
+          <Card className="border-accent/30 bg-accent/10 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-accent">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <CheckCircle2 className="size-4" />
+                입금이 완료되었습니다
+              </p>
+              <p className="font-mono text-sm font-bold tabular-nums">
+                {redirectCountdown}초 뒤 해외송금 내역으로 이동
+              </p>
             </div>
           </Card>
         )}
@@ -271,9 +379,6 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
           </ol>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground">
-          처리 단계는 해외송금 상태에 따라 표시됩니다.
-        </p>
       </div>
     </AppShell>
   )
@@ -282,6 +387,14 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
 function formatDateTime(iso: string) {
   const d = new Date(iso)
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
+function formatCountdown(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
+}
+
+function normalizeVirtualAccountBankName(bankName: string) {
+  return bankName === "하나은행" ? "최강은행" : bankName
 }
 
 function InfoRow({ label, value, mono, bold }: { label: string; value: string; mono?: boolean; bold?: boolean }) {
