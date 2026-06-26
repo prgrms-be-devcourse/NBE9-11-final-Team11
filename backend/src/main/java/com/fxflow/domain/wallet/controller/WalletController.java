@@ -67,7 +67,7 @@ public class WalletController {
     }
 
     @GetMapping("/{currency}/profit")
-    public ResponseEntity<WalletProfitResponse> getUsdWalletProfit(
+    public ResponseEntity<WalletProfitResponse> getWalletProfit(
             @AuthenticationPrincipal Long userId,
             @PathVariable String currency
     ) {
