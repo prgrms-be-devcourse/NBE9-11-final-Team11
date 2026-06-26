@@ -9,3 +9,6 @@ Thumbs.db
 
 .env
 docker-compose.override.yml
+
+# nginx-proxy-manager 런타임 데이터
+npm/
