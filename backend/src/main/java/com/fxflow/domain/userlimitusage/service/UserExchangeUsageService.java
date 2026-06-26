@@ -10,12 +10,14 @@ import com.fxflow.domain.userlimitusage.repository.UserExchangeDailyUsageReposit
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class UserExchangeUsageService {
 
     private final UserExchangeDailyUsageRepository userExchangeDailyUsageRepository;
