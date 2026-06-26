@@ -37,10 +37,10 @@ public class ExchangeTransaction extends BaseEntity {
     @Column(name = "to_currency_code", length = 3, nullable = false)
     private String toCurrencyCode;
 
-    @Column(name = "from_amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "from_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal fromAmount;
 
-    @Column(name = "to_amount", precision = 18, scale = 2, nullable = false)
+    @Column(name = "to_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal toAmount;
 
     @Column(name = "base_rate", precision = 18, scale = 8, nullable = false)
@@ -55,7 +55,7 @@ public class ExchangeTransaction extends BaseEntity {
     @Column(length = 100, nullable = false, unique = true)
     private String idempotencyKey;
 
-    @Column(name = "fee_amount", nullable = false)
+    @Column(name = "fee_amount", precision = 18, scale = 8, nullable = false)
     private BigDecimal feeAmount;
 
 
