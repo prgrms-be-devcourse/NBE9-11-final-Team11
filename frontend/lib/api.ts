@@ -161,6 +161,42 @@ export interface TransactionHistoryParams {
   to?: string
 }
 
+// ── Admin Transaction Types ─────────────────────────────────────
+
+export type AdminSourceType = "LEDGER" | "REBALANCING"
+export type AdminDirection = "DEBIT" | "CREDIT"
+export type AdminAccountRole = "WALLET" | "BANK" | "KRW_POOL" | "USD_POOL"
+
+export interface AdminTransactionItem {
+  id: number
+  sourceType: AdminSourceType
+  subType: string
+  createdAt: string
+  amount: number | null
+  currencyCode: string | null
+  journalId: string | null
+  triggerType: string | null
+  direction: AdminDirection | null
+  accountRole: AdminAccountRole | null
+  krwPoolChange: number | null
+  usdPoolChange: number | null
+}
+
+export interface AdminTransactionPageResponse {
+  data: AdminTransactionItem[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export interface AdminTransactionParams {
+  page?: number
+  size?: number
+  from?: string
+  to?: string
+}
+
 // ── Admin Pool API Functions ────────────────────────────────────
 
 export const getPoolDashboard = () =>
@@ -175,6 +211,15 @@ export const getRebalanceHistory = () =>
 // 최신 매매기준율 조회 (기본 USD/KRW). 데이터가 없으면 404를 던진다.
 export const getLatestRate = (base = "USD", quote = "KRW") =>
   apiRequest<FxRateLatest>("GET", `/api/v1/fxrates/latest?base=${base}&quote=${quote}`)
+
+export const getAdminTransactions = (params: AdminTransactionParams = {}) => {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") search.set(key, String(value))
+  })
+  const query = search.toString()
+  return apiRequest<AdminTransactionPageResponse>("GET", `/api/v1/admin/transactions${query ? `?${query}` : ""}`)
+}
 
 export const getTransactionHistory = (params: TransactionHistoryParams = {}) => {
   const search = new URLSearchParams()
