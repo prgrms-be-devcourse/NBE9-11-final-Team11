@@ -43,6 +43,7 @@ class ExchangeServiceFeeTest {
     @Mock private ExchangeTransactionRepository exchangeTransactionRepository;
     @Mock private LedgerEntryRepository ledgerEntryRepository;
     @Mock private UserExchangeUsageService userExchangeUsageService;
+    @Mock private CurrencyLotService currencyLotService;
 
     @InjectMocks
     private ExchangeService exchangeService;

@@ -51,6 +51,7 @@ class ExchangeServiceExchangeTest {
     @Mock private TransactionLimitValidator transactionLimitValidator;
     @Mock private ExchangeTransactionRepository exchangeTransactionRepository;
     @Mock private LedgerEntryRepository ledgerEntryRepository;
+    @Mock private CurrencyLotService currencyLotService;
     @Mock private UserExchangeUsageService userExchangeUsageService;
 
     @InjectMocks
@@ -156,6 +157,7 @@ class ExchangeServiceExchangeTest {
 
         // 보유 한도 검증은 방향과 무관하게 그대로 수행된다
         verify(transactionLimitValidator).validateWalletHolding(eq(user), any(BigDecimal.class));
+        verify(currencyLotService).settleLots(eq(fromWallet), eq(toWallet), eq(cache.fromAmount()), eq(cache.toAmount()), eq(cache.finalRate()), anyString());
     }
 
     @Test
