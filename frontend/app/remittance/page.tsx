@@ -25,6 +25,7 @@ import {
   CURRENCY_META,
   RATES,
   REMITTANCE_REASONS,
+  floorToTwoDecimals,
   formatKRW,
   formatCurrency,
   krwPerUnit,
@@ -234,7 +235,7 @@ export default function RemittancePage() {
 
   function toggleAmountMode() {
     if (amountMode === "send") {
-      setReceiveInput(received > 0 ? received.toFixed(2) : "")
+      setReceiveInput(received > 0 ? floorToTwoDecimals(received).toFixed(2) : "")
       setAmountMode("receive")
       return
     }
