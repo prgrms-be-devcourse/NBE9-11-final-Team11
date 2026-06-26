@@ -682,7 +682,7 @@ export default function RemittancePage() {
           <Card className="p-5">
             <h2 className="text-base font-bold">해외송금 확인</h2>
             <dl className="mt-4 space-y-2.5 text-sm">
-              <Row label="수취인" value={recipient.name} />
+              <Row label="받는 사람" value={recipient.name} />
               <Row label="국가 / 통화" value={`${recipient.country} · ${currency}`} />
               <Row label="은행 / 계좌" value={`${recipient.bank} · ${recipient.account}`} />
               <Row label="해외송금 목적" value={reason} />
@@ -701,7 +701,7 @@ export default function RemittancePage() {
               )}
               <Separator />
               <Row label="총 출금액" value={formatKRW(total)} bold />
-              <Row label="수취 금액" value={formatCurrency(received, currency)} bold accent />
+              <Row label="보낼 금액" value={formatCurrency(received, currency)} bold accent />
             </dl>
             {quoteExpiredCountdown !== null ? (
               <QuoteExpiredNotice seconds={quoteExpiredCountdown} />
