@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils"
 import { apiRequest } from "@/lib/api"
 
 const STAGES = [
-  { key: "received", label: "송금 신청 접수", icon: Package, desc: "송금 요청이 정상적으로 접수되었습니다." },
+  { key: "received", label: "해외송금 신청 접수", icon: Package, desc: "해외송금 요청이 정상적으로 접수되었습니다." },
   { key: "processing", label: "환전 및 출금 처리", icon: Building2, desc: "KRW를 외화로 환전하고 있습니다." },
-  { key: "transit", label: "해외 송금 전송", icon: Globe, desc: "수취 은행으로 송금이 전송 중입니다." },
+  { key: "transit", label: "해외송금 전송", icon: Globe, desc: "수취 은행으로 해외송금이 전송 중입니다." },
   { key: "completed", label: "수취인 입금 완료", icon: CheckCircle2, desc: "수취인 계좌로 입금이 완료되었습니다." },
 ]
 
@@ -101,11 +101,11 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
     setCanceling(true)
     try {
       await apiRequest("PATCH", `/api/v1/transfers/${transferId}/cancel`)
-      toast.success("송금 신청이 취소되었습니다.")
+      toast.success("해외송금 신청이 취소되었습니다.")
       await loadTransfer(false)
     } catch (err: any) {
       console.error(err)
-      toast.error(err.message || "송금 취소에 실패했습니다.")
+      toast.error(err.message || "해외송금 취소에 실패했습니다.")
     } finally {
       setCanceling(false)
     }
@@ -129,9 +129,9 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
 
   if (loading) {
     return (
-      <AppShell title="송금 추적">
+      <AppShell title="해외송금 추적">
         <Card className="p-10 text-center">
-          <p className="text-sm text-muted-foreground">송금 내역을 불러오는 중입니다.</p>
+          <p className="text-sm text-muted-foreground">해외송금 내역을 불러오는 중입니다.</p>
         </Card>
       </AppShell>
     )
@@ -139,9 +139,9 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
 
   if (!transfer && !tx) {
     return (
-      <AppShell title="송금 추적">
+      <AppShell title="해외송금 추적">
         <Card className="p-10 text-center">
-          <p className="text-sm text-muted-foreground">송금 내역을 찾을 수 없습니다.</p>
+          <p className="text-sm text-muted-foreground">해외송금 내역을 찾을 수 없습니다.</p>
           <Button render={<Link href="/transactions" />} className="mt-4">
             거래내역으로
           </Button>
@@ -168,7 +168,7 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
     : tx!.detail
 
   return (
-    <AppShell title="송금 추적">
+    <AppShell title="해외송금 추적">
       <div className="mx-auto max-w-2xl space-y-6">
         <Link
           href="/transactions"
@@ -227,7 +227,7 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
                     {funding ? "입금 처리 중..." : "가상계좌 입금하기"}
                   </Button>
                   <Button variant="outline" onClick={cancelTransfer} disabled={funding || canceling}>
-                    {canceling ? "취소 처리 중..." : "송금 취소하기"}
+                    {canceling ? "취소 처리 중..." : "해외송금 취소하기"}
                   </Button>
                 </div>
               </div>
@@ -272,7 +272,7 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
         </Card>
 
         <p className="text-center text-xs text-muted-foreground">
-          처리 단계는 송금 상태에 따라 표시됩니다.
+          처리 단계는 해외송금 상태에 따라 표시됩니다.
         </p>
       </div>
     </AppShell>

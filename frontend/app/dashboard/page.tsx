@@ -188,7 +188,7 @@ export default function DashboardPage() {
               <div>
                 <p className="font-semibold">연결된 계좌가 없어요</p>
                 <p className="text-sm text-muted-foreground">
-                  모의계좌를 연결하면 입출금, 환전, 송금을 이용할 수 있습니다.
+                  모의계좌를 연결하면 입출금, 환전, 해외송금을 이용할 수 있습니다.
                 </p>
               </div>
             </div>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
             className="h-auto justify-start gap-3 rounded-2xl py-4"
             disabled={accountLinked === false}
           >
-            <Send className="size-5" /> 송금하기
+            <Send className="size-5" /> 해외송금
           </Button>
         </div>
 
@@ -253,7 +253,7 @@ export default function DashboardPage() {
 
           {/* Annual limit */}
           <Card className="gap-2 p-6">
-            <span className="text-sm font-medium text-muted-foreground">연간 송금 한도</span>
+            <span className="text-sm font-medium text-muted-foreground">연간 해외송금 한도</span>
             <p className="mt-2 text-2xl font-bold tabular-nums">
               {loading ? "..." : `$${annualUsedUSD.toLocaleString()}`}{" "}
               <span className="text-base font-normal text-muted-foreground">/ ${limit.toLocaleString()}</span>
