@@ -29,11 +29,11 @@ import static org.mockito.BDDMockito.given;
  * 풀 리밸런싱 체인 통합 테스트
  *
  * 고정 풀 설정:
- *   KRW: target=10B, floor=8B, ceiling=12B
- *   USD: target=6.5M, floor=5.2M, ceiling=7.8M
- *   mid rate: 1300 KRW/USD, applied: 1300 × 1.003 = 1303.9
+ *   KRW: target=10B, safeFloor=8B(80%), floor=6B(60%), ceiling=12B
+ *   USD: target=6.5M, safeFloor=5.2M(80%), floor=3.9M(60%), ceiling=7.8M
+ *   mid rate: 1300 KRW/USD, applied: 1300 × 1.002 = 1302.6
  *
- * 4케이스 모두 두 풀이 정상 범위에서 출발하고, 리밸런싱 후 둘 다 정상 복귀.
+ * 리밸런싱 로직: floor(60%) 미만 시 발동, safeFloor(80%)까지 채움 (매도 풀도 safeFloor까지만 소진)
  */
 @DisplayName("풀 리밸런싱 체인 통합 테스트")
 class PoolRebalancingIntegrationTest extends AbstractIntegrationTest {
@@ -59,42 +59,41 @@ class PoolRebalancingIntegrationTest extends AbstractIntegrationTest {
     }
 
     // ── 케이스 1 ─────────────────────────────────────────────────────────────
-    // 원화 출금 → KRW floor 미만 / 부족분 < USD 여유분(환산) → target까지 전액 복구
+    // KRW 출금 → KRW floor(60%) 미만 / shortageToSafeFloor < USD safeFloor 여유분 → safeFloor까지 전액 복구
     //
-    //   KRW=10B(정상), USD=7.5M(정상)
-    //   출금 2.5B → KRW=7.5B(floor 미만), shortage=2.5B
-    //   USD surplus=2.3M × 1303.9=2.998B  >  2.5B  → 매입=2.5B
-    //   KRW after=10B, USD after=5.58M → 둘 다 정상, capping 없음
+    //   KRW=10B(정상), USD=8M(정상)
+    //   출금 5B → KRW=5B(floor 미만), shortageToSafeFloor=3B
+    //   USD surplusAboveSafeFloor=2.8M × 1302.6=3,647,280,000 > 3B → 매입=3B
+    //   KRW after=8B(=safeFloor), USD after≈5.7M → 둘 다 정상, capping 없음
     @Test
-    @DisplayName("KRW floor 미만: 부족분 < USD 여유분 → target까지 전액 복구, 둘 다 정상")
+    @DisplayName("KRW floor 미만: shortageToSafeFloor < USD 여유분 → safeFloor까지 전액 복구, 둘 다 정상")
     void krwBelowFloor_fullRecovery_whenShortageIsLessThanUsdSurplus() {
-        insertPool("KRW", "10000000000", "10000000000", "8000000000", "12000000000");
-        insertPool("USD",    "7500000",    "6500000",    "5200000",    "7800000");
+        insertPool("KRW", "10000000000", "10000000000", "6000000000", "8000000000", "12000000000");
+        insertPool("USD",    "8000000",    "6500000",    "3900000",    "5200000",    "7800000");
 
-        companyPoolService.withdraw("case1-withdraw", "KRW", new BigDecimal("2500000000"));
+        companyPoolService.withdraw("case1-withdraw", "KRW", new BigDecimal("5000000000"));
 
         CompanyPool krw = companyPoolRepository.findByCurrencyCode("KRW").orElseThrow();
         CompanyPool usd = companyPoolRepository.findByCurrencyCode("USD").orElseThrow();
         assertThat(krw.getBalance()).isGreaterThanOrEqualTo(krw.getFloorBalance());
-        assertThat(usd.getBalance()).isGreaterThan(usd.getFloorBalance()); // surplus 일부만 소진
+        assertThat(usd.getBalance()).isGreaterThan(usd.getFloorBalance());
         assertThat(latestOrder().getCappedBy()).isNull();
     }
 
     // ── 케이스 2 ─────────────────────────────────────────────────────────────
-    // 원화 출금 → KRW floor 미만 / 부족분 > USD 여유분(환산) → USD floor까지 capping
-    // USD 여유분이 KRW shortage-to-floor 이상이므로 KRW는 floor 이상으로 회복
+    // KRW 출금 → KRW floor(60%) 미만 / shortageToSafeFloor > USD safeFloor 여유분 → USD safeFloor까지 capping
     //
-    //   KRW=10B(정상), USD=6.5M(정상, surplus=1.3M × 1303.9=1.695B)
-    //   출금 3B → KRW=7B(floor 미만), shortage=3B  >  1.695B
-    //   매입=1.695B(USD 전량 소진), sellAmount=1.3M (딱 맞아떨어짐)
-    //   KRW after=8.695B(정상), USD after=5.2M(floor=정상) → 둘 다 정상
+    //   KRW=10B(정상), USD=6.5M(정상, surplusAboveSafeFloor=1.3M × 1302.6=1.693B)
+    //   출금 5B → KRW=5B(floor 미만), shortage=3B > 1.693B
+    //   매입=1.693B(USD safeFloor 소진), sellAmount=1.3M
+    //   KRW after=6.693B(정상), USD after=5.2M(=safeFloor, 정상) → 둘 다 정상
     @Test
-    @DisplayName("KRW floor 미만: 부족분 > USD 여유분 → USD floor까지 capping, 둘 다 정상")
+    @DisplayName("KRW floor 미만: shortageToSafeFloor > USD 여유분 → USD safeFloor까지 capping, 둘 다 정상")
     void krwBelowFloor_partialRecovery_cappedByUsdFloor_bothStillNormal() {
-        insertPool("KRW", "10000000000", "10000000000", "8000000000", "12000000000");
-        insertPool("USD",    "6500000",    "6500000",    "5200000",    "7800000");
+        insertPool("KRW", "10000000000", "10000000000", "6000000000", "8000000000", "12000000000");
+        insertPool("USD",    "6500000",    "6500000",    "3900000",    "5200000",    "7800000");
 
-        companyPoolService.withdraw("case2-withdraw", "KRW", new BigDecimal("3000000000"));
+        companyPoolService.withdraw("case2-withdraw", "KRW", new BigDecimal("5000000000"));
 
         CompanyPool krw = companyPoolRepository.findByCurrencyCode("KRW").orElseThrow();
         CompanyPool usd = companyPoolRepository.findByCurrencyCode("USD").orElseThrow();
@@ -104,74 +103,70 @@ class PoolRebalancingIntegrationTest extends AbstractIntegrationTest {
     }
 
     // ── 케이스 3 ─────────────────────────────────────────────────────────────
-    // 해외송금(KRW↑ USD↓) → USD floor 미만 / 부족분 < KRW 여유분(환산) → target까지 전액 복구
+    // 해외송금(KRW↑ USD↓) → USD floor(60%) 미만 / shortageToSafeFloor < KRW safeFloor 여유분 → 전액 복구
     //
-    //   KRW=10B(정상), USD=5.5M(정상)
-    //   해외송금: 수취 KRW +651.95M, 지급 USD -500K (applied rate 1303.9 기준)
-    //   → KRW=10.652B(정상), USD=5M(floor 미만)
-    //   shortage=1.5M, KRW surplus=2.652B → in USD=2.034M  >  1.5M → 전액 복구
-    //   USD after=6.5M(target), KRW after=8.696B → 둘 다 정상, capping 없음
+    //   KRW=10B(정상), USD=4.5M(정상)
+    //   해외송금: 수취 KRW +1,302,600,000 (=1M × 1302.6), 지급 USD -1M
+    //   → KRW=11.3026B(정상), USD=3.5M(floor 미만), shortage=1.7M
+    //   KRW surplusAboveSafeFloor=3.3026B → in USD≈2.535M > 1.7M → 전액 복구
+    //   USD after=5.2M(=safeFloor), KRW after≈9.09B → 둘 다 정상, capping 없음
     @Test
-    @DisplayName("USD floor 미만: 부족분 < KRW 여유분 → target까지 전액 복구, 둘 다 정상")
+    @DisplayName("USD floor 미만: shortageToSafeFloor < KRW 여유분 → safeFloor까지 전액 복구, 둘 다 정상")
     void usdBelowFloor_fullRecovery_whenShortageIsLessThanKrwSurplus() {
-        insertPool("KRW", "10000000000", "10000000000", "8000000000", "12000000000");
-        insertPool("USD",    "5500000",    "6500000",    "5200000",    "7800000");
+        insertPool("KRW", "10000000000", "10000000000", "6000000000", "8000000000", "12000000000");
+        insertPool("USD",    "4500000",    "6500000",    "3900000",    "5200000",    "7800000");
 
-        // 해외송금: 수취 KRW = 500K USD × 1303.9 = 651,950,000
-        companyPoolService.depositForRemittance("case3-recv", "KRW", new BigDecimal("651950000"), "remittance-inbound-001");
-        companyPoolService.withdrawForRemittance("case3-pay", "USD", new BigDecimal("500000"), "remittance-outbound-001");
+        companyPoolService.depositForRemittance("case3-recv", "KRW", new BigDecimal("1302600000"), "remittance-inbound-001");
+        companyPoolService.withdrawForRemittance("case3-pay", "USD", new BigDecimal("1000000"), "remittance-outbound-001");
 
         CompanyPool krw = companyPoolRepository.findByCurrencyCode("KRW").orElseThrow();
         CompanyPool usd = companyPoolRepository.findByCurrencyCode("USD").orElseThrow();
         assertThat(usd.getBalance()).isGreaterThanOrEqualTo(usd.getFloorBalance());
-        assertThat(krw.getBalance()).isGreaterThan(krw.getFloorBalance()); // surplus 일부만 소진
+        assertThat(krw.getBalance()).isGreaterThan(krw.getFloorBalance());
         assertThat(latestOrder().getCappedBy()).isNull();
     }
 
     // ── 케이스 4 ─────────────────────────────────────────────────────────────
-    // 해외송금(KRW↑ USD↓) → USD floor 미만 / 부족분 > KRW 여유분(환산) → KRW floor까지 capping
-    // KRW 여유분이 USD shortage-to-floor 이상이므로 USD는 floor 이상으로 회복
+    // 해외송금(KRW↑ USD↓) → USD floor(60%) 미만 / shortageToSafeFloor > KRW safeFloor 여유분 → KRW safeFloor까지 capping
     //
-    //   KRW=9B(정상), USD=5.5M(정상)
-    //   해외송금: 수취 KRW +1,955.85M, 지급 USD -1.5M (applied rate 1303.9 기준)
-    //   → KRW=10.956B(정상), USD=4M(floor 미만)
-    //   shortage=2.5M, KRW surplus=2.956B → in USD=2.267M  <  2.5M → capping
-    //   USD after=6.267M(정상), KRW after≈floor(정상) → 둘 다 정상
+    //   KRW=8.5B(정상), USD=4.5M(정상)
+    //   해외송금: 수취 KRW +1,302,600,000, 지급 USD -1M
+    //   → KRW=9.8026B(정상), USD=3.5M(floor 미만), shortage=1.7M
+    //   KRW surplusAboveSafeFloor=1.8026B → in USD≈1.384M < 1.7M → capping
+    //   USD after≈4.884M(정상), KRW after≈8B(=safeFloor, 정상) → 둘 다 정상
     @Test
-    @DisplayName("USD floor 미만: 부족분 > KRW 여유분 → KRW floor까지 capping, 둘 다 정상")
+    @DisplayName("USD floor 미만: shortageToSafeFloor > KRW 여유분 → KRW safeFloor까지 capping, 둘 다 정상")
     void usdBelowFloor_partialRecovery_cappedByKrwFloor_bothStillNormal() {
-        insertPool("KRW", "9000000000", "10000000000", "8000000000", "12000000000");
-        insertPool("USD",  "5500000",    "6500000",    "5200000",    "7800000");
+        insertPool("KRW", "8500000000", "10000000000", "6000000000", "8000000000", "12000000000");
+        insertPool("USD",  "4500000",    "6500000",    "3900000",    "5200000",    "7800000");
 
-        // 해외송금: 수취 KRW = 1.5M USD × 1303.9 = 1,955,850,000
-        companyPoolService.depositForRemittance("case4-recv", "KRW", new BigDecimal("1955850000"), "remittance-inbound-002");
-        companyPoolService.withdrawForRemittance("case4-pay", "USD", new BigDecimal("1500000"), "remittance-outbound-002");
+        companyPoolService.depositForRemittance("case4-recv", "KRW", new BigDecimal("1302600000"), "remittance-inbound-002");
+        companyPoolService.withdrawForRemittance("case4-pay", "USD", new BigDecimal("1000000"), "remittance-outbound-002");
 
         CompanyPool krw = companyPoolRepository.findByCurrencyCode("KRW").orElseThrow();
         CompanyPool usd = companyPoolRepository.findByCurrencyCode("USD").orElseThrow();
         assertThat(usd.getBalance()).isGreaterThanOrEqualTo(usd.getFloorBalance());
-        assertThat(krw.getBalance()).isGreaterThanOrEqualTo(krw.getFloorBalance()); // KRW ≈ floor
+        assertThat(krw.getBalance()).isGreaterThanOrEqualTo(krw.getFloorBalance());
         assertThat(latestOrder().getCappedBy()).isEqualTo(CappedBy.KRW_FLOOR);
     }
 
     // ── 케이스 5 ─────────────────────────────────────────────────────────────
-    // KRW 급락 → USD 여유분이 KRW shortage-to-floor에도 미치지 못해 리밸런싱 후에도 floor 미달
-    // (severe capping — 관리자 알림 발생, 단위 테스트에서 별도 검증)
+    // KRW 급락 → USD safeFloor 여유분이 KRW shortageToSafeFloor에 미치지 못해 리밸런싱 후에도 floor 미달
     //
-    //   KRW=10B(정상), USD=6.5M(정상, surplus=1.3M → KRW 환산 1.695B)
-    //   출금 5B → KRW=5B(floor 미만), shortage-to-floor=3B  >  1.695B
-    //   매입=1.695B(USD 전량 소진) → KRW after=6.695B  <  floor(8B) 여전히 미달
+    //   KRW=10B(정상), USD=6.5M(정상, surplusAboveSafeFloor=1.3M → KRW 환산 1.693B)
+    //   출금 9B → KRW=1B(floor 미만), shortage=7B > 1.693B
+    //   매입=1.693B(USD safeFloor 소진) → KRW after=2.693B < floor(6B) 여전히 미달
     @Test
-    @DisplayName("KRW 급락: 리밸런싱 후에도 floor 미달 (USD 여유분 부족으로 완전 복구 불가)")
+    @DisplayName("KRW 급락: 리밸런싱 후에도 floor(60%) 미달 (USD 여유분 부족으로 완전 복구 불가)")
     void krwBelowFloor_stillBelowFloorAfterRebalancing_whenUsdSurplusNotEnoughToReachFloor() {
-        insertPool("KRW", "10000000000", "10000000000", "8000000000", "12000000000");
-        insertPool("USD",    "6500000",    "6500000",    "5200000",    "7800000");
+        insertPool("KRW", "10000000000", "10000000000", "6000000000", "8000000000", "12000000000");
+        insertPool("USD",    "6500000",    "6500000",    "3900000",    "5200000",    "7800000");
 
-        companyPoolService.withdraw("case5-withdraw", "KRW", new BigDecimal("5000000000"));
+        companyPoolService.withdraw("case5-withdraw", "KRW", new BigDecimal("9000000000"));
 
         CompanyPool krw = companyPoolRepository.findByCurrencyCode("KRW").orElseThrow();
         CompanyPool usd = companyPoolRepository.findByCurrencyCode("USD").orElseThrow();
-        assertThat(krw.getBalance()).isLessThan(krw.getFloorBalance());       // 여전히 floor 미달
+        assertThat(krw.getBalance()).isLessThan(krw.getFloorBalance());            // 여전히 floor 미달
         assertThat(usd.getBalance()).isGreaterThanOrEqualTo(usd.getFloorBalance()); // USD는 floor 이상 유지
         assertThat(latestOrder().getCappedBy()).isEqualTo(CappedBy.USD_FLOOR);
     }
@@ -182,15 +177,16 @@ class PoolRebalancingIntegrationTest extends AbstractIntegrationTest {
         return orders.getFirst();
     }
 
-    private void insertPool(String currency, String balance, String target, String floor, String ceiling) {
+    private void insertPool(String currency, String balance, String target,
+                             String floor, String safeFloor, String ceiling) {
         jdbcTemplate.update(
-                "INSERT INTO company_pools (currency_code, balance, target_balance, floor_balance, ceiling_balance, created_at, updated_at) " +
-                "VALUES (?, ?, ?, ?, ?, NOW(), NOW()) " +
+                "INSERT INTO company_pools (currency_code, balance, target_balance, floor_balance, safe_floor_balance, ceiling_balance, created_at, updated_at) " +
+                "VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW()) " +
                 "ON CONFLICT (currency_code) DO UPDATE SET " +
                 "balance = EXCLUDED.balance, target_balance = EXCLUDED.target_balance, " +
-                "floor_balance = EXCLUDED.floor_balance, ceiling_balance = EXCLUDED.ceiling_balance, " +
-                "updated_at = NOW()",
+                "floor_balance = EXCLUDED.floor_balance, safe_floor_balance = EXCLUDED.safe_floor_balance, " +
+                "ceiling_balance = EXCLUDED.ceiling_balance, updated_at = NOW()",
                 currency, new BigDecimal(balance), new BigDecimal(target),
-                new BigDecimal(floor), new BigDecimal(ceiling));
+                new BigDecimal(floor), new BigDecimal(safeFloor), new BigDecimal(ceiling));
     }
 }

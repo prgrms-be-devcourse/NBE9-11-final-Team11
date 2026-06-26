@@ -13,6 +13,7 @@ public record PoolDashboardRes(
             BigDecimal balance,
             BigDecimal targetBalance,
             BigDecimal floorBalance,
+            BigDecimal safeFloorBalance,
             BigDecimal ceilingBalance,
             String status,
             BigDecimal utilizationRate,

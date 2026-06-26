@@ -164,10 +164,10 @@ public class RebalancingService {
     // 매입량 = min(target 대비 부족분량, 반대 통화 floor까지 여유분량)
     private TradeAmounts calculateTradeAmounts(CompanyPool buyPool, CompanyPool sellPool,
                                                BigDecimal appliedRate, boolean buyingKrw) {
-        BigDecimal desiredBuyAmount = buyPool.shortageToTarget();
+        BigDecimal desiredBuyAmount = buyPool.shortageToSafeFloor();
         BigDecimal maxBuyableFromSell = buyingKrw
-                ? sellPool.surplusAboveFloor().multiply(appliedRate).setScale(8, RoundingMode.FLOOR)
-                : sellPool.surplusAboveFloor().divide(appliedRate, 8, RoundingMode.FLOOR);
+                ? sellPool.surplusAboveSafeFloor().multiply(appliedRate).setScale(8, RoundingMode.FLOOR)
+                : sellPool.surplusAboveSafeFloor().divide(appliedRate, 8, RoundingMode.FLOOR);
 
         CappedBy cappedBy = null;
         BigDecimal buyAmount;

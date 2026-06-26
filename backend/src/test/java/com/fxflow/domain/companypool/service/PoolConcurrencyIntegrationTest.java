@@ -71,7 +71,7 @@ class PoolConcurrencyIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("동시 차감 → WHERE balance >= :amount 보호로 잔액 음수 불가, 정합성 유지")
     void decreaseBalance_concurrent_neverGoesNegative() throws InterruptedException {
-        insertPool("KRW", "5000000", "10000000000", "8000000000", "12000000000");
+        insertPool("KRW", "5000000", "10000000000", "6000000000", "8000000000", "12000000000");
 
         int threadCount = 10;
         BigDecimal decreaseAmount = new BigDecimal("1000000"); // 1M씩 차감 시도
@@ -111,21 +111,24 @@ class PoolConcurrencyIntegrationTest extends AbstractIntegrationTest {
     //   초기잔액 + 리밸런싱 매입량 + 사용자 증가분
     // 이 되어야 한다. 두 작업의 실행 순서와 무관하게 이 등식이 성립하면 "누락(lost update)" 없음이 증명된다.
     //
+    // KRW=4.5B로 시작: 사용자 입금(+5억) 후에도 5B < floor(6B) → 두 실행 순서 모두 리밸런싱 트리거됨
+    // USD surplus (7.5M-5.2M=2.3M) 기준 상한: 2.3M × 1302.6 ≈ 2.996B → 어느 순서든 동일 cap
+    //
     // 실행 순서 A (사용자 거래 선행):
-    //   KRW 7B → +5억 → 7.5B  →  리밸런싱(7.5B 기준 매입 2.5B)  →  최종 10B
-    //   공식: 7B + 2.5B + 0.5B = 10B ✓
+    //   KRW 4.5B → +5억 → 5B → 리밸런싱(5B 기준 shortage=3B, cap≈2.996B) → ≈7.996B
+    //   공식: 4.5B + 2.996B + 0.5B ≈ 7.996B ✓
     //
     // 실행 순서 B (리밸런싱 선행):
-    //   KRW 7B  →  리밸런싱(7B 기준 매입 ≈3B)  →  9.998B  →  +5억  →  10.498B
-    //   공식: 7B + 2.998B + 0.5B ≈ 10.498B ✓
+    //   KRW 4.5B → 리밸런싱(4.5B 기준 shortage=3.5B, cap≈2.996B) → ≈7.496B → +5억 → ≈7.996B
+    //   공식: 4.5B + 2.996B + 0.5B ≈ 7.996B ✓
     @Test
     @DisplayName("리밸런싱(PESSIMISTIC_WRITE) + 동시 사용자 거래 → 실행 순서 무관하게 누락 없음")
     void rebalancingAndConcurrentUserDeposit_noLostUpdate() throws InterruptedException {
-        // KRW: 7B (floor=8B 미만 → 리밸런싱 필요), USD: 7.5M (정상)
-        insertPool("KRW", "7000000000", "10000000000", "8000000000", "12000000000");
-        insertPool("USD",    "7500000",    "6500000",    "5200000",    "7800000");
+        // KRW: 4.5B (< floor 6B → 리밸런싱 필요, +5억 후에도 5B < 6B), USD: 7.5M (정상)
+        insertPool("KRW", "4500000000", "10000000000", "6000000000", "8000000000", "12000000000");
+        insertPool("USD",    "7500000",    "6500000",    "3900000",    "5200000",    "7800000");
 
-        BigDecimal initialKrw = new BigDecimal("7000000000");
+        BigDecimal initialKrw = new BigDecimal("4500000000");
         BigDecimal userDepositAmount = new BigDecimal("500000000"); // 5억 증가
 
         CountDownLatch startLatch = new CountDownLatch(2);
@@ -210,15 +213,16 @@ class PoolConcurrencyIntegrationTest extends AbstractIntegrationTest {
         executor.shutdown();
     }
 
-    private void insertPool(String currency, String balance, String target, String floor, String ceiling) {
+    private void insertPool(String currency, String balance, String target,
+                             String floor, String safeFloor, String ceiling) {
         jdbcTemplate.update(
-                "INSERT INTO company_pools (currency_code, balance, target_balance, floor_balance, ceiling_balance, created_at, updated_at) "
-                        + "VALUES (?, ?, ?, ?, ?, NOW(), NOW()) "
+                "INSERT INTO company_pools (currency_code, balance, target_balance, floor_balance, safe_floor_balance, ceiling_balance, created_at, updated_at) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW()) "
                         + "ON CONFLICT (currency_code) DO UPDATE SET "
                         + "balance = EXCLUDED.balance, target_balance = EXCLUDED.target_balance, "
-                        + "floor_balance = EXCLUDED.floor_balance, ceiling_balance = EXCLUDED.ceiling_balance, "
-                        + "updated_at = NOW()",
+                        + "floor_balance = EXCLUDED.floor_balance, safe_floor_balance = EXCLUDED.safe_floor_balance, "
+                        + "ceiling_balance = EXCLUDED.ceiling_balance, updated_at = NOW()",
                 currency, new BigDecimal(balance), new BigDecimal(target),
-                new BigDecimal(floor), new BigDecimal(ceiling));
+                new BigDecimal(floor), new BigDecimal(safeFloor), new BigDecimal(ceiling));
     }
 }
