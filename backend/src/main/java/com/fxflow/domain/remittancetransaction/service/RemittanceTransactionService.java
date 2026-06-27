@@ -50,7 +50,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -83,6 +82,7 @@ public class RemittanceTransactionService {
     private static final long QUOTE_EXPIRATION_MINUTES = 5L;
     private static final long VIRTUAL_ACCOUNT_EXPIRATION_MINUTES = 10L;
     private static final String REMITTANCE_QUOTE_KEY_PREFIX = "remittance:quote:";
+    private static final long VIRTUAL_ACCOUNT_NUMBER_UNIT = 1_000_000L;
 
     private final ExchangeRateProvider exchangeRateProvider;
     private final RedisTemplate<String, Object> redisTemplate;
@@ -530,7 +530,7 @@ public class RemittanceTransactionService {
                 userId,
                 remittanceTransaction.getId(),
                 DEFAULT_VIRTUAL_ACCOUNT_BANK_NAME,
-                generateVirtualAccountNumber(),
+                generateVirtualAccountNumber(remittanceTransaction.getId()),
                 expectedAmount,
                 REMITTANCE_REF_TYPE,
                 String.valueOf(remittanceTransaction.getId()),
@@ -540,14 +540,13 @@ public class RemittanceTransactionService {
     }
 
     /**
-     * 테스트용 가상계좌 번호를 생성한다.
+     * 송금 주문 ID를 기반으로 충돌 없는 테스트용 가상계좌 번호를 생성한다.
      */
-    private String generateVirtualAccountNumber() {
-        int first = ThreadLocalRandom.current().nextInt(100, 1000);
-        int second = ThreadLocalRandom.current().nextInt(100000, 1000000);
-        int third = ThreadLocalRandom.current().nextInt(100000, 1000000);
+    private String generateVirtualAccountNumber(Long remittanceTransactionId) {
+        long upper = remittanceTransactionId / VIRTUAL_ACCOUNT_NUMBER_UNIT;
+        long lower = remittanceTransactionId % VIRTUAL_ACCOUNT_NUMBER_UNIT;
 
-        return first + "-" + second + "-" + third;
+        return "777-%06d-%06d".formatted(upper, lower);
     }
 
     /**

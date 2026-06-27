@@ -291,6 +291,7 @@ class RemittanceTransactionServiceTest {
         assertThat(response.transferId()).isEqualTo(transferId);
         assertThat(response.status()).isEqualTo(TransferStatus.PENDING);
         assertThat(response.virtualAccount().bankName()).isEqualTo("최강은행");
+        assertThat(response.virtualAccount().accountNumber()).isEqualTo("777-000000-000010");
         assertThat(response.virtualAccount().amount()).isEqualTo(new BigDecimal("1010000"));
         assertThat(response.virtualAccount().expiredAt()).isNotNull();
 
@@ -320,6 +321,7 @@ class RemittanceTransactionServiceTest {
 
         assertThat(savedVirtualAccount.getUserId()).isEqualTo(userId);
         assertThat(savedVirtualAccount.getRemittanceTransactionId()).isEqualTo(transferId);
+        assertThat(savedVirtualAccount.getAccountNumber()).isEqualTo("777-000000-000010");
         assertThat(savedVirtualAccount.getExpectedAmount()).isEqualByComparingTo(new BigDecimal("1010000.00"));
         assertThat(savedVirtualAccount.getRefType()).isEqualTo("REMITTANCE");
         assertThat(savedVirtualAccount.getRefId()).isEqualTo(String.valueOf(transferId));
