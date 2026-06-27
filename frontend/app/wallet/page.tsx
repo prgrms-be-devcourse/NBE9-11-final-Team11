@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { TransactionRow } from "@/components/app/transaction-row"
 import { useStore, type Transaction, type TxType, type TxStatus } from "@/lib/store"
-import { CURRENCY_META, formatKRW, formatCurrency, krwPerUnit, type CurrencyCode } from "@/lib/fx-data"
+import { CURRENCY_META, formatKRW, formatCurrency, krwPerUnit, type CurrencyCode, sanitizeDecimalInput } from "@/lib/fx-data"
 import { KOREAN_BANKS } from "@/lib/fx-data"
 import { apiRequest } from "@/lib/api"
 import { useEffect } from "react"
@@ -383,7 +383,7 @@ export default function WalletPage() {
                       onChange={(e) => {
                         const val = e.target.value
                         if (mode === "transfer" && transferCurrency !== "KRW") {
-                          setAmount(val.replace(/[^\d.]/g, ""))
+                          setAmount(sanitizeDecimalInput(val))
                         } else {
                           setAmount(val.replace(/[^\d]/g, ""))
                         }
