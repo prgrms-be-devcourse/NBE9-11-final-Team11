@@ -100,13 +100,7 @@ public class WalletService {
         List<Wallet> wallets = walletRepository.findByUserId(userId);
         List<WalletResponse> walletResponses = wallets.stream().map(WalletResponse::from).toList();
         BigDecimal krw = wallets.stream()
-                .map(wallet -> {
-                    BigDecimal rate = fxRateService.getRate(
-                            wallet.getCurrencyCode(),
-                            "KRW"
-                    );
-                    return wallet.getBalance().multiply(rate);
-                })
+                .map(wallet -> toKrwEquivalent(wallet.getCurrencyCode(), wallet.getBalance()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         return WalletBalanceResponse.from(krw.setScale(0, java.math.RoundingMode.HALF_UP).longValue(), walletResponses);
     }

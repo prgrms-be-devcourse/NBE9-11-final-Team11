@@ -101,8 +101,6 @@ class WalletServiceTest {
                 .thenReturn(List.of(usdWallet, krwWallet));
         when(fxRateService.getRate("USD", "KRW"))
                 .thenReturn(new BigDecimal("1300"));
-        when(fxRateService.getRate("KRW", "KRW"))
-                .thenReturn(BigDecimal.ONE);
         // when
         WalletBalanceResponse response =
                 walletService.getWalletBalance(userId);
