@@ -72,6 +72,11 @@ public enum MockBankAccountErrorCode implements ErrorCode {
             HttpStatus.CONFLICT,
             "KYC_ALREADY_VERIFIED",
             "이미 인증이 완료된 요청입니다."
+    ),
+    KYC_DAILY_LIMIT_EXCEEDED(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "KYC_DAILY_LIMIT_EXCEEDED",
+            "1원 인증 요청 횟수를 초과했습니다. 내일 다시 시도해주세요."
     );
 
     private final HttpStatus status;

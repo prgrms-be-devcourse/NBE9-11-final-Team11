@@ -6,9 +6,10 @@ import java.time.LocalDateTime;
 
 public record KycStartResponse(
         Long verificationId,
-        LocalDateTime expiresAt
+        LocalDateTime expiresAt,
+        int remainingDailyRequests
 ) {
-    public static KycStartResponse of(KycVerification verification) {
-        return new KycStartResponse(verification.getId(), verification.getExpiresAt());
+    public static KycStartResponse of(KycVerification verification, int remainingDailyRequests) {
+        return new KycStartResponse(verification.getId(), verification.getExpiresAt(), remainingDailyRequests);
     }
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Check, AlertCircle, Loader2, CircleCheck, ExternalLink } from "lucide-react"
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiRequest } from "@/lib/api"
 import { KOREAN_BANKS } from "@/lib/fx-data"
 import { useStore } from "@/lib/store"
+import { KycTimer } from "@/components/kyc-timer"
 
 type CheckStatus = "idle" | "checking" | "available" | "unavailable"
 type KycState = "idle" | "starting" | "waiting" | "failed" | "verified"
@@ -21,6 +22,7 @@ type KycState = "idle" | "starting" | "waiting" | "failed" | "verified"
 interface KycStartResponse {
   verificationId: number
   expiresAt: string
+  remainingDailyRequests: number
 }
 
 export default function LinkAccountPage() {
@@ -35,9 +37,31 @@ export default function LinkAccountPage() {
   // --- 1원 인증(KYC) 단계 ---
   const [kyc, setKyc] = useState<KycState>("idle")
   const [verificationId, setVerificationId] = useState<number | null>(null)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  const [remainingSeconds, setRemainingSeconds] = useState(0)
   const [code, setCode] = useState("")
   const [verifying, setVerifying] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
+  const [remainingDailyRequests, setRemainingDailyRequests] = useState<number | null>(null)
+
+  // 만료 시각까지 1초마다 남은 시간을 갱신한다.
+  useEffect(() => {
+    if (!expiresAt || kyc !== "waiting") return
+
+    function tick() {
+      const remaining = Math.max(0, Math.floor((new Date(expiresAt!).getTime() - Date.now()) / 1000))
+      setRemainingSeconds(remaining)
+      if (remaining === 0) {
+        setKyc("failed")
+        setErrorMessage("인증 시간이 만료되었습니다. 다시 요청해주세요.")
+      }
+    }
+
+    tick()
+    const timer = setInterval(tick, 1000)
+    return () => clearInterval(timer)
+  }, [expiresAt, kyc])
+
 
   function handleAccountNumberChange(value: string) {
     setAccountNumber(value.replace(/[^\d]/g, ""))
@@ -80,12 +104,21 @@ export default function LinkAccountPage() {
         accountHolderName: accountHolderName.trim(),
       })
       setVerificationId(res.verificationId)
+      setExpiresAt(res.expiresAt)
+      setRemainingDailyRequests(res.remainingDailyRequests)
+      setCode("")
       setKyc("waiting")
     } catch (err: any) {
       console.error(err)
       setKyc("idle")
       toast.error(err.message || "1원 인증 요청에 실패했습니다.")
     }
+  }
+
+  // 코드를 못 받았거나 만료됐을 때 새 코드를 다시 요청한다.
+  async function resendKyc() {
+    setErrorMessage("")
+    await startKyc()
   }
 
   // 인증코드 검증 → 성공 시 백엔드가 실제 계좌 연결까지 완료한다
@@ -235,12 +268,19 @@ export default function LinkAccountPage() {
 
           {(kyc === "waiting" || kyc === "failed") && (
             <form onSubmit={verifyKyc} className="space-y-3">
-              <div className="space-y-2 rounded-xl bg-primary/10 px-3 py-2.5 text-xs font-medium text-primary">
-                <p>입력하신 계좌에 1원이 입금되었습니다. 계좌번호 조회 화면에서 입금자명을 확인하세요.</p>
+              <div className="space-y-2.5">
+                {kyc === "waiting" && (
+                  <div className="flex justify-center">
+                    <KycTimer remainingSeconds={remainingSeconds} />
+                  </div>
+                )}
+                <p className="rounded-xl bg-primary/10 px-3 py-2.5 text-xs font-medium text-primary">
+                  입력하신 계좌에 1원이 입금되었습니다. 계좌번호 조회 화면에서 입금자명을 확인하세요.
+                </p>
                 <Link
                   href="/mockbank/kyc-inquiry"
                   target="_blank"
-                  className="inline-flex items-center gap-1 underline underline-offset-2"
+                  className="flex items-center justify-center gap-1 text-center text-xs font-medium text-primary underline underline-offset-2"
                 >
                   계좌번호 조회하기 <ExternalLink className="size-3" />
                 </Link>
@@ -266,6 +306,20 @@ export default function LinkAccountPage() {
               <Button type="submit" className="w-full" disabled={verifying || code.length !== 4}>
                 {verifying ? "연결 중..." : "인증 확인"}
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={resendKyc}
+                disabled={verifying || remainingDailyRequests === 0}
+              >
+                1원 다시 요청
+              </Button>
+              {remainingDailyRequests !== null && (
+                <p className="text-center text-xs text-muted-foreground">
+                  오늘 다시 요청 가능 횟수: {remainingDailyRequests}회 남음
+                </p>
+              )}
             </form>
           )}
 

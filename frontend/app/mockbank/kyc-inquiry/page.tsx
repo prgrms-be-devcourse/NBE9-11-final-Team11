@@ -7,7 +7,9 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiRequest } from "@/lib/api"
+import { KOREAN_BANKS } from "@/lib/fx-data"
 
 interface KycInquiryResponse {
   depositorName: string
@@ -21,7 +23,7 @@ function formatDateTime(iso: string) {
 }
 
 export default function KycInquiryPage() {
-  const [bankName, setBankName] = useState("")
+  const [bankName, setBankName] = useState(KOREAN_BANKS[0])
   const [accountNumber, setAccountNumber] = useState("")
   const [accountHolderName, setAccountHolderName] = useState("")
 
@@ -82,7 +84,18 @@ export default function KycInquiryPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="bankName">은행명</Label>
-              <Input id="bankName" placeholder="국민은행" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+              <Select value={bankName} onValueChange={(v) => setBankName(v ?? KOREAN_BANKS[0])}>
+                <SelectTrigger id="bankName">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {KOREAN_BANKS.map((b) => (
+                    <SelectItem key={b} value={b}>
+                      {b}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="accountNumber">계좌번호</Label>

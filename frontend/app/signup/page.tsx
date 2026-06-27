@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AlertCircle, Check, Loader2, CircleCheck, Eye, EyeOff } from "lucide-react"
@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import { apiRequest } from "@/lib/api"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { KOREAN_BANKS } from "@/lib/fx-data"
+import { KycTimer } from "@/components/kyc-timer"
 
 type KycState = "idle" | "starting" | "waiting" | "verified" | "failed"
 type KycFailKind = "code" | "api" | null
@@ -26,6 +27,7 @@ type AccountCheckState = {
 interface KycStartResponse {
   verificationId: number
   expiresAt: string
+  remainingDailyRequests: number
 }
 
 export default function SignupPage() {
@@ -93,7 +95,30 @@ export default function SignupPage() {
   const [kyc, setKyc] = useState<KycState>("idle")
   const [kycFailKind, setKycFailKind] = useState<KycFailKind>(null)
   const [verificationId, setVerificationId] = useState<number | null>(null)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  const [remainingSeconds, setRemainingSeconds] = useState(0)
   const [code, setCode] = useState("")
+  const [remainingDailyRequests, setRemainingDailyRequests] = useState<number | null>(null)
+
+  // 만료 시각까지 1초마다 남은 시간을 갱신한다.
+  useEffect(() => {
+    if (!expiresAt || kyc !== "waiting") return
+
+    function tick() {
+      const remaining = Math.max(0, Math.floor((new Date(expiresAt!).getTime() - Date.now()) / 1000))
+      setRemainingSeconds(remaining)
+      if (remaining === 0) {
+        setKyc("failed")
+        setKycFailKind("code")
+        setError("인증 시간이 만료되었습니다. 다시 요청해주세요.")
+      }
+    }
+
+    tick()
+    const timer = setInterval(tick, 1000)
+    return () => clearInterval(timer)
+  }, [expiresAt, kyc])
+
 
   // --- 계좌번호 사전 확인 (중복 체크) ---
   const [accountCheck, setAccountCheck] = useState<AccountCheckState>({ status: "idle" })
@@ -139,6 +164,9 @@ export default function SignupPage() {
         accountHolderName: name.trim(),
       })
       setVerificationId(res.verificationId)
+      setExpiresAt(res.expiresAt)
+      setRemainingDailyRequests(res.remainingDailyRequests)
+      setCode("")
       setKyc("waiting")
       setKycFailKind(null)
     } catch (err: any) {
@@ -146,6 +174,12 @@ export default function SignupPage() {
       setKyc("idle")
       setError(err.message || "1원 인증 요청에 실패했습니다.")
     }
+  }
+
+  // 코드를 못 받았거나 만료됐을 때 새 코드를 다시 요청한다.
+  async function resendKyc() {
+    setError("")
+    await startKyc()
   }
 
   async function verifyKyc(ev: React.FormEvent) {
@@ -256,6 +290,10 @@ export default function SignupPage() {
                   </span>
                 )}
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-muted-foreground text-xs">예금주명</Label>
+                <span className="font-medium">{name}</span>
+              </div>
             </div>
           </div>
 
@@ -281,12 +319,19 @@ export default function SignupPage() {
 
           {(kyc === "waiting" || kyc === "failed") && (
             <form onSubmit={verifyKyc} className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2 rounded-xl bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
-                <p>입력하신 계좌에 1원이 입금되었습니다. 계좌번호 조회 화면에서 입금자명을 확인하세요.</p>
+              <div className="flex flex-col gap-2.5">
+                {kyc === "waiting" && (
+                  <div className="flex justify-center">
+                    <KycTimer remainingSeconds={remainingSeconds} />
+                  </div>
+                )}
+                <p className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+                  입력하신 계좌에 1원이 입금되었습니다. 계좌번호 조회 화면에서 입금자명을 확인하세요.
+                </p>
                 <Link
                   href="/mockbank/kyc-inquiry"
                   target="_blank"
-                  className="inline-flex items-center gap-1 underline underline-offset-2"
+                  className="flex items-center justify-center gap-1 text-center text-xs font-medium text-primary underline underline-offset-2"
                 >
                   계좌번호 조회하기
                 </Link>
@@ -312,6 +357,20 @@ export default function SignupPage() {
               <Button type="submit" className="w-full" disabled={code.length !== 4}>
                 인증 확인
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={resendKyc}
+                disabled={remainingDailyRequests === 0}
+              >
+                1원 다시 요청
+              </Button>
+              {remainingDailyRequests !== null && (
+                <p className="text-center text-xs text-muted-foreground">
+                  오늘 다시 요청 가능 횟수: {remainingDailyRequests}회 남음
+                </p>
+              )}
             </form>
           )}
 

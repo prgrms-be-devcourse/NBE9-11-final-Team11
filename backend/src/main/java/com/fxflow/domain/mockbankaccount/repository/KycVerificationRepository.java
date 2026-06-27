@@ -4,11 +4,23 @@ import com.fxflow.domain.mockbankaccount.entity.KycVerification;
 import com.fxflow.domain.mockbankaccount.enums.KycVerificationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface KycVerificationRepository extends JpaRepository<KycVerification, Long> {
 
     Optional<KycVerification> findByIdAndUserId(Long id, Long userId);
+
+    /**
+     * '다시 요청' 시 이전에 발급된 대기 중인 인증 건들을 무효화하기 위해 조회한다.
+     */
+    List<KycVerification> findAllByUserIdAndStatus(Long userId, KycVerificationStatus status);
+
+    /**
+     * 1원 인증 일일 요청 한도 체크 — 스키마 변경 없이 created_at 기준으로 오늘 발급된 건수를 센다.
+     */
+    long countByUserIdAndCreatedAtAfter(Long userId, LocalDateTime since);
 
     /**
      * 사용자가 '계좌번호 조회'로 입금자명(코드)을 확인할 때 사용한다.

@@ -72,6 +72,15 @@ public class KycVerification extends BaseEntity {
         return verification;
     }
 
+    /**
+     * '다시 요청'으로 새 코드가 발급될 때 이전 대기 건을 무효화한다.
+     */
+    public void expire() {
+        if (this.status == KycVerificationStatus.PENDING) {
+            this.status = KycVerificationStatus.EXPIRED;
+        }
+    }
+
     public String depositorName() {
         return "fxflow" + code;
     }
@@ -99,7 +108,11 @@ public class KycVerification extends BaseEntity {
         this.attemptCount++;
 
         if (!this.code.equals(inputCode)) {
-            throw new BusinessException(MockBankAccountErrorCode.KYC_CODE_MISMATCH);
+            int remaining = MAX_ATTEMPTS - attemptCount;
+            throw new BusinessException(
+                    MockBankAccountErrorCode.KYC_CODE_MISMATCH,
+                    "인증코드가 일치하지 않습니다. (남은 시도 %d회)".formatted(remaining)
+            );
         }
 
         this.status = KycVerificationStatus.VERIFIED;

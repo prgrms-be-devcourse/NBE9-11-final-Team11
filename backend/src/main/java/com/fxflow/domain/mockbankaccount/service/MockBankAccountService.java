@@ -46,6 +46,7 @@ public class MockBankAccountService {
     private static final String KRW = "KRW";
     private static final String USD = "USD";
     private static final long KYC_CODE_TTL_MINUTES = 5;
+    private static final int KYC_DAILY_REQUEST_LIMIT = 5;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final MockBankAccountRepository mockBankAccountRepository;
@@ -215,8 +216,19 @@ public class MockBankAccountService {
             throw new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NUMBER_DUPLICATED);
         }
 
+        LocalDateTime todayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
+        long todayRequestCount = kycVerificationRepository.countByUserIdAndCreatedAtAfter(userId, todayStart);
+        if (todayRequestCount >= KYC_DAILY_REQUEST_LIMIT) {
+            throw new BusinessException(MockBankAccountErrorCode.KYC_DAILY_LIMIT_EXCEEDED);
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        // '다시 요청' 등으로 이전에 발급된 대기 중 인증 건이 있다면 무효화한다.
+        List<KycVerification> pendingVerifications =
+                kycVerificationRepository.findAllByUserIdAndStatus(userId, KycVerificationStatus.PENDING);
+        pendingVerifications.forEach(KycVerification::expire);
 
         String code = generateCode();
         KycVerification verification = KycVerification.create(
@@ -231,7 +243,8 @@ public class MockBankAccountService {
 
         log.info("[1원 인증 시작] userId={}, bankName={}, accountNumber={}", userId, bankName, accountNumber);
 
-        return KycStartResponse.of(verification);
+        int remainingDailyRequests = KYC_DAILY_REQUEST_LIMIT - (int) (todayRequestCount + 1);
+        return KycStartResponse.of(verification, remainingDailyRequests);
     }
 
     /**
