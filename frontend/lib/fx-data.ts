@@ -128,3 +128,19 @@ export function remittanceFee(krwAmount: number): number {
 export function bankFee(krwAmount: number): number {
   return 15000 + Math.round(krwAmount * 0.0175)
 }
+
+export function sanitizeDecimalInput(value: string, maxDecimals: number = 2): string {
+  let clean = value.replace(/[^\d.]/g, "");
+  const parts = clean.split(".");
+  if (parts.length > 2) {
+    clean = parts[0] + "." + parts.slice(1).join("");
+  }
+  const firstDotIndex = clean.indexOf(".");
+  if (firstDotIndex !== -1) {
+    const beforeDot = clean.substring(0, firstDotIndex);
+    const afterDot = clean.substring(firstDotIndex + 1);
+    clean = beforeDot + "." + afterDot.substring(0, maxDecimals);
+  }
+  return clean;
+}
+

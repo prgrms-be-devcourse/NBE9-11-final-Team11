@@ -15,6 +15,7 @@ import {
   CURRENCY_META,
   formatKRW,
   formatCurrency,
+  sanitizeDecimalInput,
 } from "@/lib/fx-data"
 import { apiRequest } from "@/lib/api"
 
@@ -27,6 +28,7 @@ export default function ExchangePage() {
   const [quote, setQuote] = useState<any>(null)
   const [loadingQuote, setLoadingQuote] = useState(false)
   const [quoteError, setQuoteError] = useState<string>("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [timeLeft, setTimeLeft] = useState(300)
 
@@ -146,11 +148,13 @@ export default function ExchangePage() {
   }
 
   async function submit() {
+    if (isSubmitting) return
     if (parsedAmount <= 0) return toast.error("환전할 금액을 입력하세요.")
     if (quoteError) return toast.error(quoteError)
     if (!quote || !quote.quoteId) return toast.error("견적을 불러오는 중이거나 실패했습니다.")
     if (totalDeduct > currentBalance) return toast.error(`${fromCurrency} 잔액이 부족합니다.`)
 
+    setIsSubmitting(true)
     try {
       const res = await apiRequest<any>("POST", "/api/v1/wallets/exchange", {
         quoteId: quote.quoteId,
@@ -162,6 +166,8 @@ export default function ExchangePage() {
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || "환전에 실패했습니다.")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -202,18 +208,7 @@ export default function ExchangePage() {
                     if (fromCurrency === "KRW") {
                       setInputAmount(val.replace(/[^\d]/g, ""))
                     } else {
-                      let clean = val.replace(/[^\d.]/g, "")
-                      const parts = clean.split(".")
-                      if (parts.length > 2) {
-                        clean = parts[0] + "." + parts.slice(1).join("")
-                      }
-                      const firstDotIndex = clean.indexOf(".")
-                      if (firstDotIndex !== -1) {
-                        const beforeDot = clean.substring(0, firstDotIndex)
-                        const afterDot = clean.substring(firstDotIndex + 1)
-                        clean = beforeDot + "." + afterDot.substring(0, 2)
-                      }
-                      setInputAmount(clean)
+                      setInputAmount(sanitizeDecimalInput(val))
                     }
                   }}
                   className="border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
@@ -276,8 +271,8 @@ export default function ExchangePage() {
             </Button>
           </div>
 
-          <Button className="mt-5 w-full" size="lg" onClick={submit} disabled={isBelowMin || loadingQuote || !!quoteError}>
-            환전하기
+          <Button className="mt-5 w-full" size="lg" onClick={submit} disabled={isBelowMin || loadingQuote || !!quoteError || isSubmitting}>
+            {isSubmitting ? "환전 처리 중..." : "환전하기"}
           </Button>
         </Card>
 
