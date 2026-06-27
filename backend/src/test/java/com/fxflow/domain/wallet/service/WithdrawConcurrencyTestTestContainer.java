@@ -53,6 +53,10 @@ class WithdrawConcurrencyTestTestContainer extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        walletRepository.deleteAll();
+        userRepository.deleteAll();
+        transactionLimitRepository.deleteAll();
+
         transactionLimitRepository.saveAll(List.of(
                 TransactionLimit.create(LimitType.PER_WITHDRAWAL, LimitTier.STANDARD, "KRW", new BigDecimal("2000000")),
                 TransactionLimit.create(LimitType.DAILY_WITHDRAWAL, LimitTier.STANDARD, "KRW", new BigDecimal("2000000")),
