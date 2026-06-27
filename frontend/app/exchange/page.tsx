@@ -129,10 +129,12 @@ export default function ExchangePage() {
     setQuoteError("")
     if (direction === "KRW_TO_USD") {
       setDirection("USD_TO_KRW")
-      setInputAmount("1")
+      const nextAmount = received >= 1 ? Number(received.toFixed(2)) : 1
+      setInputAmount(String(nextAmount))
     } else {
       setDirection("KRW_TO_USD")
-      setInputAmount("1000")
+      const nextAmount = received >= 1000 ? Math.round(received) : 1000
+      setInputAmount(String(nextAmount))
     }
   }
 
