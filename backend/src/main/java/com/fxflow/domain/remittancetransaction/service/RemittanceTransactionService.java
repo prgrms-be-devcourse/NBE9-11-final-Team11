@@ -27,7 +27,6 @@ import com.fxflow.domain.transactionlimit.enums.LimitTier;
 import com.fxflow.domain.transactionlimit.enums.LimitType;
 import com.fxflow.domain.transactionlimit.errorcode.TransactionLimitErrorCode;
 import com.fxflow.domain.transactionlimit.repository.TransactionLimitRepository;
-import com.fxflow.domain.user.errorcode.UserErrorCode;
 import com.fxflow.domain.user.repository.UserRepository;
 import com.fxflow.domain.userlimitusage.entity.UserAnnualUsage;
 import com.fxflow.domain.userlimitusage.repository.UserAnnualUsageRepository;
@@ -439,10 +438,6 @@ public class RemittanceTransactionService {
      * 최초 송금 주문 생성 시점에 만들어지며, 동시 생성 요청은 DB unique 제약으로 무시한다.
      */
     private void ensureAnnualUsageExists(Long userId, int year) {
-        if (!userRepository.existsById(userId)) {
-            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
-        }
-
         userAnnualUsageRepository.insertIfAbsent(userId, year);
     }
 

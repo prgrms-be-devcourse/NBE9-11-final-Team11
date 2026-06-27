@@ -263,7 +263,6 @@ class RemittanceTransactionServiceTest {
                 LimitType.ANNUAL_REMITTANCE,
                 new BigDecimal("100000.00000000")
         )));
-        when(userRepository.existsById(userId)).thenReturn(true);
         when(userAnnualUsageRepository.insertIfAbsent(userId, currentYear)).thenReturn(0);
         when(userAnnualUsageRepository.reserveAnnualLimit(
                 userId,
@@ -374,7 +373,6 @@ class RemittanceTransactionServiceTest {
                 LimitType.ANNUAL_REMITTANCE,
                 new BigDecimal("100000.00000000")
         )));
-        when(userRepository.existsById(userId)).thenReturn(true);
         when(userAnnualUsageRepository.insertIfAbsent(userId, currentYear)).thenReturn(0);
         when(userAnnualUsageRepository.reserveAnnualLimit(
                 userId,

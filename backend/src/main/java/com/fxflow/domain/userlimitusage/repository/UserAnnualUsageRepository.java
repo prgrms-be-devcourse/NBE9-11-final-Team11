@@ -69,6 +69,7 @@ public interface UserAnnualUsageRepository extends JpaRepository<UserAnnualUsage
     @Query(value = """
             update user_annual_usages
             set annual_used_usd = annual_used_usd + :amountUsd,
+                version = version + 1,
                 updated_at = current_timestamp
             where user_id = :userId
               and usage_year = :year
