@@ -248,7 +248,6 @@ class RemittanceTransactionServiceTest {
         RemittanceTransactionCreateRequest request = createRequest();
         RemittanceQuoteSnapshot quote = createQuote();
         Recipient recipient = createRecipient(userId);
-        UserAnnualUsage annualUsage = createAnnualUsage(userId, currentYear, BigDecimal.ZERO);
         String idempotencyKey = "idempotency-key";
 
         when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
@@ -264,8 +263,14 @@ class RemittanceTransactionServiceTest {
                 LimitType.ANNUAL_REMITTANCE,
                 new BigDecimal("100000.00000000")
         )));
-        when(userAnnualUsageRepository.findByUserIdAndYearForUpdate(userId, currentYear))
-                .thenReturn(Optional.of(annualUsage));
+        when(userRepository.existsById(userId)).thenReturn(true);
+        when(userAnnualUsageRepository.insertIfAbsent(userId, currentYear)).thenReturn(0);
+        when(userAnnualUsageRepository.reserveAnnualLimit(
+                userId,
+                currentYear,
+                quote.amountUsd(),
+                new BigDecimal("100000.00000000")
+        )).thenReturn(1);
         when(remittanceTransactionRepository.save(any(RemittanceTransaction.class)))
                 .thenAnswer(invocation -> {
                     RemittanceTransaction remittanceTransaction = invocation.getArgument(0);
@@ -300,9 +305,14 @@ class RemittanceTransactionServiceTest {
         assertThat(savedTransaction.getReason()).isEqualTo(RemittanceReason.LIVING_EXPENSES.name());
         assertThat(savedTransaction.getReasonDetail()).isEqualTo("생활비 송금");
         assertThat(savedTransaction.getStatus()).isEqualTo(TransferStatus.PENDING);
-        verify(remittanceValidator).validateLimits(userId, quote.amountUsd());
-        verify(userAnnualUsageRepository).findByUserIdAndYearForUpdate(userId, currentYear);
-        assertThat(annualUsage.getAnnualUsedUsd()).isEqualByComparingTo(quote.amountUsd());
+        verify(remittanceValidator).validatePerRemittanceLimit(userId, quote.amountUsd());
+        verify(userAnnualUsageRepository).insertIfAbsent(userId, currentYear);
+        verify(userAnnualUsageRepository).reserveAnnualLimit(
+                userId,
+                currentYear,
+                quote.amountUsd(),
+                new BigDecimal("100000.00000000")
+        );
 
         ArgumentCaptor<VirtualAccount> virtualAccountCaptor =
                 ArgumentCaptor.forClass(VirtualAccount.class);
@@ -348,8 +358,7 @@ class RemittanceTransactionServiceTest {
         RemittanceTransactionCreateRequest request = createRequest();
         RemittanceQuoteSnapshot quote = createQuote();
         Recipient recipient = createRecipient(userId);
-        BusinessException exception =
-                new BusinessException(TransactionLimitErrorCode.ANNUAL_REMITTANCE_LIMIT_EXCEEDED);
+        int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
         String idempotencyKey = "idempotency-key";
 
         when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
@@ -357,11 +366,28 @@ class RemittanceTransactionServiceTest {
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
                 .thenReturn(Optional.of(recipient));
-        doThrow(exception).when(remittanceValidator).validateLimits(userId, quote.amountUsd());
+        when(transactionLimitRepository.findByLimitTypeAndTierAndCurrencyCodeAndIsActiveTrue(
+                LimitType.ANNUAL_REMITTANCE,
+                LimitTier.STANDARD,
+                "USD"
+        )).thenReturn(Optional.of(createLimit(
+                LimitType.ANNUAL_REMITTANCE,
+                new BigDecimal("100000.00000000")
+        )));
+        when(userRepository.existsById(userId)).thenReturn(true);
+        when(userAnnualUsageRepository.insertIfAbsent(userId, currentYear)).thenReturn(0);
+        when(userAnnualUsageRepository.reserveAnnualLimit(
+                userId,
+                currentYear,
+                quote.amountUsd(),
+                new BigDecimal("100000.00000000")
+        )).thenReturn(0);
 
         // when & then
         assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request, idempotencyKey))
-                .isSameAs(exception);
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(TransactionLimitErrorCode.ANNUAL_REMITTANCE_LIMIT_EXCEEDED);
 
         verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
         verifyNoInteractions(virtualAccountRepository);
