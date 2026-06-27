@@ -1,8 +1,13 @@
 package com.fxflow.domain.mockbankaccount.controller;
 
+import com.fxflow.domain.mockbankaccount.dto.request.KycInquiryRequest;
+import com.fxflow.domain.mockbankaccount.dto.request.KycStartRequest;
+import com.fxflow.domain.mockbankaccount.dto.request.KycVerifyRequest;
 import com.fxflow.domain.mockbankaccount.dto.request.MockBankAccountCheckRequest;
 import com.fxflow.domain.mockbankaccount.dto.request.MockBankLinkRequest;
 import com.fxflow.domain.mockbankaccount.dto.request.UsdMockAccountInquiryRequest;
+import com.fxflow.domain.mockbankaccount.dto.response.KycInquiryResponse;
+import com.fxflow.domain.mockbankaccount.dto.response.KycStartResponse;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankAccountCheckResponse;
 import com.fxflow.domain.mockbankaccount.dto.response.MockBankLinkResponse;
 import com.fxflow.domain.mockbankaccount.dto.response.UsdMockAccountInquiryResponse;
@@ -90,5 +95,70 @@ class MockBankAccountController {
     }
 
 
+    @Operation(
+            summary = "1원 인증 시작",
+            description = "은행명/계좌번호/예금주명을 입력받아 1원 인증을 시작합니다. " +
+                    "무작위 4자리 코드가 포함된 입금자명(fxflow{code})으로 1원이 입금된 것으로 가정합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "인증 시작 성공"),
+            @ApiResponse(responseCode = "400", description = "계좌번호 형식 불일치"),
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 토큰"),
+            @ApiResponse(responseCode = "409", description = "이미 연결된 모의계좌가 있음 / 계좌번호 중복")
+    })
+    @PostMapping("/kyc/start")
+    public ResponseEntity<KycStartResponse> startKyc(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody KycStartRequest request
+    ) {
+        KycStartResponse response = mockBankAccountService.startKyc(
+                userId, request.bankName(), request.accountNumber(), request.accountHolderName()
+        );
+        return ResponseEntity.ok(response);
+    }
+
+
+    @Operation(
+            summary = "1원 인증 계좌번호 조회",
+            description = "은행명/계좌번호/예금주명으로 입금 내역을 조회하여 입금자명(코드)을 확인합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "404", description = "일치하는 대기 중인 인증 요청이 없음"),
+            @ApiResponse(responseCode = "410", description = "인증 시간 만료")
+    })
+    @PostMapping("/kyc/inquiry")
+    public ResponseEntity<KycInquiryResponse> inquireKyc(
+            @Valid @RequestBody KycInquiryRequest request
+    ) {
+        KycInquiryResponse response = mockBankAccountService.inquireKyc(
+                request.bankName(), request.accountNumber(), request.accountHolderName()
+        );
+        return ResponseEntity.ok(response);
+    }
+
+
+    @Operation(
+            summary = "1원 인증 코드 검증",
+            description = "조회한 인증코드를 검증하고, 성공 시 모의계좌 연결까지 완료합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "인증 및 연결 성공"),
+            @ApiResponse(responseCode = "400", description = "인증코드 불일치"),
+            @ApiResponse(responseCode = "404", description = "인증 요청을 찾을 수 없음"),
+            @ApiResponse(responseCode = "409", description = "이미 인증 완료된 요청"),
+            @ApiResponse(responseCode = "410", description = "인증 시간 만료"),
+            @ApiResponse(responseCode = "429", description = "인증 시도 횟수 초과")
+    })
+    @PostMapping("/kyc/verify")
+    public ResponseEntity<MockBankLinkResponse> verifyKyc(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody KycVerifyRequest request
+    ) {
+        MockBankLinkResponse response = mockBankAccountService.verifyKyc(
+                userId, request.verificationId(), request.code()
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
 
 }

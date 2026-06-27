@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, AlertCircle, Loader2, CircleCheck } from "lucide-react"
+import Link from "next/link"
+import { Check, AlertCircle, Loader2, CircleCheck, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -15,7 +16,12 @@ import { KOREAN_BANKS } from "@/lib/fx-data"
 import { useStore } from "@/lib/store"
 
 type CheckStatus = "idle" | "checking" | "available" | "unavailable"
-type KycState = "idle" | "waiting" | "verified" | "failed"
+type KycState = "idle" | "starting" | "waiting" | "failed" | "verified"
+
+interface KycStartResponse {
+  verificationId: number
+  expiresAt: string
+}
 
 export default function LinkAccountPage() {
   const router = useRouter()
@@ -23,13 +29,15 @@ export default function LinkAccountPage() {
 
   const [bankName, setBankName] = useState(KOREAN_BANKS[0])
   const [accountNumber, setAccountNumber] = useState("")
+  const [accountHolderName, setAccountHolderName] = useState("")
   const [check, setCheck] = useState<{ status: CheckStatus; message?: string }>({ status: "idle" })
 
   // --- 1원 인증(KYC) 단계 ---
   const [kyc, setKyc] = useState<KycState>("idle")
+  const [verificationId, setVerificationId] = useState<number | null>(null)
   const [code, setCode] = useState("")
-  const [linking, setLinking] = useState(false)
-  const correctCode = "1234"
+  const [verifying, setVerifying] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
 
   function handleAccountNumberChange(value: string) {
     setAccountNumber(value.replace(/[^\d]/g, ""))
@@ -61,25 +69,36 @@ export default function LinkAccountPage() {
   }
 
   // 계좌번호 확인 통과 → 1원 입금 요청 (인증코드 입력 단계로 전환)
-  function startKyc() {
-    if (check.status !== "available") return
-    setKyc("waiting")
-  }
-
-  // 인증코드 검증 통과 시에만 실제 계좌 연결을 호출한다
-  async function verifyKyc(ev: React.FormEvent) {
-    ev.preventDefault()
-
-    if (code !== correctCode) {
-      setKyc("failed")
-      return
-    }
-
-    setLinking(true)
+  async function startKyc() {
+    if (check.status !== "available" || !accountHolderName.trim()) return
+    setKyc("starting")
+    setErrorMessage("")
     try {
-      await apiRequest("POST", "/api/v1/mockbank/link", {
+      const res = await apiRequest<KycStartResponse>("POST", "/api/v1/mockbank/kyc/start", {
         bankName,
         accountNumber: accountNumber.replace(/[^\d]/g, ""),
+        accountHolderName: accountHolderName.trim(),
+      })
+      setVerificationId(res.verificationId)
+      setKyc("waiting")
+    } catch (err: any) {
+      console.error(err)
+      setKyc("idle")
+      toast.error(err.message || "1원 인증 요청에 실패했습니다.")
+    }
+  }
+
+  // 인증코드 검증 → 성공 시 백엔드가 실제 계좌 연결까지 완료한다
+  async function verifyKyc(ev: React.FormEvent) {
+    ev.preventDefault()
+    if (!verificationId) return
+
+    setVerifying(true)
+    setErrorMessage("")
+    try {
+      await apiRequest("POST", "/api/v1/mockbank/kyc/verify", {
+        verificationId,
+        code,
       })
       setKyc("verified")
       setVerified()
@@ -88,9 +107,9 @@ export default function LinkAccountPage() {
     } catch (err: any) {
       console.error(err)
       setKyc("failed")
-      toast.error(err.message || "계좌 연결에 실패했습니다. 잠시 후 다시 시도해주세요.")
+      setErrorMessage(err.message || "인증코드가 일치하지 않습니다.")
     } finally {
-      setLinking(false)
+      setVerifying(false)
     }
   }
 
@@ -105,7 +124,7 @@ export default function LinkAccountPage() {
             </p>
           </div>
 
-          {/* 계좌번호 입력은 인증 시작 전까지만 수정 가능 */}
+          {/* 계좌 정보 입력은 1원 인증 시작 전까지만 수정 가능 */}
           <div className="space-y-2">
             <Label htmlFor="bank">은행</Label>
             {kyc === "idle" ? (
@@ -175,27 +194,59 @@ export default function LinkAccountPage() {
             )}
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="holderName">예금주명</Label>
+            {kyc === "idle" ? (
+              <Input
+                id="holderName"
+                placeholder="홍길동"
+                value={accountHolderName}
+                onChange={(e) => setAccountHolderName(e.target.value)}
+                autoComplete="name"
+              />
+            ) : (
+              <p className="font-medium">{accountHolderName}</p>
+            )}
+          </div>
+
           {kyc === "idle" && (
             <div className="space-y-1.5">
-              <Button className="w-full" onClick={startKyc} disabled={check.status !== "available"}>
+              <Button
+                className="w-full"
+                onClick={startKyc}
+                disabled={check.status !== "available" || !accountHolderName.trim()}
+              >
                 1원 입금 요청
               </Button>
-              {check.status !== "available" && (
+              {(check.status !== "available" || !accountHolderName.trim()) && (
                 <p className="text-center text-xs text-muted-foreground">
-                  계좌번호 확인을 먼저 진행해주세요.
+                  계좌번호 확인과 예금주명 입력을 먼저 진행해주세요.
                 </p>
               )}
             </div>
           )}
 
+          {kyc === "starting" && (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              1원 입금 요청 중...
+            </div>
+          )}
+
           {(kyc === "waiting" || kyc === "failed") && (
             <form onSubmit={verifyKyc} className="space-y-3">
-              <div className="flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
-                <Loader2 className="size-3.5 animate-spin" />
-                인증 대기 중 · 입금자명 코드를 확인하세요 (데모 코드: 1234)
+              <div className="space-y-2 rounded-xl bg-primary/10 px-3 py-2.5 text-xs font-medium text-primary">
+                <p>입력하신 계좌에 1원이 입금되었습니다. 계좌번호 조회 화면에서 입금자명을 확인하세요.</p>
+                <Link
+                  href="/mockbank/kyc-inquiry"
+                  target="_blank"
+                  className="inline-flex items-center gap-1 underline underline-offset-2"
+                >
+                  계좌번호 조회하기 <ExternalLink className="size-3" />
+                </Link>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="code">인증코드</Label>
+                <Label htmlFor="code">인증코드 (입금자명 뒤 4자리)</Label>
                 <Input
                   id="code"
                   inputMode="numeric"
@@ -209,11 +260,11 @@ export default function LinkAccountPage() {
               {kyc === "failed" && (
                 <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   <AlertCircle className="size-4" />
-                  인증에 실패했습니다. 코드를 다시 확인해주세요.
+                  {errorMessage || "인증에 실패했습니다. 코드를 다시 확인해주세요."}
                 </div>
               )}
-              <Button type="submit" className="w-full" disabled={linking}>
-                {linking ? "연결 중..." : "인증 확인"}
+              <Button type="submit" className="w-full" disabled={verifying || code.length !== 4}>
+                {verifying ? "연결 중..." : "인증 확인"}
               </Button>
             </form>
           )}
