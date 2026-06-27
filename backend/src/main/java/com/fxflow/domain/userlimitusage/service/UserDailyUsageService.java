@@ -8,18 +8,20 @@ import com.fxflow.domain.userlimitusage.repository.UserDailyUsageRepository;
 import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class UserDailyUsageService {
     private final UserDailyUsageRepository userDailyUsageRepository;
     private final UserRepository userRepository;
 
     public void addDeposit(Long userId, LocalDate usageDate, BigDecimal amount) {
-        UserDailyUsage usage = userDailyUsageRepository.findByUserIdAndUsageDate(
+        UserDailyUsage usage = userDailyUsageRepository.findByUserIdAndUsageDateForUpdate(
                 userId,usageDate
         ).orElseGet( () -> {
             User user = userRepository.findById(userId).orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
@@ -30,7 +32,7 @@ public class UserDailyUsageService {
     }
 
     public void addWithdrawal(Long userId, LocalDate usageDate, BigDecimal amount) {
-        UserDailyUsage usage = userDailyUsageRepository.findByUserIdAndUsageDate(
+        UserDailyUsage usage = userDailyUsageRepository.findByUserIdAndUsageDateForUpdate(
                 userId,usageDate
         ).orElseGet( () -> {
                     User user = userRepository.findById(userId).orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));

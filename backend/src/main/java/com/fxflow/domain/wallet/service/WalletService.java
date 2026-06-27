@@ -76,17 +76,31 @@ public class WalletService {
                 .orElseThrow(() -> new BusinessException(WalletErrorCode.WALLET_NOT_FOUND));
     }
 
+    /** 특정 통화 금액을 현재 환율로 KRW 환산한다. (KRW는 그대로 반환) */
+    public BigDecimal toKrwEquivalent(String currencyCode, BigDecimal amount) {
+        if ("KRW".equals(currencyCode)) {
+            return amount;
+        }
+        BigDecimal rate = fxRateService.getRate(currencyCode, "KRW");
+        return amount.multiply(rate);
+    }
+
+    /**
+     * 월렛 보유 한도 검증을 위해 KRW+USD 합산 보유액(KRW 환산 기준)을 계산한다.
+     * updatedCurrency 지갑은 갱신 후 잔액을, 나머지 통화 지갑은 현재 잔액을 그대로 사용한다.
+     */
+    public BigDecimal getTotalHoldingKrw(Long userId, String updatedCurrency, BigDecimal updatedBalance) {
+        String otherCurrency = "KRW".equals(updatedCurrency) ? "USD" : "KRW";
+        BigDecimal otherBalance = getWallet(userId, otherCurrency).getBalance();
+        return toKrwEquivalent(updatedCurrency, updatedBalance)
+                .add(toKrwEquivalent(otherCurrency, otherBalance));
+    }
+
     public WalletBalanceResponse getWalletBalance(Long userId) {
         List<Wallet> wallets = walletRepository.findByUserId(userId);
         List<WalletResponse> walletResponses = wallets.stream().map(WalletResponse::from).toList();
         BigDecimal krw = wallets.stream()
-                .map(wallet -> {
-                    BigDecimal rate = fxRateService.getRate(
-                            wallet.getCurrencyCode(),
-                            "KRW"
-                    );
-                    return wallet.getBalance().multiply(rate);
-                })
+                .map(wallet -> toKrwEquivalent(wallet.getCurrencyCode(), wallet.getBalance()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         return WalletBalanceResponse.from(krw.setScale(0, java.math.RoundingMode.HALF_UP).longValue(), walletResponses);
     }
@@ -183,7 +197,7 @@ public class WalletService {
         User user = userService.getUser(userId);
         transactionLimitValidator.validatePerDeposit(user, amount);
         transactionLimitValidator.validateDailyDeposit(user, amount);
-        transactionLimitValidator.validateWalletHolding(user, balanceAfter);
+        transactionLimitValidator.validateWalletHolding(user, getTotalHoldingKrw(userId, "KRW", balanceAfter));
 
         String journalId = LedgerEntry.generateJournalId();
 
