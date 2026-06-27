@@ -239,13 +239,6 @@ public class TransactionLimitValidator {
                 user.getId(), usedAmount, amountUsd, limit.getLimitAmount());
     }
 
-    // exchange validator
-    public void validateExchange(User user, BigDecimal amount) {
-        validatePerExchange(user, amount);
-        validateDailyExchange(user, amount);
-        validateAnnualExchange(user, amount);
-    }
-
     public void validateDeposit(User user, BigDecimal amount) { // todo: method grouping
         validatePerDeposit(user, amount);
     }
