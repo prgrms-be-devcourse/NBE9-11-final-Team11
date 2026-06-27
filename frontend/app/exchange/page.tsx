@@ -200,7 +200,18 @@ export default function ExchangePage() {
                     if (fromCurrency === "KRW") {
                       setInputAmount(val.replace(/[^\d]/g, ""))
                     } else {
-                      setInputAmount(val.replace(/[^\d.]/g, ""))
+                      let clean = val.replace(/[^\d.]/g, "")
+                      const parts = clean.split(".")
+                      if (parts.length > 2) {
+                        clean = parts[0] + "." + parts.slice(1).join("")
+                      }
+                      const firstDotIndex = clean.indexOf(".")
+                      if (firstDotIndex !== -1) {
+                        const beforeDot = clean.substring(0, firstDotIndex)
+                        const afterDot = clean.substring(firstDotIndex + 1)
+                        clean = beforeDot + "." + afterDot.substring(0, 2)
+                      }
+                      setInputAmount(clean)
                     }
                   }}
                   className="border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"

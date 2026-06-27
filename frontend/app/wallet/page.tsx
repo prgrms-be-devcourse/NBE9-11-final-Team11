@@ -383,7 +383,18 @@ export default function WalletPage() {
                       onChange={(e) => {
                         const val = e.target.value
                         if (mode === "transfer" && transferCurrency !== "KRW") {
-                          setAmount(val.replace(/[^\d.]/g, ""))
+                          let clean = val.replace(/[^\d.]/g, "")
+                          const parts = clean.split(".")
+                          if (parts.length > 2) {
+                            clean = parts[0] + "." + parts.slice(1).join("")
+                          }
+                          const firstDotIndex = clean.indexOf(".")
+                          if (firstDotIndex !== -1) {
+                            const beforeDot = clean.substring(0, firstDotIndex)
+                            const afterDot = clean.substring(firstDotIndex + 1)
+                            clean = beforeDot + "." + afterDot.substring(0, 2)
+                          }
+                          setAmount(clean)
                         } else {
                           setAmount(val.replace(/[^\d]/g, ""))
                         }
