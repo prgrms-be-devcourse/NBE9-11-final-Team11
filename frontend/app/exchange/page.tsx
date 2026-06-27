@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { ArrowDownUp, Info } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
@@ -18,6 +19,7 @@ import {
 import { apiRequest } from "@/lib/api"
 
 export default function ExchangePage() {
+  const router = useRouter()
   const [krwBalance, setKrwBalance] = useState<number>(0)
   const [usdBalance, setUsdBalance] = useState<number>(0)
   const [direction, setDirection] = useState<"KRW_TO_USD" | "USD_TO_KRW">("KRW_TO_USD")
@@ -152,9 +154,9 @@ export default function ExchangePage() {
         quoteId: quote.quoteId,
       })
       toast.success(`${formatCurrency(res.toAmount, res.toCurrency)} 환전이 완료되었습니다.`)
-      setInputAmount("")
+      setInputAmount(fromCurrency === "KRW" ? "1000" : "1")
       setQuote(null)
-      fetchBalances()
+      router.push("/wallet")
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || "환전에 실패했습니다.")
