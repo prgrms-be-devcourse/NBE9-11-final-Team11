@@ -11,7 +11,6 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 const adminNav = [
   { href: "/admin", label: "풀 현황", icon: Droplets },
   { href: "/admin/transactions", label: "거래내역", icon: Receipt },
-  { href: "/admin/policy", label: "정책관리", icon: SlidersHorizontal },
 ]
 
 function SidebarContent({ active, onNavigate }: { active: string; onNavigate?: () => void }) {
@@ -91,7 +90,7 @@ export function AdminShell({
                 <Menu className="size-5" />
                 <span className="sr-only">메뉴 열기</span>
               </Button>
-              <SheetContent side="left" className="w-72 p-0">
+              <SheetContent side="left" className="data-[side=left]:w-56 p-0">
                 <SheetTitle className="sr-only">내비게이션</SheetTitle>
                 <SidebarContent active={active} onNavigate={() => setOpen(false)} />
               </SheetContent>
