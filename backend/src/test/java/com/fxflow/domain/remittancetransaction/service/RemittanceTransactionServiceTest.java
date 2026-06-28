@@ -171,6 +171,53 @@ class RemittanceTransactionServiceTest {
     }
 
     @Test
+    @DisplayName("성공: 수취 USD 금액 기준으로 해외송금 견적을 산출한다")
+    void createQuote_success_receiveAmountUsd() {
+        // given
+        Long userId = 1L;
+        RemittanceTransactionQuoteRequest request = new RemittanceTransactionQuoteRequest(
+                1L,
+                null,
+                new BigDecimal("20"),
+                RemittanceReason.LIVING_EXPENSES
+        );
+        Recipient recipient = createRecipient(userId);
+        FxRateSnapshot fxRateSnapshot = createFxRateSnapshot();
+
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
+                .thenReturn(Optional.of(recipient));
+        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+                .thenReturn(Optional.of(fxRateSnapshot));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        // when
+        RemittanceTransactionQuoteResponse response =
+                remittanceTransactionService.createQuote(userId, request);
+
+        // then
+        assertThat(response.sendAmountKrw()).isEqualByComparingTo(new BigDecimal("27000"));
+        assertThat(response.receiveAmountUsd()).isEqualByComparingTo(new BigDecimal("20.00"));
+        assertThat(response.percentFee()).isEqualByComparingTo(new BigDecimal("135"));
+        assertThat(response.totalFee()).isEqualByComparingTo(new BigDecimal("5135.00"));
+
+        verify(remittanceValidator).validateLimits(userId, new BigDecimal("20.00000000"));
+
+        ArgumentCaptor<RemittanceQuoteCache> cacheCaptor =
+                ArgumentCaptor.forClass(RemittanceQuoteCache.class);
+        verify(valueOperations).set(
+                startsWith("remittance:quote:"),
+                cacheCaptor.capture(),
+                eq(Duration.ofMinutes(5))
+        );
+
+        RemittanceQuoteCache cache = cacheCaptor.getValue();
+        assertThat(cache.sendAmount()).isEqualByComparingTo(new BigDecimal("27000.00000000"));
+        assertThat(cache.receiveAmount()).isEqualByComparingTo(new BigDecimal("20.00000000"));
+        assertThat(cache.amountKrw()).isEqualByComparingTo(new BigDecimal("27000.00000000"));
+        assertThat(cache.amountUsd()).isEqualByComparingTo(new BigDecimal("20.00000000"));
+    }
+
+    @Test
     @DisplayName("실패: 해외송금 견적 산출 시 수취인을 찾을 수 없으면 예외가 발생한다")
     void createQuote_fail_recipientNotFound() {
         // given
@@ -232,6 +279,62 @@ class RemittanceTransactionServiceTest {
         // when & then
         assertThatThrownBy(() -> remittanceTransactionService.createQuote(userId, request))
                 .isSameAs(exception);
+
+        verifyNoInteractions(redisTemplate);
+    }
+
+    @Test
+    @DisplayName("실패: 해외송금 견적 산출 시 금액 기준이 없으면 비즈니스 예외가 발생한다")
+    void createQuote_fail_amountNotProvided() {
+        // given
+        Long userId = 1L;
+        RemittanceTransactionQuoteRequest request = new RemittanceTransactionQuoteRequest(
+                1L,
+                null,
+                null,
+                RemittanceReason.LIVING_EXPENSES
+        );
+        Recipient recipient = createRecipient(userId);
+        FxRateSnapshot fxRateSnapshot = createFxRateSnapshot();
+
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
+                .thenReturn(Optional.of(recipient));
+        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+                .thenReturn(Optional.of(fxRateSnapshot));
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createQuote(userId, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RemittanceTransactionErrorCode.INVALID_REMITTANCE_AMOUNT);
+
+        verifyNoInteractions(redisTemplate);
+    }
+
+    @Test
+    @DisplayName("실패: 해외송금 견적 산출 시 원화 금액과 수취 외화 금액을 동시에 입력하면 비즈니스 예외가 발생한다")
+    void createQuote_fail_multipleAmountCriteria() {
+        // given
+        Long userId = 1L;
+        RemittanceTransactionQuoteRequest request = new RemittanceTransactionQuoteRequest(
+                1L,
+                new BigDecimal("1000000"),
+                new BigDecimal("20"),
+                RemittanceReason.LIVING_EXPENSES
+        );
+        Recipient recipient = createRecipient(userId);
+        FxRateSnapshot fxRateSnapshot = createFxRateSnapshot();
+
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
+                .thenReturn(Optional.of(recipient));
+        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+                .thenReturn(Optional.of(fxRateSnapshot));
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createQuote(userId, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RemittanceTransactionErrorCode.INVALID_REMITTANCE_AMOUNT);
 
         verifyNoInteractions(redisTemplate);
     }
@@ -847,6 +950,7 @@ class RemittanceTransactionServiceTest {
         return new RemittanceTransactionQuoteRequest(
                 1L,
                 new BigDecimal("1000000"),
+                null,
                 RemittanceReason.LIVING_EXPENSES
         );
     }

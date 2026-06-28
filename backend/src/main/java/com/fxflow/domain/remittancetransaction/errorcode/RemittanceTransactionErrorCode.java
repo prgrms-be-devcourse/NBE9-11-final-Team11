@@ -12,6 +12,7 @@ public enum RemittanceTransactionErrorCode implements ErrorCode {
     // 송금 견적
     QUOTE_NOT_FOUND(HttpStatus.NOT_FOUND, "REMITTANCE_QUOTE_NOT_FOUND", "송금 견적을 찾을 수 없습니다."),
     QUOTE_EXPIRED(HttpStatus.CONFLICT, "REMITTANCE_QUOTE_EXPIRED", "송금 견적이 만료되었습니다."),
+    INVALID_REMITTANCE_AMOUNT(HttpStatus.BAD_REQUEST, "INVALID_REMITTANCE_AMOUNT", "송금 금액이 올바르지 않습니다."),
     REMITTANCE_EXCHANGE_RATE_NOT_FOUND(HttpStatus.SERVICE_UNAVAILABLE, "REMITTANCE_EXCHANGE_RATE_NOT_FOUND", "환율 정보를 찾을 수 없습니다."),
 
     // 송금 주문

@@ -79,6 +79,7 @@ public class RemittanceTransactionService {
     private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("5000.00000000");
     private static final BigDecimal PERCENT_FEE_RATE = new BigDecimal("0.005");
     private static final BigDecimal REMITTANCE_EXCHANGE_SPREAD_RATE = new BigDecimal("0.000");
+    private static final BigDecimal MIN_SEND_AMOUNT_KRW = new BigDecimal("10000.00000000");
     private static final long QUOTE_EXPIRATION_MINUTES = 5L;
     private static final long VIRTUAL_ACCOUNT_EXPIRATION_MINUTES = 10L;
     private static final String REMITTANCE_QUOTE_KEY_PREFIX = "remittance:quote:";
@@ -564,8 +565,10 @@ public class RemittanceTransactionService {
                 ));
 
         BigDecimal exchangeRate = applyRemittanceExchangeSpread(fxRateSnapshot.midRate());
-        BigDecimal sendAmountKrw = request.sendAmountKrw().setScale(8, RoundingMode.DOWN);
-        BigDecimal receiveAmountUsd = sendAmountKrw.divide(exchangeRate, 8, RoundingMode.DOWN);
+        validateQuoteAmountRequest(request);
+        BigDecimal receiveAmountUsd = resolveReceiveAmountUsd(request, exchangeRate);
+        BigDecimal sendAmountKrw = resolveSendAmountKrw(request, exchangeRate, receiveAmountUsd);
+        validateMinimumSendAmount(sendAmountKrw);
         BigDecimal percentFee = sendAmountKrw.multiply(PERCENT_FEE_RATE).setScale(8, RoundingMode.DOWN);
         BigDecimal totalFee = FIXED_FEE_KRW.add(percentFee).setScale(8, RoundingMode.DOWN);
 
@@ -604,6 +607,48 @@ public class RemittanceTransactionService {
                 quoteId,
                 expiredAt
         );
+    }
+
+    private void validateQuoteAmountRequest(RemittanceTransactionQuoteRequest request) {
+        boolean hasSendAmount = request.sendAmountKrw() != null;
+        boolean hasReceiveAmount = request.receiveAmountUsd() != null;
+
+        if (hasSendAmount == hasReceiveAmount) {
+            throw new BusinessException(RemittanceTransactionErrorCode.INVALID_REMITTANCE_AMOUNT);
+        }
+    }
+
+    private BigDecimal resolveReceiveAmountUsd(
+            RemittanceTransactionQuoteRequest request,
+            BigDecimal exchangeRate
+    ) {
+        if (request.receiveAmountUsd() != null) {
+            return request.receiveAmountUsd().setScale(8, RoundingMode.DOWN);
+        }
+
+        return request.sendAmountKrw()
+                .setScale(8, RoundingMode.DOWN)
+                .divide(exchangeRate, 8, RoundingMode.DOWN);
+    }
+
+    private BigDecimal resolveSendAmountKrw(
+            RemittanceTransactionQuoteRequest request,
+            BigDecimal exchangeRate,
+            BigDecimal receiveAmountUsd
+    ) {
+        if (request.sendAmountKrw() != null) {
+            return request.sendAmountKrw().setScale(8, RoundingMode.DOWN);
+        }
+
+        return receiveAmountUsd
+                .multiply(exchangeRate)
+                .setScale(8, RoundingMode.DOWN);
+    }
+
+    private void validateMinimumSendAmount(BigDecimal sendAmountKrw) {
+        if (sendAmountKrw.compareTo(MIN_SEND_AMOUNT_KRW) < 0) {
+            throw new BusinessException(RemittanceTransactionErrorCode.INVALID_REMITTANCE_AMOUNT);
+        }
     }
 
     private BigDecimal applyRemittanceExchangeSpread(BigDecimal midRate) {

@@ -138,14 +138,16 @@ export default function RemittancePage() {
   const rate = currency === "KRW" ? { rate: 1, unit: 1 } : RATES[currency as Exclude<CurrencyCode, "KRW">]
 
   const krwAmount = Number(krwInput.replace(/[^\d]/g, "")) || 0
+  const receiveAmount = Number(receiveInput) || 0
   const { fee, received } = useMemo(() => {
     const fee = quote?.totalFee ?? (krwAmount > 0 ? remittanceFee(krwAmount) : 0)
-    const received = quote?.receiveAmountUsd ?? krwAmount / krwPerUnit(currency)
+    const received = quote?.receiveAmountUsd ?? (amountMode === "receive" ? receiveAmount : krwAmount / krwPerUnit(currency))
     return { fee, received }
-  }, [krwAmount, currency, quote])
+  }, [amountMode, krwAmount, currency, quote, receiveAmount])
 
-  const total = krwAmount + fee
-  const estimatedAmountUsd = krwAmount / krwPerUnit(currency)
+  const sendAmountKrw = quote?.sendAmountKrw ?? krwAmount
+  const total = sendAmountKrw + fee
+  const estimatedAmountUsd = amountMode === "receive" ? receiveAmount : krwAmount / krwPerUnit(currency)
   const estimatedMaxKrw = Math.floor(PER_TRANSFER_LIMIT_USD * krwPerUnit(currency))
   const isQuoteExpired = quoteExpiredCountdown !== null
 
@@ -173,7 +175,7 @@ export default function RemittancePage() {
   useEffect(() => {
     setQuote(null)
     quoteRequestId.current += 1
-  }, [recipientId, krwInput, reason])
+  }, [amountMode, recipientId, krwInput, receiveInput, reason])
 
   useEffect(() => {
     if (step === 1 && !quoteSessionExpiresAt && quoteExpiredCountdown === null) {
@@ -264,7 +266,9 @@ export default function RemittancePage() {
     try {
       const data = await apiRequest<QuoteResponse>("POST", "/api/v1/transfers/quote", {
         recipientId: Number(recipient.id),
-        sendAmountKrw: krwAmount,
+        ...(amountMode === "receive"
+          ? { receiveAmountUsd: receiveAmount }
+          : { sendAmountKrw: krwAmount }),
         reason: REASON_TO_API[reason] ?? "ETC",
       })
       if (requestId === quoteRequestId.current) {
@@ -282,7 +286,7 @@ export default function RemittancePage() {
         setLoadingQuote(false)
       }
     }
-  }, [krwAmount, reason, recipient])
+  }, [amountMode, krwAmount, reason, recipient, receiveAmount])
 
   async function saveRecipient() {
     if (!form.name.trim() || !form.bank.trim() || !form.account.trim())
@@ -638,7 +642,7 @@ export default function RemittancePage() {
                     ? "견적 계산 중..."
                     : amountMode === "send"
                       ? `보낼 금액 ${krwAmount > 0 ? formatCurrency(received, currency) : "-"}`
-                      : `보낼 금액 ${krwAmount > 0 ? formatKRW(krwAmount) : "-"}`}
+                      : `보낼 금액 ${sendAmountKrw > 0 ? formatKRW(sendAmountKrw) : "-"}`}
                   <span className="ml-4">수수료 {krwAmount > 0 ? formatKRW(fee) : "-"}</span>
                 </p>
               </div>
@@ -688,7 +692,7 @@ export default function RemittancePage() {
               <Row label="해외송금 목적" value={reason} />
               {reasonDetail.trim() && <Row label="상세 사유" value={reasonDetail.trim()} />}
               <Separator />
-              <Row label="해외송금 금액" value={formatKRW(krwAmount)} />
+              <Row label="해외송금 금액" value={formatKRW(sendAmountKrw)} />
               <Row label="적용 환율" value={`${formatRate(quote?.exchangeRate ?? rate.rate)} / ${currency}`} />
               <Row label="수수료" value={formatKRW(fee)} />
               {fee > 0 && (
