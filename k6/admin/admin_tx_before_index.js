@@ -25,7 +25,9 @@ export function setup() {
 
     check(res, { '로그인 200': r => r.status === 200 });
 
-    const token = res.cookies.accessToken && res.cookies.accessToken[0].value;
+    const token = res.cookies.accessToken && res.cookies.accessToken.length > 0
+        ? res.cookies.accessToken[0].value
+        : null;
     if (!token) throw new Error(`로그인 실패: status=${res.status}, body=${res.body}`);
     return { token };
 }
