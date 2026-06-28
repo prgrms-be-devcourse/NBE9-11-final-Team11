@@ -88,23 +88,23 @@ public class CompanyPoolService {
         PoolDashboardRes.RecommendedAction recommendedAction = null;
         if (!"NORMAL".equals(status)) {
             BigDecimal amount = "BELOW_FLOOR".equals(status)
-                    ? pool.shortageToTarget()
+                    ? pool.shortageToSafeFloor()
                     : pool.getBalance().subtract(pool.getTargetBalance());
 
-            // BUY일 때 상대 풀의 floor 여유분으로 실제 체결 가능량을 cap
+            // BUY일 때 상대 풀의 safeFloor 여유분으로 실제 체결 가능량을 cap
             // 상대 풀도 floor 미만이면 환전 불가 → recommendedAction=null
             if ("BELOW_FLOOR".equals(status)) {
-                BigDecimal sellSurplus = otherPool.surplusAboveFloor();
+                BigDecimal sellSurplus = otherPool.surplusAboveSafeFloor();
                 if (sellSurplus.compareTo(BigDecimal.ZERO) <= 0) {
                     return new PoolDashboardRes.PoolStatusRes(
                             pool.getCurrencyCode(), pool.getBalance(),
-                            pool.getTargetBalance(), pool.getFloorBalance(), pool.getCeilingBalance(),
-                            status, utilizationRate, null);
+                            pool.getTargetBalance(), pool.getFloorBalance(), pool.effectiveSafeFloor(),
+                            pool.getCeilingBalance(), status, utilizationRate, null);
                 }
                 if (appliedRate != null && appliedRate.compareTo(BigDecimal.ZERO) > 0) {
                     BigDecimal maxBuyable = "KRW".equals(pool.getCurrencyCode())
-                            ? sellSurplus.multiply(appliedRate).setScale(2, RoundingMode.FLOOR)
-                            : sellSurplus.divide(appliedRate, 2, RoundingMode.FLOOR);
+                            ? sellSurplus.multiply(appliedRate).setScale(8, RoundingMode.FLOOR)
+                            : sellSurplus.divide(appliedRate, 8, RoundingMode.FLOOR);
                     if (maxBuyable.compareTo(amount) < 0) {
                         amount = maxBuyable;
                     }
@@ -121,6 +121,7 @@ public class CompanyPoolService {
                 pool.getBalance(),
                 pool.getTargetBalance(),
                 pool.getFloorBalance(),
+                pool.effectiveSafeFloor(),
                 pool.getCeilingBalance(),
                 status,
                 utilizationRate,
@@ -133,8 +134,8 @@ public class CompanyPoolService {
     private BigDecimal calculateCounterAmount(String currencyCode, BigDecimal amount, BigDecimal appliedRate) {
         if (appliedRate == null) return null;
         return "KRW".equals(currencyCode)
-                ? amount.divide(appliedRate, 2, RoundingMode.FLOOR)
-                : amount.multiply(appliedRate).setScale(2, RoundingMode.FLOOR);
+                ? amount.divide(appliedRate, 8, RoundingMode.FLOOR)
+                : amount.multiply(appliedRate).setScale(8, RoundingMode.FLOOR);
     }
 
     @Transactional

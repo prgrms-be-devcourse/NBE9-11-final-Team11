@@ -55,7 +55,6 @@ public class RebalancingService {
         }
     }
 
-    // 수동(MANUAL) 또는 스케줄러(SCHEDULER) 진입점
     @Transactional
     public RebalancingExecuteRes execute(TriggerType triggerType, String reason) {
         return doExecute(triggerType, reason);
@@ -165,10 +164,10 @@ public class RebalancingService {
     // 매입량 = min(target 대비 부족분량, 반대 통화 floor까지 여유분량)
     private TradeAmounts calculateTradeAmounts(CompanyPool buyPool, CompanyPool sellPool,
                                                BigDecimal appliedRate, boolean buyingKrw) {
-        BigDecimal desiredBuyAmount = buyPool.shortageToTarget();
+        BigDecimal desiredBuyAmount = buyPool.shortageToSafeFloor();
         BigDecimal maxBuyableFromSell = buyingKrw
-                ? sellPool.surplusAboveFloor().multiply(appliedRate).setScale(2, RoundingMode.FLOOR)
-                : sellPool.surplusAboveFloor().divide(appliedRate, 2, RoundingMode.FLOOR);
+                ? sellPool.surplusAboveSafeFloor().multiply(appliedRate).setScale(8, RoundingMode.FLOOR)
+                : sellPool.surplusAboveSafeFloor().divide(appliedRate, 8, RoundingMode.FLOOR);
 
         CappedBy cappedBy = null;
         BigDecimal buyAmount;
@@ -181,8 +180,8 @@ public class RebalancingService {
         }
 
         BigDecimal sellAmount = buyingKrw
-                ? buyAmount.divide(appliedRate, 2, RoundingMode.FLOOR)
-                : buyAmount.multiply(appliedRate).setScale(2, RoundingMode.FLOOR);
+                ? buyAmount.divide(appliedRate, 8, RoundingMode.FLOOR)
+                : buyAmount.multiply(appliedRate).setScale(8, RoundingMode.FLOOR);
 
         return new TradeAmounts(buyAmount, sellAmount, cappedBy);
     }
@@ -192,7 +191,6 @@ public class RebalancingService {
         int updated = companyPoolRepository.decreaseBalance(sellPool.getCurrencyCode(), amounts.sellAmount());
         if (updated == 0) {
             // PESSIMISTIC_WRITE 락 보유 중이므로 정상적으로는 발생하지 않음
-            // TODO: 락 없이 WHERE balance - sellAmount >= floorBalance 조건부 원자적 UPDATE로 개선 검토
             log.error("매도 풀 잔액 부족으로 감소 실패. sellCurrency={}, sellAmount={}",
                     sellPool.getCurrencyCode(), amounts.sellAmount());
             throw new BusinessException(PoolErrorCode.POOL_INSUFFICIENT_BALANCE);

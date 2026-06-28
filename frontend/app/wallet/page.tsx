@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Minus, ArrowLeftRight, Wallet as WalletIcon, Landmark } from "lucide-react"
+import { Plus, Minus, ArrowLeftRight, Wallet as WalletIcon, Landmark, RefreshCw } from "lucide-react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -324,6 +325,9 @@ export default function WalletPage() {
                   </Button>
                 }
               />
+              <Button render={<Link href="/exchange" />} variant="secondary" size="sm">
+                <RefreshCw className="size-4" /> 환전
+              </Button>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>

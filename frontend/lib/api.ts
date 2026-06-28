@@ -15,6 +15,7 @@ export interface PoolStatusRes {
   balance: number
   targetBalance: number
   floorBalance: number
+  safeFloorBalance: number
   ceilingBalance: number
   status: PoolStatus
   utilizationRate: number
