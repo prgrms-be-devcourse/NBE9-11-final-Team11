@@ -201,7 +201,9 @@ export default function TransactionsPage() {
               fee: Number(tx.feeAmount),
               status,
               createdAt: tx.createdAt,
-              detail: `${tx.recipientBankName} · ${tx.recipientName}`
+              detail: `${tx.recipientBankName} · ${tx.recipientName}`,
+              fromAmount: Number(tx.sendAmount),
+              toAmount: Number(tx.receiveAmount)
             }
           })
 

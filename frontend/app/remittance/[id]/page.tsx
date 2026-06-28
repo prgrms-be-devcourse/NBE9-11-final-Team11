@@ -265,7 +265,7 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
               <p className="text-sm text-muted-foreground">{title}</p>
               <p className="mt-1 text-2xl font-bold tabular-nums">{formatKRW(amountKrw)}</p>
               <p className="text-sm text-muted-foreground tabular-nums">
-                수취 {formatCurrency(received, receiveCurrency)}
+                금액 {formatCurrency(received, receiveCurrency)}
               </p>
             </div>
             <span

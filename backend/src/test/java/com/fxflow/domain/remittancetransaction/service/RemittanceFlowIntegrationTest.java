@@ -300,6 +300,7 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
                 new RemittanceTransactionQuoteRequest(
                         recipient.getId(),
                         SEND_AMOUNT_KRW,
+                        null,
                         RemittanceReason.FAMILY_SUPPORT
                 )
         );
