@@ -11,6 +11,7 @@ import com.fxflow.domain.mockbankaccount.entity.KycVerification;
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.enums.KycVerificationStatus;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
+import com.fxflow.domain.mockbankaccount.exception.KycCodeMismatchException;
 import com.fxflow.domain.mockbankaccount.repository.KycVerificationRepository;
 import com.fxflow.domain.mockbankaccount.repository.MockBankAccountRepository;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
@@ -51,7 +52,6 @@ public class MockBankAccountService {
 
     private final MockBankAccountRepository mockBankAccountRepository;
     private final KycVerificationRepository kycVerificationRepository;
-    private final KycAttemptService kycAttemptService;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final UserRepository userRepository;
     private final WalletRepository walletRepository;
@@ -270,8 +270,11 @@ public class MockBankAccountService {
 
     /**
      * 1원 인증 코드 검증 — 일치하면 즉시 모의계좌 연결까지 완료한다.
+     * findByIdAndUserId가 비관적 쓰기 락을 걸어 동시 요청을 줄 세우고,
+     * KycCodeMismatchException은 noRollbackFor 대상이라 시도 횟수 증가분이 그대로 커밋된다.
+     * (다른 BusinessException은 noRollbackFor 대상이 아니므로 정상적으로 롤백된다.)
      */
-    @Transactional
+    @Transactional(noRollbackFor = KycCodeMismatchException.class)
     public MockBankLinkResponse verifyKyc(Long userId, Long verificationId, String code) {
         KycVerification verification = kycVerificationRepository.findByIdAndUserId(verificationId, userId)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.KYC_VERIFICATION_NOT_FOUND));
@@ -279,12 +282,9 @@ public class MockBankAccountService {
         verification.assertVerifiable(LocalDateTime.now());
 
         if (!verification.matchesCode(code)) {
-            // 실패 시도 횟수는 이 트랜잭션이 롤백돼도 남아야 하므로 별도 트랜잭션으로 즉시 커밋한다.
-            int remaining = kycAttemptService.recordFailedAttempt(verificationId);
-            throw new BusinessException(
-                    MockBankAccountErrorCode.KYC_CODE_MISMATCH,
-                    "인증코드가 일치하지 않습니다. (남은 시도 %d회)".formatted(remaining)
-            );
+            int remaining = verification.incrementAttemptAndGetRemaining();
+            kycVerificationRepository.save(verification);
+            throw new KycCodeMismatchException(remaining);
         }
 
         verification.markVerified();

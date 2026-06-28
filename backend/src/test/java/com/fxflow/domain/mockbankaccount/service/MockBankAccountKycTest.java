@@ -7,6 +7,7 @@ import com.fxflow.domain.mockbankaccount.entity.KycVerification;
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
 import com.fxflow.domain.mockbankaccount.enums.KycVerificationStatus;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
+import com.fxflow.domain.mockbankaccount.exception.KycCodeMismatchException;
 import com.fxflow.domain.mockbankaccount.repository.KycVerificationRepository;
 import com.fxflow.domain.mockbankaccount.repository.MockBankAccountRepository;
 import com.fxflow.domain.user.entity.User;
@@ -28,7 +29,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,9 +39,6 @@ class MockBankAccountKycTest {
 
     @Mock
     private KycVerificationRepository kycVerificationRepository;
-
-    @Mock
-    private KycAttemptService kycAttemptService;
 
     @Mock
     private com.fxflow.domain.user.repository.UserRepository userRepository;
@@ -266,27 +263,25 @@ class MockBankAccountKycTest {
             // then
             assertThat(verification.getStatus()).isEqualTo(KycVerificationStatus.VERIFIED);
             assertThat(response.mockAccount().bankName()).isEqualTo(BANK_NAME);
-            verify(kycAttemptService, never()).recordFailedAttempt(anyLong());
         }
 
         @Test
-        @DisplayName("실패: 코드가 일치하지 않으면 실패 시도횟수를 기록하고 예외를 던진다")
+        @DisplayName("실패: 코드가 일치하지 않으면 같은 트랜잭션 안에서 시도횟수를 증가시키고 예외를 던진다")
         void fail_codeMismatch() {
             // given
             KycVerification verification = newVerification();
             when(kycVerificationRepository.findByIdAndUserId(VERIFICATION_ID, USER_ID))
                     .thenReturn(Optional.of(verification));
-            when(kycAttemptService.recordFailedAttempt(VERIFICATION_ID))
-                    .thenReturn(4);
 
             // when & then
             assertThatThrownBy(() -> mockBankAccountService.verifyKyc(USER_ID, VERIFICATION_ID, "0000"))
-                    .isInstanceOf(BusinessException.class)
+                    .isInstanceOf(KycCodeMismatchException.class)
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(MockBankAccountErrorCode.KYC_CODE_MISMATCH);
 
             assertThat(verification.getStatus()).isEqualTo(KycVerificationStatus.PENDING);
-            verify(kycAttemptService).recordFailedAttempt(VERIFICATION_ID);
+            assertThat(verification.getAttemptCount()).isEqualTo(1);
+            verify(kycVerificationRepository).save(verification);
             verify(mockBankAccountRepository, never()).save(any());
         }
 
@@ -347,7 +342,7 @@ class MockBankAccountKycTest {
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(MockBankAccountErrorCode.KYC_ATTEMPTS_EXCEEDED);
 
-            verify(kycAttemptService, never()).recordFailedAttempt(anyLong());
+            verify(kycVerificationRepository, never()).save(any());
         }
     }
 }

@@ -2,7 +2,9 @@ package com.fxflow.domain.mockbankaccount.repository;
 
 import com.fxflow.domain.mockbankaccount.entity.KycVerification;
 import com.fxflow.domain.mockbankaccount.enums.KycVerificationStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -10,6 +12,11 @@ import java.util.Optional;
 
 public interface KycVerificationRepository extends JpaRepository<KycVerification, Long> {
 
+    /**
+     * 동시에 여러 요청이 같은 인증 건의 코드를 검증하려 할 때 시도 횟수가
+     * 레이스 컨디션으로 누락되지 않도록 비관적 쓰기 락을 건다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<KycVerification> findByIdAndUserId(Long id, Long userId);
 
     /**
