@@ -206,7 +206,7 @@ export default function DashboardPage() {
             className="h-auto justify-start gap-3 rounded-2xl py-4"
             disabled={accountLinked === false}
           >
-            <Plus className="size-5" /> 입금하기
+            <Plus className="size-5" /> 충전하기
           </Button>
           <Button
             render={<Link href="/exchange" />}

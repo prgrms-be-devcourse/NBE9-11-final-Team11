@@ -618,19 +618,19 @@ export default function RemittancePage() {
                   <Input
                     ref={krwInputRef}
                     inputMode="numeric"
-                    value={krwInput ? Number(krwInput).toLocaleString("ko-KR") : ""}
+                    value={krwInput ? "₩ " + Number(krwInput).toLocaleString("ko-KR") : ""}
                     onKeyDown={handleKrwInputKeyDown}
                     onChange={(e) => handleKrwInputChange(e.target.value, e.target.selectionStart)}
                     className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
-                    placeholder="0"
+                    placeholder="₩ 0"
                   />
                 ) : (
                   <Input
                     inputMode="decimal"
-                    value={receiveInput}
+                    value={receiveInput ? `${CURRENCY_META[currency]?.symbol ?? "$"} ${receiveInput}` : ""}
                     onChange={(e) => handleReceiveInputChange(e.target.value)}
                     className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
-                    placeholder="0.00"
+                    placeholder={`${CURRENCY_META[currency]?.symbol ?? "$"} 0.00`}
                   />
                 )}
                 <p className="mt-1 text-right text-sm text-muted-foreground">
