@@ -206,8 +206,17 @@ export const getPoolDashboard = () =>
 export const triggerRebalance = (reason?: string) =>
   apiRequest<RebalanceResponse>("POST", "/api/v1/admin/pools/rebalance", reason ? { reason } : {})
 
+interface RebalanceHistoryPageResponse {
+  data: RebalanceHistoryItem[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
 export const getRebalanceHistory = () =>
-  apiRequest<RebalanceHistoryItem[]>("GET", "/api/v1/admin/pools/rebalance/history")
+  apiRequest<RebalanceHistoryPageResponse>("GET", "/api/v1/admin/pools/rebalance/history?page=0&size=20")
+    .then(res => res.data)
 
 // 최신 매매기준율 조회 (기본 USD/KRW). 데이터가 없으면 404를 던진다.
 export const getLatestRate = (base = "USD", quote = "KRW") =>
