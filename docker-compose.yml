@@ -29,40 +29,40 @@ services:
     networks:
       - fxflow-network
 
-#  backend:
-#    image: ghcr.io/prgrms-be-devcourse/nbe9-11-final-team11/backend:latest
-#    build:
-#      context: ./backend
-#      dockerfile: Dockerfile
-#    container_name: backend-app
-#    restart: unless-stopped
-#    ports:
-#      - "8080:8080"
-#    environment:
-#      TZ: Asia/Seoul
-#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mydb
-#      SPRING_DATASOURCE_USERNAME: myuser
-#      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-#      SPRING_DATA_REDIS_HOST: redis
-#      SPRING_DATA_REDIS_PORT: 6379
-#      # 인증 및 보안 관련 설정
-#      JWT_SECRET: ${JWT_SECRET}
-#      JWT_ACCESS_TOKEN_EXPIRATION_MS: ${JWT_ACCESS_TOKEN_EXPIRATION_MS}
-#      JWT_REFRESH_TOKEN_EXPIRATION_MS: ${JWT_REFRESH_TOKEN_EXPIRATION_MS}
-#      COOKIE_SECURE: ${COOKIE_SECURE}
-#      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-Lax}
-#      COOKIE_MAX_AGE: ${COOKIE_MAX_AGE}
-#      COOKIE_REFRESH_MAX_AGE: ${COOKIE_REFRESH_MAX_AGE}
-#      # 기타 서비스 설정
-#      TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY}
-#      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
-#    depends_on:
-#      postgres:
-#        condition: service_healthy
-#      redis:
-#        condition: service_started
-#    networks:
-#      - fxflow-network
+  backend:
+    image: ghcr.io/prgrms-be-devcourse/nbe9-11-final-team11/backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: Asia/Seoul
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mydb
+      SPRING_DATASOURCE_USERNAME: myuser
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      # 인증 및 보안 관련 설정
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRATION_MS: ${JWT_ACCESS_TOKEN_EXPIRATION_MS}
+      JWT_REFRESH_TOKEN_EXPIRATION_MS: ${JWT_REFRESH_TOKEN_EXPIRATION_MS}
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-Lax}
+      COOKIE_MAX_AGE: ${COOKIE_MAX_AGE}
+      COOKIE_REFRESH_MAX_AGE: ${COOKIE_REFRESH_MAX_AGE}
+      # 기타 서비스 설정
+      TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - fxflow-network
 
   npm:
     image: 'jc21/nginx-proxy-manager:latest'
