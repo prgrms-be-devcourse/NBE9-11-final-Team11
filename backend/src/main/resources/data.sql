@@ -39,3 +39,7 @@ VALUES
     ('ANNUAL_EXCHANGE',   'STANDARD', 'USD', 100000.00000000,  true, now(), now())
 
     ON CONFLICT ON CONSTRAINT uk_limit_type_tier_currency DO NOTHING;
+
+-- ── 성능 인덱스 ───────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_ledger_entries_created_at ON ledger_entries(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rebalancing_orders_status_created_at ON rebalancing_orders(status, created_at DESC);
