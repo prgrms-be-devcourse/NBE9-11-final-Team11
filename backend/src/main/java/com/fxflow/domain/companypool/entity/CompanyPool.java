@@ -27,7 +27,7 @@ public class CompanyPool extends BaseEntity {
     private BigDecimal floorBalance;
 
     // 리밸런싱 경계: 매입 시 채울 목표 & 매도 시 내릴 수 있는 하한 (= target의 80%)
-    @Column(nullable = false, precision = 23, scale = 8)
+    @Column(precision = 23, scale = 8)
     private BigDecimal safeFloorBalance;
 
     @Column(nullable = false, precision = 23, scale = 8)
