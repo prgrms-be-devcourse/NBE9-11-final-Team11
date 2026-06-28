@@ -146,12 +146,13 @@ export default function RatesPage() {
                   }`}
                 >
                   <span className="mr-1 text-xs font-normal text-muted-foreground">전일대비</span>
-                  {rate.changePercent >= 0 ? "▲" : "▼"} {rate.changePercent >= 0 ? "+" : ""}
-                  {rate.changePercent.toFixed(2)}%
+                  {/* 방향은 화살표로, 수치는 절대값으로 — 이중 부호(▼ -1.54%) 방지 */}
+                  {rate.changePercent >= 0 ? "▲ +" : "▼ "}
+                  {Math.abs(rate.changePercent).toFixed(2)}%
                   {rate.changeRate != null && (
                     <span className="ml-1 text-xs font-normal text-muted-foreground">
-                      ({rate.changeRate >= 0 ? "+" : ""}₩
-                      {rate.changeRate.toLocaleString("ko-KR", { maximumFractionDigits: 2 })})
+                      ({rate.changeRate >= 0 ? "+" : "-"}₩
+                      {Math.abs(rate.changeRate).toLocaleString("ko-KR", { maximumFractionDigits: 2 })})
                     </span>
                   )}
                 </p>
