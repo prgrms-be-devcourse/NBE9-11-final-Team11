@@ -9,6 +9,7 @@ import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.service.UserService;
+import com.fxflow.domain.userlimitusage.service.UserExchangeUsageService;
 import com.fxflow.domain.wallet.config.ExchangeFeeProperties;
 import com.fxflow.domain.wallet.config.ExchangeProperties;
 import com.fxflow.domain.wallet.dto.cache.ExchangeQuoteCache;
@@ -33,7 +34,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Service
@@ -54,6 +57,8 @@ public class ExchangeService {
     private final ExchangeTransactionRepository exchangeTransactionRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final CompanyPoolService companyPoolService;
+    private final CurrencyLotService currencyLotService;
+    private final UserExchangeUsageService userExchangeUsageService;
 
     public ExchangeQuoteResponse getExchangeQuote(Long userId, ExchangeQuoteRequest request) {
 
@@ -84,13 +89,11 @@ public class ExchangeService {
         }
 
         BigDecimal toAmount = fromCurrency.equals("KRW")
-                ? amount.divide(appliedRate, 2, RoundingMode.HALF_UP) // 달러는 소수점 2자리까지
-                : amount.multiply(appliedRate).setScale(0, RoundingMode.HALF_DOWN); // 원화는 소수점 버림
+                ? amount.divide(appliedRate, 2, RoundingMode.FLOOR) // 소수점 버림
+                : amount.multiply(appliedRate).setScale(0, RoundingMode.FLOOR); // 소수점 버림
         BigDecimal feeAmount = amount.multiply(feeRate);  // 출발 통화 기준 수수료
         BigDecimal totalAmount = amount.add(feeAmount);  // 출발 통화 기준 총 차감액
-        LocalDateTime expiredAt =
-                LocalDateTime.now()
-                        .plusMinutes(exchangeProperties.getQuoteExpirationMinutes());
+        LocalDateTime expiredAt = LocalDateTime.now().plusMinutes(exchangeProperties.getQuoteExpirationMinutes());
         String quoteId = UUID.randomUUID().toString();
 
         // Quote redis에 저장
@@ -140,13 +143,23 @@ public class ExchangeService {
         }
 
         // -- 제한 검증 --
-        // check user's one/daily/yearly exchange limit
-        User user = userService.getUser(userId);
-        transactionLimitValidator.validateExchange(user, cache.fromAmount());  // 환전하려는 금액 검증
+        // USD -> KRW 환전은 한도 제한 없음 (KRW -> USD 방향에만 건당/일일/연간 환전 한도 적용)
+        boolean isLimitedDirection = fromCurrency.equals("KRW");
 
-        // check wallet holding
+        User user = userService.getUser(userId);
+        if (isLimitedDirection) {
+            // 건당/일일 한도는 KRW 기준, 연간 한도는 USD 기준이므로 단위를 맞춰 각각 검증한다.
+            transactionLimitValidator.validatePerExchange(user, cache.fromAmount());
+            transactionLimitValidator.validateDailyExchange(user, cache.fromAmount());
+            transactionLimitValidator.validateAnnualExchange(user, cache.toAmount());
+        }
+
+        // check wallet holding (KRW+USD 합산 기준, 환전으로 양쪽 지갑이 모두 바뀌므로 둘 다 갱신 후 잔액으로 계산)
+        BigDecimal fromBalanceAfter = fromWallet.getBalance().subtract(cache.totalAmount()); // 차감 전에 미리 계산
         BigDecimal toBalanceAfter = toWallet.getBalance().add(cache.toAmount()); // deposit 전에 미리 계산
-        transactionLimitValidator.validateWalletHolding(user, toBalanceAfter);
+        BigDecimal totalHoldingKrw = walletService.toKrwEquivalent(fromCurrency, fromBalanceAfter)
+                .add(walletService.toKrwEquivalent(toCurrency, toBalanceAfter));
+        transactionLimitValidator.validateWalletHolding(user, totalHoldingKrw);
 
         // -- exchange --
         BigDecimal fromBalanceBefore = fromWallet.getBalance();
@@ -158,10 +171,15 @@ public class ExchangeService {
         walletRepository.save(fromWallet);
         walletRepository.save(toWallet);
 
+        // lot 정산
+        String transferId = ExchangeTransaction.generateTransferId();
+        currencyLotService.settleLots(fromWallet, toWallet, cache.fromAmount(), cache.toAmount(), cache.finalRate(), transferId);
         // Exchange transaction 저장
         String journalId = LedgerEntry.generateJournalId();
         String idempotencyKey = UUID.randomUUID().toString();
+
         ExchangeTransaction exchangeTransaction = ExchangeTransaction.create(
+                transferId,
                 user,
                 fromWallet,
                 toWallet,
@@ -173,8 +191,7 @@ public class ExchangeService {
                 cache.spreadRate(),
                 cache.finalRate(),
                 idempotencyKey,
-                cache.feeAmount()
-        );
+                cache.feeAmount());
         exchangeTransactionRepository.save(exchangeTransaction);
 
         // ledger entry 저장
@@ -196,6 +213,16 @@ public class ExchangeService {
         ledgerEntryRepository.save(toEntry);
 
         // pool 갱신 X, 출금할 때 실제 자금 이동
+
+        // 일일/연간 환전 한도 사용량 갱신 (USD -> KRW는 한도 제한 대상이 아니므로 누적하지 않음)
+        // fromWallet/toWallet에 대한 비관적 락을 이미 보유한 트랜잭션 안에서 처리되므로,
+        // 같은 유저의 동시 환전 요청은 직렬화되어 usage row 동시 갱신 문제가 발생하지 않는다.
+        if (isLimitedDirection) {
+            LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+            int currentYear = today.getYear();
+            userExchangeUsageService.addDailyExchange(userId, today, cache.fromAmount()); // KRW 기준
+            userExchangeUsageService.addAnnualExchange(userId, currentYear, cache.toAmount()); // USD 기준 (KRW -> USD 환전 결과 수령액)
+        }
 
         // transaction 완료 후 quote 삭제
         redisTemplate.delete("quote:" + quoteId);

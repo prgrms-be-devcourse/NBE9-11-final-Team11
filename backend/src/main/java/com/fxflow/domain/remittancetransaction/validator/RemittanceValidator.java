@@ -37,6 +37,20 @@ public class RemittanceValidator {
         log.info("[송금 한도 검증 완료] userId={}, requestAmountUsd={}", userId, requestAmountUsd);
     }
 
+    /**
+     * 송금 주문 생성 시에는 연간 한도 검증과 선점을 원자적으로 처리하므로 건당 한도만 사전 검증한다.
+     */
+    public void validatePerRemittanceLimit(Long userId, BigDecimal requestAmountUsd) {
+        validatePositiveAmount(requestAmountUsd);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(GlobalErrorCode.INVALID_INPUT_VALUE));
+
+        transactionLimitValidator.validatePerRemittance(user, requestAmountUsd);
+
+        log.info("[송금 건당 한도 검증 완료] userId={}, requestAmountUsd={}", userId, requestAmountUsd);
+    }
+
     // 요청 금액 유효성 검증
     private void validatePositiveAmount(BigDecimal amount) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {

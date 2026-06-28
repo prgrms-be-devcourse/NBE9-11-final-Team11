@@ -139,15 +139,15 @@ class RemittanceTransactionServiceTest {
 
         // then
         assertThat(response.sendAmountKrw()).isEqualByComparingTo(new BigDecimal("1000000"));
-        assertThat(response.receiveAmountUsd()).isEqualByComparingTo(new BigDecimal("740.00"));
-        assertThat(response.exchangeRate()).isEqualByComparingTo(new BigDecimal("1351.350"));
-        assertThat(response.fixedFee()).isEqualByComparingTo(new BigDecimal("3000.00"));
+        assertThat(response.receiveAmountUsd()).isEqualByComparingTo(new BigDecimal("740.74"));
+        assertThat(response.exchangeRate()).isEqualByComparingTo(new BigDecimal("1350.00000000"));
+        assertThat(response.fixedFee()).isEqualByComparingTo(new BigDecimal("5000.00"));
         assertThat(response.percentFee()).isEqualByComparingTo(new BigDecimal("5000"));
-        assertThat(response.totalFee()).isEqualByComparingTo(new BigDecimal("8000.00"));
+        assertThat(response.totalFee()).isEqualByComparingTo(new BigDecimal("10000.00"));
         assertThat(response.quoteId()).isNotBlank();
         assertThat(response.expiredAt()).isNotNull();
 
-        verify(remittanceValidator).validateLimits(userId, new BigDecimal("740.00074000"));
+        verify(remittanceValidator).validateLimits(userId, new BigDecimal("740.74074074"));
 
         ArgumentCaptor<RemittanceQuoteCache> cacheCaptor =
                 ArgumentCaptor.forClass(RemittanceQuoteCache.class);
@@ -163,11 +163,11 @@ class RemittanceTransactionServiceTest {
         assertThat(cache.sendCurrency()).isEqualTo("KRW");
         assertThat(cache.sendAmount()).isEqualByComparingTo(new BigDecimal("1000000.00000000"));
         assertThat(cache.receiveCurrency()).isEqualTo("USD");
-        assertThat(cache.receiveAmount()).isEqualByComparingTo(new BigDecimal("740.00074000"));
-        assertThat(cache.appliedRate()).isEqualByComparingTo(new BigDecimal("1351.350"));
-        assertThat(cache.feeAmount()).isEqualByComparingTo(new BigDecimal("8000.00000000"));
+        assertThat(cache.receiveAmount()).isEqualByComparingTo(new BigDecimal("740.74074074"));
+        assertThat(cache.appliedRate()).isEqualByComparingTo(new BigDecimal("1350.00000000"));
+        assertThat(cache.feeAmount()).isEqualByComparingTo(new BigDecimal("10000.00000000"));
         assertThat(cache.amountKrw()).isEqualByComparingTo(new BigDecimal("1000000.00000000"));
-        assertThat(cache.amountUsd()).isEqualByComparingTo(new BigDecimal("740.00074000"));
+        assertThat(cache.amountUsd()).isEqualByComparingTo(new BigDecimal("740.74074074"));
     }
 
     @Test
@@ -227,7 +227,7 @@ class RemittanceTransactionServiceTest {
                 .thenReturn(Optional.of(recipient));
         when(exchangeRateProvider.getLatestRate("USD", "KRW"))
                 .thenReturn(Optional.of(fxRateSnapshot));
-        doThrow(exception).when(remittanceValidator).validateLimits(userId, new BigDecimal("740.00074000"));
+        doThrow(exception).when(remittanceValidator).validateLimits(userId, new BigDecimal("740.74074074"));
 
         // when & then
         assertThatThrownBy(() -> remittanceTransactionService.createQuote(userId, request))
@@ -248,7 +248,6 @@ class RemittanceTransactionServiceTest {
         RemittanceTransactionCreateRequest request = createRequest();
         RemittanceQuoteSnapshot quote = createQuote();
         Recipient recipient = createRecipient(userId);
-        UserAnnualUsage annualUsage = createAnnualUsage(userId, currentYear, BigDecimal.ZERO);
         String idempotencyKey = "idempotency-key";
 
         when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
@@ -264,8 +263,13 @@ class RemittanceTransactionServiceTest {
                 LimitType.ANNUAL_REMITTANCE,
                 new BigDecimal("100000.00000000")
         )));
-        when(userAnnualUsageRepository.findByUserIdAndYearForUpdate(userId, currentYear))
-                .thenReturn(Optional.of(annualUsage));
+        when(userAnnualUsageRepository.insertIfAbsent(userId, currentYear)).thenReturn(0);
+        when(userAnnualUsageRepository.reserveAnnualLimit(
+                userId,
+                currentYear,
+                quote.amountUsd(),
+                new BigDecimal("100000.00000000")
+        )).thenReturn(1);
         when(remittanceTransactionRepository.save(any(RemittanceTransaction.class)))
                 .thenAnswer(invocation -> {
                     RemittanceTransaction remittanceTransaction = invocation.getArgument(0);
@@ -286,8 +290,9 @@ class RemittanceTransactionServiceTest {
         // then
         assertThat(response.transferId()).isEqualTo(transferId);
         assertThat(response.status()).isEqualTo(TransferStatus.PENDING);
-        assertThat(response.virtualAccount().bankName()).isEqualTo("하나은행");
-        assertThat(response.virtualAccount().amount()).isEqualTo(new BigDecimal("1008000"));
+        assertThat(response.virtualAccount().bankName()).isEqualTo("최강은행");
+        assertThat(response.virtualAccount().accountNumber()).isEqualTo("777-000000-000010");
+        assertThat(response.virtualAccount().amount()).isEqualTo(new BigDecimal("1010000"));
         assertThat(response.virtualAccount().expiredAt()).isNotNull();
 
         ArgumentCaptor<RemittanceTransaction> transactionCaptor =
@@ -300,9 +305,14 @@ class RemittanceTransactionServiceTest {
         assertThat(savedTransaction.getReason()).isEqualTo(RemittanceReason.LIVING_EXPENSES.name());
         assertThat(savedTransaction.getReasonDetail()).isEqualTo("생활비 송금");
         assertThat(savedTransaction.getStatus()).isEqualTo(TransferStatus.PENDING);
-        verify(remittanceValidator).validateLimits(userId, quote.amountUsd());
-        verify(userAnnualUsageRepository).findByUserIdAndYearForUpdate(userId, currentYear);
-        assertThat(annualUsage.getAnnualUsedUsd()).isEqualByComparingTo(quote.amountUsd());
+        verify(remittanceValidator).validatePerRemittanceLimit(userId, quote.amountUsd());
+        verify(userAnnualUsageRepository).insertIfAbsent(userId, currentYear);
+        verify(userAnnualUsageRepository).reserveAnnualLimit(
+                userId,
+                currentYear,
+                quote.amountUsd(),
+                new BigDecimal("100000.00000000")
+        );
 
         ArgumentCaptor<VirtualAccount> virtualAccountCaptor =
                 ArgumentCaptor.forClass(VirtualAccount.class);
@@ -311,7 +321,8 @@ class RemittanceTransactionServiceTest {
 
         assertThat(savedVirtualAccount.getUserId()).isEqualTo(userId);
         assertThat(savedVirtualAccount.getRemittanceTransactionId()).isEqualTo(transferId);
-        assertThat(savedVirtualAccount.getExpectedAmount()).isEqualByComparingTo(new BigDecimal("1008000.00"));
+        assertThat(savedVirtualAccount.getAccountNumber()).isEqualTo("777-000000-000010");
+        assertThat(savedVirtualAccount.getExpectedAmount()).isEqualByComparingTo(new BigDecimal("1010000.00"));
         assertThat(savedVirtualAccount.getRefType()).isEqualTo("REMITTANCE");
         assertThat(savedVirtualAccount.getRefId()).isEqualTo(String.valueOf(transferId));
     }
@@ -348,8 +359,7 @@ class RemittanceTransactionServiceTest {
         RemittanceTransactionCreateRequest request = createRequest();
         RemittanceQuoteSnapshot quote = createQuote();
         Recipient recipient = createRecipient(userId);
-        BusinessException exception =
-                new BusinessException(TransactionLimitErrorCode.ANNUAL_REMITTANCE_LIMIT_EXCEEDED);
+        int currentYear = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
         String idempotencyKey = "idempotency-key";
 
         when(remittanceTransactionRepository.findByIdempotencyKey(idempotencyKey))
@@ -357,11 +367,27 @@ class RemittanceTransactionServiceTest {
         when(remittanceQuoteProvider.getQuote(request.quoteId())).thenReturn(quote);
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(quote.recipientId(), userId))
                 .thenReturn(Optional.of(recipient));
-        doThrow(exception).when(remittanceValidator).validateLimits(userId, quote.amountUsd());
+        when(transactionLimitRepository.findByLimitTypeAndTierAndCurrencyCodeAndIsActiveTrue(
+                LimitType.ANNUAL_REMITTANCE,
+                LimitTier.STANDARD,
+                "USD"
+        )).thenReturn(Optional.of(createLimit(
+                LimitType.ANNUAL_REMITTANCE,
+                new BigDecimal("100000.00000000")
+        )));
+        when(userAnnualUsageRepository.insertIfAbsent(userId, currentYear)).thenReturn(0);
+        when(userAnnualUsageRepository.reserveAnnualLimit(
+                userId,
+                currentYear,
+                quote.amountUsd(),
+                new BigDecimal("100000.00000000")
+        )).thenReturn(0);
 
         // when & then
         assertThatThrownBy(() -> remittanceTransactionService.createTransfer(userId, request, idempotencyKey))
-                .isSameAs(exception);
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(TransactionLimitErrorCode.ANNUAL_REMITTANCE_LIMIT_EXCEEDED);
 
         verify(remittanceTransactionRepository, never()).save(any(RemittanceTransaction.class));
         verifyNoInteractions(virtualAccountRepository);
@@ -465,7 +491,7 @@ class RemittanceTransactionServiceTest {
                 "USD",
                 new BigDecimal("1473.04"),
                 new BigDecimal("1351.00000000"),
-                new BigDecimal("13000.00"),
+                new BigDecimal("15000.00"),
                 new BigDecimal("2000000.00"),
                 new BigDecimal("1473.04")
         );
@@ -530,7 +556,7 @@ class RemittanceTransactionServiceTest {
         when(mockBankAccountService.withdrawForRemittance(
                 eq(userId),
                 anyString(),
-                eq(new BigDecimal("1008000.00")),
+                eq(new BigDecimal("1010000.00")),
                 eq("KRW"),
                 anyString()
         )).thenReturn(sourceMockAccountId);
@@ -552,7 +578,7 @@ class RemittanceTransactionServiceTest {
         verify(companyPoolService).depositForRemittance(
                 anyString(),
                 eq("KRW"),
-                eq(new BigDecimal("1008000.00")),
+                eq(new BigDecimal("1010000.00")),
                 anyString()
         );
         ArgumentCaptor<RemittanceFundedEvent> eventCaptor =
@@ -562,7 +588,7 @@ class RemittanceTransactionServiceTest {
 
         assertThat(event.transferId()).isEqualTo(transferId);
         assertThat(event.userId()).isEqualTo(userId);
-        assertThat(event.amountKrw()).isEqualByComparingTo(new BigDecimal("1008000.00"));
+        assertThat(event.amountKrw()).isEqualByComparingTo(new BigDecimal("1010000.00"));
         assertThat(event.receiveCurrency()).isEqualTo("USD");
         assertThat(event.receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
         assertThat(event.fundedAt()).isNotNull();
@@ -869,7 +895,7 @@ class RemittanceTransactionServiceTest {
         assertThat(response.data().getFirst().receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
         assertThat(response.data().getFirst().receiveCurrency()).isEqualTo("USD");
         assertThat(response.data().getFirst().appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
-        assertThat(response.data().getFirst().feeAmount()).isEqualByComparingTo(new BigDecimal("8000"));
+        assertThat(response.data().getFirst().feeAmount()).isEqualByComparingTo(new BigDecimal("10000"));
         assertThat(response.data().getFirst().status()).isEqualTo(TransferStatus.PENDING);
     }
 
@@ -903,10 +929,10 @@ class RemittanceTransactionServiceTest {
         assertThat(response.sendAmountKrw()).isEqualByComparingTo(new BigDecimal("1000000"));
         assertThat(response.receiveAmountUsd()).isEqualByComparingTo(new BigDecimal("736.52"));
         assertThat(response.appliedRate()).isEqualByComparingTo(new BigDecimal("1351.00000000"));
-        assertThat(response.totalFee()).isEqualByComparingTo(new BigDecimal("8000"));
-        assertThat(response.virtualAccount().bankName()).isEqualTo("하나은행");
+        assertThat(response.totalFee()).isEqualByComparingTo(new BigDecimal("10000"));
+        assertThat(response.virtualAccount().bankName()).isEqualTo("최강은행");
         assertThat(response.virtualAccount().accountNumber()).isEqualTo("123-456789-123456");
-        assertThat(response.virtualAccount().amount()).isEqualByComparingTo(new BigDecimal("1008000"));
+        assertThat(response.virtualAccount().amount()).isEqualByComparingTo(new BigDecimal("1010000"));
         assertThat(response.createdAt()).isEqualTo(remittanceTransaction.getCreatedAt());
     }
 
@@ -1050,7 +1076,7 @@ class RemittanceTransactionServiceTest {
                 "USD",
                 new BigDecimal("736.52"),
                 new BigDecimal("1351.00000000"),
-                new BigDecimal("8000.00"),
+                new BigDecimal("10000.00"),
                 new BigDecimal("1000000.00"),
                 new BigDecimal("736.52")
         );
@@ -1106,7 +1132,7 @@ class RemittanceTransactionServiceTest {
                 "USD",
                 new BigDecimal("736.52"),
                 new BigDecimal("1351.00000000"),
-                new BigDecimal("8000.00"),
+                new BigDecimal("10000.00"),
                 new BigDecimal("1000000.00"),
                 new BigDecimal("736.52"),
                 RemittanceReason.LIVING_EXPENSES.name(),
@@ -1123,9 +1149,9 @@ class RemittanceTransactionServiceTest {
         return VirtualAccount.create(
                 userId,
                 transferId,
-                "하나은행",
+                "최강은행",
                 "123-456789-123456",
-                new BigDecimal("1008000.00"),
+                new BigDecimal("1010000.00"),
                 "REMITTANCE",
                 "JNL-TEST-FUND",
                 LocalDateTime.now().minusMinutes(10),

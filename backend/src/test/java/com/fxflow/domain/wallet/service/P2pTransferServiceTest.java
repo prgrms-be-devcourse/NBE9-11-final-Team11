@@ -10,6 +10,7 @@ import com.fxflow.domain.user.service.UserService;
 import com.fxflow.domain.wallet.dto.request.P2pTransferRequest;
 import com.fxflow.domain.wallet.dto.response.P2pTransferResponse;
 import com.fxflow.domain.wallet.entity.Wallet;
+import com.fxflow.domain.wallet.errorcode.LotErrorCode;
 import com.fxflow.domain.wallet.errorcode.P2pTransferErrorCode;
 import com.fxflow.domain.wallet.errorcode.WalletErrorCode;
 import com.fxflow.domain.wallet.repository.P2pTransferRepository;
@@ -42,6 +43,7 @@ class P2pTransferServiceTest {
     @Mock private LedgerEntryRepository ledgerEntryRepository;
     @Mock private UserService userService;
     @Mock private TransactionLimitValidator transactionLimitValidator;
+    @Mock private CurrencyLotService currencyLotService;
 
     @InjectMocks private P2pTransferService p2pTransferService;
 
@@ -179,5 +181,40 @@ class P2pTransferServiceTest {
         assertThatThrownBy(() -> p2pTransferService.transfer(1L, request))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", TransactionLimitErrorCode.WALLET_HOLDING_LIMIT_EXCEEDED);
+    }
+
+    @Test
+    @DisplayName("정상 송금 시 lot이 정산된다")
+    void transfer_success_settlesLots() {
+        givenWalletsSetUp();
+        given(senderWallet.getBalance()).willReturn(new BigDecimal("1000.00"));
+        given(senderWallet.withdraw(any())).willReturn(new BigDecimal("800.00"));
+        given(recipientWallet.deposit(any())).willReturn(new BigDecimal("700.00"));
+
+        p2pTransferService.transfer(1L, request);
+
+        then(currencyLotService).should().settleLots(
+                eq(senderWallet),
+                eq(recipientWallet),
+                eq(new BigDecimal("200.00")),
+                anyString()
+        );
+    }
+
+    @Test
+    @DisplayName("lot 잔액 부족 시 예외가 발생하고 ledger가 저장되지 않는다")
+    void transfer_insufficientLots_throwsException() {
+        givenWalletsSetUp();
+        given(senderWallet.getBalance()).willReturn(new BigDecimal("1000.00"));
+        given(senderWallet.withdraw(any())).willReturn(new BigDecimal("800.00"));
+        given(recipientWallet.deposit(any())).willReturn(new BigDecimal("700.00"));
+        willThrow(new BusinessException(LotErrorCode.INSUFFICIENT_LOT_BALANCE))
+                .given(currencyLotService).settleLots(any(), any(), any(), anyString());
+
+        assertThatThrownBy(() -> p2pTransferService.transfer(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", LotErrorCode.INSUFFICIENT_LOT_BALANCE);
+
+        then(ledgerEntryRepository).should(never()).saveAll(any());
     }
 }

@@ -2,11 +2,13 @@ package com.fxflow.domain.userlimitusage.repository;
 
 import com.fxflow.domain.userlimitusage.entity.UserAnnualUsage;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 public interface UserAnnualUsageRepository extends JpaRepository<UserAnnualUsage, Long> {
@@ -30,5 +32,53 @@ public interface UserAnnualUsageRepository extends JpaRepository<UserAnnualUsage
     Optional<UserAnnualUsage> findByUserIdAndYearForUpdate(
             @Param("userId") Long userId,
             @Param("year") Integer year
+    );
+
+    /**
+     * 최초 송금 요청이 동시에 들어와도 user_id + usage_year row가 하나만 만들어지도록 보장한다.
+     */
+    @Modifying
+    @Query(value = """
+            insert into user_annual_usages (
+                user_id,
+                usage_year,
+                annual_used_usd,
+                version,
+                created_at,
+                updated_at
+            )
+            values (
+                :userId,
+                :year,
+                0,
+                0,
+                current_timestamp,
+                current_timestamp
+            )
+            on conflict (user_id, usage_year) do nothing
+            """, nativeQuery = true)
+    int insertIfAbsent(
+            @Param("userId") Long userId,
+            @Param("year") Integer year
+    );
+
+    /**
+     * 연간 한도 초과 여부와 누적액 증가를 단일 UPDATE로 처리한다.
+     */
+    @Modifying
+    @Query(value = """
+            update user_annual_usages
+            set annual_used_usd = annual_used_usd + :amountUsd,
+                version = version + 1,
+                updated_at = current_timestamp
+            where user_id = :userId
+              and usage_year = :year
+              and annual_used_usd + :amountUsd <= :annualLimitUsd
+            """, nativeQuery = true)
+    int reserveAnnualLimit(
+            @Param("userId") Long userId,
+            @Param("year") Integer year,
+            @Param("amountUsd") BigDecimal amountUsd,
+            @Param("annualLimitUsd") BigDecimal annualLimitUsd
     );
 }
