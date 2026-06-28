@@ -60,11 +60,16 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
             Pageable pageable
     );
 
-    @Query("SELECT l FROM LedgerEntry l WHERE l.walletId IN :walletIds " +
+    @Query(value = "SELECT l FROM LedgerEntry l WHERE l.walletId IN :walletIds " +
             "AND (cast(:currency as string) IS NULL OR l.currencyCode = :currency) " +
             "AND (cast(:type as string) IS NULL OR l.entryType = :type) " +
             "AND (cast(:from as localdatetime) IS NULL OR l.createdAt >= :from) " +
-            "AND (cast(:to as localdatetime) IS NULL OR l.createdAt <= :to)")
+            "AND (cast(:to as localdatetime) IS NULL OR l.createdAt <= :to)",
+            countQuery = "SELECT COUNT(l.id) FROM LedgerEntry l WHERE l.walletId IN :walletIds " +
+                    "AND (cast(:currency as string) IS NULL OR l.currencyCode = :currency) " +
+                    "AND (cast(:type as string) IS NULL OR l.entryType = :type) " +
+                    "AND (cast(:from as localdatetime) IS NULL OR l.createdAt >= :from) " +
+                    "AND (cast(:to as localdatetime) IS NULL OR l.createdAt <= :to)")
     Page<LedgerEntry> findByWalletIdInAndFilters(
             @Param("walletIds") List<Long> walletId,
             @Param("currency") String currency,
