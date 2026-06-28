@@ -99,6 +99,7 @@ export default function SignupPage() {
   const [remainingSeconds, setRemainingSeconds] = useState(0)
   const [code, setCode] = useState("")
   const [remainingDailyRequests, setRemainingDailyRequests] = useState<number | null>(null)
+  const [verifying, setVerifying] = useState(false)
 
   // 만료 시각까지 1초마다 남은 시간을 갱신한다.
   useEffect(() => {
@@ -186,8 +187,9 @@ export default function SignupPage() {
     ev.preventDefault()
     setError("")
 
-    if (!verificationId) return
+    if (!verificationId || verifying) return
 
+    setVerifying(true)
     try {
       await apiRequest("POST", "/api/v1/mockbank/kyc/verify", {
         verificationId,
@@ -203,6 +205,8 @@ export default function SignupPage() {
       setKyc("failed")
       setKycFailKind(err.code === "KYC_CODE_MISMATCH" ? "code" : "api")
       setError(err.message || "인증코드가 일치하지 않습니다.")
+    } finally {
+      setVerifying(false)
     }
   }
 
@@ -354,15 +358,15 @@ export default function SignupPage() {
                   {error || (kycFailKind === "code" ? "인증코드가 일치하지 않습니다." : "계좌 연결에 실패하여 가입을 완료할 수 없습니다.")}
                 </div>
               )}
-              <Button type="submit" className="w-full" disabled={code.length !== 4}>
-                인증 확인
+              <Button type="submit" className="w-full" disabled={verifying || code.length !== 4}>
+                {verifying ? "연결 중..." : "인증 확인"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 className="w-full"
                 onClick={resendKyc}
-                disabled={remainingDailyRequests === 0}
+                disabled={verifying || remainingDailyRequests === 0}
               >
                 1원 다시 요청
               </Button>

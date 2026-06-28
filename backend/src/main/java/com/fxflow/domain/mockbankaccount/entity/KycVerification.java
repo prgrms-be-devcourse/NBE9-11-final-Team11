@@ -114,8 +114,8 @@ public class KycVerification extends BaseEntity {
 
     /**
      * 실패한 시도를 1 증가시키고 남은 시도 횟수를 반환한다.
-     * 이 메서드는 별도의 독립 트랜잭션(KycAttemptService)에서 호출되어,
-     * 인증 실패로 인한 예외가 트랜잭션을 롤백시켜도 시도 횟수는 그대로 저장되어야 한다.
+     * MockBankAccountService.verifyKyc()가 findByIdAndUserId의 비관적 쓰기 락으로 동시 요청을 직렬화하고,
+     * KycCodeMismatchException을 noRollbackFor로 지정해 이 증가분이 트랜잭션 롤백 없이 커밋되도록 한다.
      */
     public int incrementAttemptAndGetRemaining() {
         this.attemptCount++;
