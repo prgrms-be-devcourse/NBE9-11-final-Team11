@@ -75,6 +75,23 @@ export interface FxRateLatest {
   buyRate: number
   sellRate: number
   fetchedAt: string // ISO-8601 LocalDateTime (예: "2026-06-21T12:34:56")
+  previousRate: number | null // 전일 15:30 기준 매매기준율 (기준값 없으면 null)
+  changeRate: number | null // 전일 대비 변동액 (없으면 null)
+  changePercent: number | null // 전일 대비 변동률(%) (없으면 null)
+}
+
+export type FxRateHistoryPeriod = "1D" | "1W" | "1M"
+
+export interface FxRateHistoryPoint {
+  timestamp: string // ISO-8601 LocalDateTime (버킷 시작 시각)
+  midRate: number
+}
+
+export interface FxRateHistory {
+  baseCurrency: string
+  quoteCurrency: string
+  period: FxRateHistoryPeriod
+  points: FxRateHistoryPoint[]
 }
 
 // ── Unified Transaction History API ─────────────────────────────
@@ -209,9 +226,13 @@ export const triggerRebalance = (reason?: string) =>
 export const getRebalanceHistory = () =>
   apiRequest<RebalanceHistoryItem[]>("GET", "/api/v1/admin/pools/rebalance/history")
 
-// 최신 매매기준율 조회 (기본 USD/KRW). 데이터가 없으면 404를 던진다.
+// 최신 매매기준율 + 전일(15:30 기준) 대비 변동 조회 (기본 USD/KRW). 데이터가 없으면 404를 던진다.
 export const getLatestRate = (base = "USD", quote = "KRW") =>
   apiRequest<FxRateLatest>("GET", `/api/v1/fxrates/latest?base=${base}&quote=${quote}`)
+
+// 환율 이력 조회 (기본 USD/KRW, 1D). 데이터가 없으면 points 가 빈 배열로 반환된다.
+export const getFxRateHistory = (base = "USD", quote = "KRW", period: FxRateHistoryPeriod = "1D") =>
+  apiRequest<FxRateHistory>("GET", `/api/v1/fxrates/history?base=${base}&quote=${quote}&period=${period}`)
 
 export const getAdminTransactions = (params: AdminTransactionParams = {}) => {
   const search = new URLSearchParams()

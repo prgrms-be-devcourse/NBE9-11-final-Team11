@@ -84,25 +84,6 @@ export function formatCurrency(amount: number, code: CurrencyCode): string {
   return meta.symbol + floored.toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-// 30-day rate history generator (deterministic so it stays stable)
-export function rateHistory(code: Exclude<CurrencyCode, "KRW">): { date: string; rate: number }[] {
-  const base = krwPerUnit(code) * (code === "JPY" ? 100 : 1)
-  const out: { date: string; rate: number }[] = []
-  let seed = code.charCodeAt(0) * 13
-  for (let i = 29; i >= 0; i--) {
-    seed = (seed * 9301 + 49297) % 233280
-    const noise = (seed / 233280 - 0.5) * base * 0.04
-    const trend = Math.sin((29 - i) / 6) * base * 0.02
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    out.push({
-      date: `${d.getMonth() + 1}/${d.getDate()}`,
-      rate: Math.round((base + noise + trend) * 10) / 10,
-    })
-  }
-  return out
-}
-
 export const COUNTRIES = [
   { code: "US", name: "미국", currency: "USD" as CurrencyCode, flag: "🇺🇸" },
   { code: "JP", name: "일본", currency: "JPY" as CurrencyCode, flag: "🇯🇵" },

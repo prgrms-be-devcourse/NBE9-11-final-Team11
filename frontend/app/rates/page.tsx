@@ -1,12 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { TrendingUp, ArrowLeft, RefreshCw } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { RateChart } from "@/components/app/rate-chart"
-import { getLatestRate, type FxRateLatest } from "@/lib/api"
+import { RateChart, type RateChartPoint } from "@/components/app/rate-chart"
+import {
+  getLatestRate,
+  getFxRateHistory,
+  type FxRateLatest,
+  type FxRateHistory,
+  type FxRateHistoryPeriod,
+} from "@/lib/api"
 import { CURRENCY_META } from "@/lib/fx-data"
 import { formatFetchedAt } from "@/lib/utils"
 import { useStore } from "@/lib/store"
@@ -15,11 +21,31 @@ import { MarketingHeader } from "@/components/marketing/marketing-header"
 
 const POLL_INTERVAL_MS = 60_000 // 60초마다 최신 환율 폴링
 
+const PERIODS: { key: FxRateHistoryPeriod; label: string }[] = [
+  { key: "1D", label: "1일" },
+  { key: "1W", label: "1주일" },
+  { key: "1M", label: "1달" },
+]
+
+// 기간별 X축 라벨 포맷 — 1일은 시:분, 그 외(주/월)는 월/일
+function formatHistoryLabel(iso: string, period: FxRateHistoryPeriod): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  if (period === "1D") {
+    return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
+  }
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
 export default function RatesPage() {
   const { user, ready } = useStore()
   const [rate, setRate] = useState<FxRateLatest | null>(null)
   const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<FxRateHistoryPeriod>("1D")
+  const [history, setHistory] = useState<FxRateHistory | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(true)
 
+  // 최신 환율(현재가 + 전일 대비) 60초 폴링 — 이전 요청 종료 후 다음 폴링 예약(요청 중첩 방지)
   useEffect(() => {
     let active = true
     let timerId: ReturnType<typeof setTimeout> | undefined
@@ -46,13 +72,39 @@ export default function RatesPage() {
     }
   }, [])
 
+  // 기간 변경 시 이력 조회 — 늦게 도착한 이전 기간 응답이 최신 선택을 덮어쓰지 않도록 stale-guard
+  useEffect(() => {
+    let active = true
+    setHistoryLoading(true)
+    const load = async () => {
+      try {
+        const data = await getFxRateHistory("USD", "KRW", period)
+        if (!active) return
+        setHistory(data)
+      } catch {
+        if (active) setHistory(null)
+      } finally {
+        if (active) setHistoryLoading(false)
+      }
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [period])
+
   const usd = CURRENCY_META.USD
+  const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? ""
+
+  // 이력 응답을 차트 포인트로 가공 (응답에 실린 history.period 기준으로 라벨 포맷)
+  const chartData = useMemo<RateChartPoint[]>(() => {
+    if (!history) return []
+    return history.points.map((p) => ({ label: formatHistoryLabel(p.timestamp, history.period), rate: p.midRate }))
+  }, [history])
 
   // 렌더링할 환율 차트 및 정보 콘텐츠
   const rateContent = (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-      {/* 회원일 경우 대시보드 내에서는 '홈으로' 링크를 생략하거나 유지할 수 있습니다. */}
-      {/* 여기서는 디자인 통일성을 위해 필요 시 추가/삭제 가능합니다. */}
       {!user && (
         <Link
           href="/"
@@ -86,6 +138,24 @@ export default function RatesPage() {
               <p className="text-3xl font-bold tabular-nums">
                 ₩{rate.midRate.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}
               </p>
+              {/* 전일(15:30 기준) 대비 변동률 — 상승 빨강 / 하락 파랑 (기준값 없으면 미표시) */}
+              {rate.changePercent != null && (
+                <p
+                  className={`mt-1 text-sm font-semibold tabular-nums ${
+                    rate.changePercent >= 0 ? "text-red-500" : "text-blue-500"
+                  }`}
+                >
+                  <span className="mr-1 text-xs font-normal text-muted-foreground">전일대비</span>
+                  {rate.changePercent >= 0 ? "▲" : "▼"} {rate.changePercent >= 0 ? "+" : ""}
+                  {rate.changePercent.toFixed(2)}%
+                  {rate.changeRate != null && (
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      ({rate.changeRate >= 0 ? "+" : ""}₩
+                      {rate.changeRate.toLocaleString("ko-KR", { maximumFractionDigits: 2 })})
+                    </span>
+                  )}
+                </p>
+              )}
               <p className="mt-1 text-xs text-muted-foreground">{formatFetchedAt(rate.fetchedAt)} 기준</p>
             </div>
           </div>
@@ -101,12 +171,37 @@ export default function RatesPage() {
 
       {/* 추이 차트 */}
       <Card className="mt-6 p-5">
-        <div>
-          <h2 className="text-lg font-bold">USD/KRW 추이</h2>
-          <p className="text-sm text-muted-foreground">최근 30일 (샘플 데이터)</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">USD/KRW 추이</h2>
+            <p className="text-sm text-muted-foreground">최근 {periodLabel}</p>
+          </div>
+          {/* 기간 선택 토글 */}
+          <div className="inline-flex gap-1 rounded-lg bg-secondary/60 p-1">
+            {PERIODS.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => setPeriod(p.key)}
+                className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                  period === p.key
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="mt-4 h-72 w-full">
-          <RateChart code="USD" />
+          {historyLoading ? (
+            <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+              <RefreshCw className="size-4 animate-spin" /> 추이를 불러오는 중...
+            </div>
+          ) : (
+            <RateChart data={chartData} />
+          )}
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button render={<Link href="/exchange" />} className="flex-1 sm:flex-none">
