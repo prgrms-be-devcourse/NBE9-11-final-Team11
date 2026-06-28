@@ -6,6 +6,7 @@ import com.fxflow.domain.transactionlimit.errorcode.TransactionLimitErrorCode;
 import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.service.UserService;
+import com.fxflow.domain.userlimitusage.service.UserExchangeUsageService;
 import com.fxflow.domain.wallet.dto.cache.ExchangeQuoteCache;
 import com.fxflow.domain.wallet.dto.request.ExchangeRequest;
 import com.fxflow.domain.wallet.dto.response.ExchangeResponse;
@@ -50,6 +51,8 @@ class ExchangeServiceExchangeTest {
     @Mock private TransactionLimitValidator transactionLimitValidator;
     @Mock private ExchangeTransactionRepository exchangeTransactionRepository;
     @Mock private LedgerEntryRepository ledgerEntryRepository;
+    @Mock private CurrencyLotService currencyLotService;
+    @Mock private UserExchangeUsageService userExchangeUsageService;
 
     @InjectMocks
     private ExchangeService exchangeService;
@@ -64,6 +67,9 @@ class ExchangeServiceExchangeTest {
     @BeforeEach
     void setUp() {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        // walletService가 mock이므로 KRW+USD 합산 헬퍼는 단위 변환 없이 그대로 통과시킨다 (이 테스트들은 정확한 환산값을 검증하지 않음).
+        lenient().when(walletService.toKrwEquivalent(anyString(), any(BigDecimal.class)))
+                .thenAnswer(invocation -> invocation.getArgument(1));
 
         userId = 1L;
         user = User.create("email", "password", "name");
@@ -113,6 +119,52 @@ class ExchangeServiceExchangeTest {
         verify(walletRepository).save(toWallet);
         verify(ledgerEntryRepository, times(2)).save(any(LedgerEntry.class));
         verify(redisTemplate).delete("quote:" + quoteId);
+
+        // KRW -> USD 방향은 한도 검증/사용량 누적 대상이다 (건당/일일은 KRW, 연간은 USD 단위로 검증/누적)
+        verify(transactionLimitValidator).validatePerExchange(eq(user), eq(cache.fromAmount()));
+        verify(transactionLimitValidator).validateDailyExchange(eq(user), eq(cache.fromAmount()));
+        verify(transactionLimitValidator).validateAnnualExchange(eq(user), eq(cache.toAmount()));
+        verify(userExchangeUsageService).addDailyExchange(eq(userId), any(), eq(cache.fromAmount()));
+        verify(userExchangeUsageService).addAnnualExchange(eq(userId), any(), eq(cache.toAmount()));
+    }
+
+    @Test
+    @DisplayName("USD -> KRW 환전은 한도 검증 및 사용량 누적을 하지 않는다")
+    void exchange_usdToKrw_skipsLimitValidationAndUsage() {
+        // given
+        ExchangeQuoteCache usdToKrwCache = new ExchangeQuoteCache(
+                userId, "USD", "KRW",
+                new BigDecimal("370.12"), new BigDecimal("500000"),
+                new BigDecimal("1350"), new BigDecimal("0.01"), new BigDecimal("1336.5"),
+                new BigDecimal("2500"), new BigDecimal("372.62")
+        );
+        Wallet usdFromWallet = Wallet.create(user, "USD", new BigDecimal("1000"));
+        ReflectionTestUtils.setField(usdFromWallet, "id", 12L);
+        Wallet krwToWallet = Wallet.create(user, "KRW", new BigDecimal("0"));
+        ReflectionTestUtils.setField(krwToWallet, "id", 13L);
+
+        ExchangeRequest request = new ExchangeRequest(quoteId);
+        given(valueOperations.get("quote:" + quoteId)).willReturn(usdToKrwCache);
+        given(walletService.getWalletWithLock(userId, "USD")).willReturn(usdFromWallet);
+        given(walletService.getWalletWithLock(userId, "KRW")).willReturn(krwToWallet);
+        given(userService.getUser(userId)).willReturn(user);
+        given(exchangeTransactionRepository.save(any(ExchangeTransaction.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        ExchangeResponse response = exchangeService.exchange(userId, request);
+
+        // then
+        assertThat(response).isNotNull();
+        verify(transactionLimitValidator, never()).validatePerExchange(any(), any());
+        verify(transactionLimitValidator, never()).validateDailyExchange(any(), any());
+        verify(transactionLimitValidator, never()).validateAnnualExchange(any(), any());
+        verify(userExchangeUsageService, never()).addDailyExchange(any(), any(), any());
+        verify(userExchangeUsageService, never()).addAnnualExchange(any(), any(), any());
+
+        // 보유 한도 검증은 방향과 무관하게 그대로 수행된다
+        verify(transactionLimitValidator).validateWalletHolding(eq(user), any(BigDecimal.class));
+        verify(currencyLotService).settleLots(eq(usdFromWallet), eq(krwToWallet), eq(usdToKrwCache.fromAmount()), eq(usdToKrwCache.toAmount()), eq(usdToKrwCache.finalRate()), anyString());
     }
 
     @Test
@@ -181,7 +233,7 @@ class ExchangeServiceExchangeTest {
 
         willThrow(new BusinessException(TransactionLimitErrorCode.DAILY_EXCHANGE_LIMIT_EXCEEDED))
                 .given(transactionLimitValidator)
-                .validateExchange(eq(user), any(BigDecimal.class));
+                .validateDailyExchange(eq(user), any(BigDecimal.class));
 
         // when & then
         assertThatThrownBy(() -> exchangeService.exchange(userId, request))

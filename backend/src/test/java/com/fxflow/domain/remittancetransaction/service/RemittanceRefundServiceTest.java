@@ -71,13 +71,13 @@ class RemittanceRefundServiceTest {
         verify(companyPoolService).withdrawForRemittance(
                 anyString(),
                 eq("KRW"),
-                eq(new BigDecimal("1008000.00")),
+                eq(new BigDecimal("1010000.00")),
                 anyString()
         );
         verify(mockBankAccountService).refundForRemittance(
                 anyString(),
                 eq(sourceMockAccountId),
-                eq(new BigDecimal("1008000.00")),
+                eq(new BigDecimal("1010000.00")),
                 eq("KRW"),
                 anyString()
         );
@@ -124,7 +124,7 @@ class RemittanceRefundServiceTest {
                 "USD",
                 new BigDecimal("736.52"),
                 new BigDecimal("1351.00000000"),
-                new BigDecimal("8000.00"),
+                new BigDecimal("10000.00"),
                 new BigDecimal("1000000.00"),
                 new BigDecimal("736.52"),
                 RemittanceReason.LIVING_EXPENSES.name(),

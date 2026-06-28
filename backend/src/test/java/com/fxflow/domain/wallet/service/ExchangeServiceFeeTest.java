@@ -4,6 +4,7 @@ import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.transactionlimit.validator.TransactionLimitValidator;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.domain.user.service.UserService;
+import com.fxflow.domain.userlimitusage.service.UserExchangeUsageService;
 import com.fxflow.domain.wallet.dto.cache.ExchangeQuoteCache;
 import com.fxflow.domain.wallet.dto.request.ExchangeRequest;
 import com.fxflow.domain.wallet.entity.ExchangeTransaction;
@@ -26,6 +27,7 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -41,6 +43,8 @@ class ExchangeServiceFeeTest {
     @Mock private TransactionLimitValidator transactionLimitValidator;
     @Mock private ExchangeTransactionRepository exchangeTransactionRepository;
     @Mock private LedgerEntryRepository ledgerEntryRepository;
+    @Mock private UserExchangeUsageService userExchangeUsageService;
+    @Mock private CurrencyLotService currencyLotService;
 
     @InjectMocks
     private ExchangeService exchangeService;
@@ -84,6 +88,9 @@ class ExchangeServiceFeeTest {
         given(valueOperations.get("quote:" + quoteId)).willReturn(cache);
         given(exchangeTransactionRepository.save(any(ExchangeTransaction.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
+        // walletService가 mock이므로 KRW+USD 합산 헬퍼는 단위 변환 없이 그대로 통과시킨다.
+        lenient().when(walletService.toKrwEquivalent(anyString(), any(BigDecimal.class)))
+                .thenAnswer(invocation -> invocation.getArgument(1));
     }
 
     @Test

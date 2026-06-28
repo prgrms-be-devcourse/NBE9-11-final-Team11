@@ -32,6 +32,7 @@ public class P2pTransferService {
     private final P2pTransferRepository p2pTransferRepository;
     private final UserService userService;
     private final TransactionLimitValidator transactionLimitValidator;
+    private final CurrencyLotService currencyLotService;
 
     @Transactional
     public P2pTransferResponse transfer(Long userId, P2pTransferRequest request) {
@@ -52,9 +53,13 @@ public class P2pTransferService {
             throw new BusinessException(WalletErrorCode.INSUFFICIENT_BALANCE);
         }
 
-        // 상대 월렛 한도 검증
+        // 상대 월렛 한도 검증 (KRW+USD 합산 기준)
         Wallet recipientWallet = walletService.getWalletWithLock(recipient.getId(), request.currency());
-        transactionLimitValidator.validateWalletHolding(recipient, recipientWallet.getBalance().add(amount));
+        BigDecimal recipientBalanceAfter = recipientWallet.getBalance().add(amount);
+        transactionLimitValidator.validateWalletHolding(
+                recipient,
+                walletService.getTotalHoldingKrw(recipientId, request.currency(), recipientBalanceAfter)
+        );
 
         // 양쪽 wallet balance 업데이트
         BigDecimal senderBeforeBalance = senderWallet.getBalance();
@@ -62,8 +67,11 @@ public class P2pTransferService {
         BigDecimal senderAfterBalance = senderWallet.withdraw(amount);
         BigDecimal recipientAfterBalance = recipientWallet.deposit(amount);
 
-        // p2p transfer 기록
+        // lot 정산
         String transferId = P2pTransfer.generateTransferId();
+        currencyLotService.settleLots(senderWallet, recipientWallet, amount, transferId);
+
+        // p2p transfer 기록
         P2pTransfer transfer = P2pTransfer.create(
                 transferId,
                 senderWallet,

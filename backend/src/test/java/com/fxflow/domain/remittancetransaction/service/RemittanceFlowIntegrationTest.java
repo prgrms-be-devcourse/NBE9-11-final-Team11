@@ -216,6 +216,53 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("주문 생성 동시성: 동일 사용자가 여러 송금 주문을 동시에 생성해도 선점 한도가 정확히 누적된다")
+    void concurrentCreateTransfer_reservesAnnualLimitAtomically() throws Exception {
+        User sender = createUser("sender-create-concurrent@example.com", "동시주문대상");
+        Recipient recipient = createRecipient(sender, "Create Concurrent Recipient", "Citibank", "98765432105");
+        int requestCount = 10;
+
+        ExecutorService executorService = Executors.newFixedThreadPool(requestCount);
+        CountDownLatch readyLatch = new CountDownLatch(requestCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+
+        try {
+            List<Future<RemittanceTransactionCreateResponse>> futures = java.util.stream.IntStream
+                    .range(0, requestCount)
+                    .mapToObj(index -> executorService.submit(() -> createTransferAfterStartSignal(
+                            sender,
+                            recipient,
+                            "idem-create-concurrent-%03d".formatted(index),
+                            readyLatch,
+                            startLatch
+                    )))
+                    .toList();
+
+            assertThat(readyLatch.await(3, TimeUnit.SECONDS)).isTrue();
+            startLatch.countDown();
+
+            List<RemittanceTransactionCreateResponse> responses = futures.stream()
+                    .map(future -> {
+                        try {
+                            return future.get(10, TimeUnit.SECONDS);
+                        } catch (Exception e) {
+                            throw new IllegalStateException(e);
+                        }
+                    })
+                    .toList();
+
+            assertThat(responses).hasSize(requestCount);
+            assertThat(remittanceTransactionRepository.findAll()).hasSize(requestCount);
+            assertMoney(
+                    annualUsedUsd(sender),
+                    new BigDecimal("1000.00000000").multiply(BigDecimal.valueOf(requestCount))
+            );
+        } finally {
+            executorService.shutdownNow();
+        }
+    }
+
+    @Test
     @DisplayName("미입금 만료: 가상계좌는 EXPIRED, 송금 거래는 CANCELED가 되고 선점 한도를 복구한다")
     void expirePendingTransfer_cancelsTransferAndRestoresAnnualLimit() {
         insertCompanyPool(KRW, INITIAL_KRW_POOL);
@@ -266,6 +313,23 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
                 ),
                 idempotencyKey
         );
+    }
+
+    private RemittanceTransactionCreateResponse createTransferAfterStartSignal(
+            User sender,
+            Recipient recipient,
+            String idempotencyKey,
+            CountDownLatch readyLatch,
+            CountDownLatch startLatch
+    ) {
+        readyLatch.countDown();
+        try {
+            startLatch.await();
+            return createTransfer(sender, recipient, idempotencyKey);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
     }
 
     private User createUser(String email, String name) {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { ArrowDownUp, Info } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
@@ -14,10 +15,12 @@ import {
   CURRENCY_META,
   formatKRW,
   formatCurrency,
+  sanitizeDecimalInput,
 } from "@/lib/fx-data"
 import { apiRequest } from "@/lib/api"
 
 export default function ExchangePage() {
+  const router = useRouter()
   const [krwBalance, setKrwBalance] = useState<number>(0)
   const [usdBalance, setUsdBalance] = useState<number>(0)
   const [direction, setDirection] = useState<"KRW_TO_USD" | "USD_TO_KRW">("KRW_TO_USD")
@@ -25,6 +28,7 @@ export default function ExchangePage() {
   const [quote, setQuote] = useState<any>(null)
   const [loadingQuote, setLoadingQuote] = useState(false)
   const [quoteError, setQuoteError] = useState<string>("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [timeLeft, setTimeLeft] = useState(300)
 
@@ -127,10 +131,12 @@ export default function ExchangePage() {
     setQuoteError("")
     if (direction === "KRW_TO_USD") {
       setDirection("USD_TO_KRW")
-      setInputAmount("1")
+      const nextAmount = received >= 1 ? Number(received.toFixed(2)) : 1
+      setInputAmount(String(nextAmount))
     } else {
       setDirection("KRW_TO_USD")
-      setInputAmount("1000")
+      const nextAmount = received >= 1000 ? Math.round(received) : 1000
+      setInputAmount(String(nextAmount))
     }
   }
 
@@ -142,22 +148,26 @@ export default function ExchangePage() {
   }
 
   async function submit() {
+    if (isSubmitting) return
     if (parsedAmount <= 0) return toast.error("환전할 금액을 입력하세요.")
     if (quoteError) return toast.error(quoteError)
     if (!quote || !quote.quoteId) return toast.error("견적을 불러오는 중이거나 실패했습니다.")
     if (totalDeduct > currentBalance) return toast.error(`${fromCurrency} 잔액이 부족합니다.`)
 
+    setIsSubmitting(true)
     try {
       const res = await apiRequest<any>("POST", "/api/v1/wallets/exchange", {
         quoteId: quote.quoteId,
       })
       toast.success(`${formatCurrency(res.toAmount, res.toCurrency)} 환전이 완료되었습니다.`)
-      setInputAmount("")
+      setInputAmount(fromCurrency === "KRW" ? "1000" : "1")
       setQuote(null)
-      fetchBalances()
+      router.push("/wallet")
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || "환전에 실패했습니다.")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -198,7 +208,7 @@ export default function ExchangePage() {
                     if (fromCurrency === "KRW") {
                       setInputAmount(val.replace(/[^\d]/g, ""))
                     } else {
-                      setInputAmount(val.replace(/[^\d.]/g, ""))
+                      setInputAmount(sanitizeDecimalInput(val))
                     }
                   }}
                   className="border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
@@ -261,8 +271,8 @@ export default function ExchangePage() {
             </Button>
           </div>
 
-          <Button className="mt-5 w-full" size="lg" onClick={submit} disabled={isBelowMin || loadingQuote || !!quoteError}>
-            환전하기
+          <Button className="mt-5 w-full" size="lg" onClick={submit} disabled={isBelowMin || loadingQuote || !!quoteError || isSubmitting}>
+            {isSubmitting ? "환전 처리 중..." : "환전하기"}
           </Button>
         </Card>
 
