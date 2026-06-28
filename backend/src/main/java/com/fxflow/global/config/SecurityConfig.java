@@ -6,9 +6,12 @@ import com.fxflow.global.security.JwtAuthenticationFilter;
 import com.fxflow.global.security.JwtTokenProvider;
 import com.fxflow.global.security.TokenBlacklistService;
 import com.fxflow.global.security.errorcode.AuthErrorCode;
+import jakarta.servlet.Filter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -32,8 +35,22 @@ public class SecurityConfig {
     private final ObjectMapper objectMapper;
     private final CorsConfigurationSource corsConfigurationSource;
 
+    // dev security backdoor 관련 코드
+    private Filter testUserFilter;
+    @Autowired(required = false)
+    @Qualifier("testUserFilter")
+    public void setTestUserFilter(Filter testUserFilter) {
+        this.testUserFilter = testUserFilter;
+    }
+    // ----------------------
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
+        if (testUserFilter != null) {
+            http.addFilterBefore(testUserFilter, UsernamePasswordAuthenticationFilter.class);
+        }
+
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))

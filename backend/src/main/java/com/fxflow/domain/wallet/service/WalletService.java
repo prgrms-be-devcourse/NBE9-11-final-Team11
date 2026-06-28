@@ -175,11 +175,6 @@ public class WalletService {
         return TransactionHistoryResponse.from(responsePage);
     }
 
-    // 지갑 충전, mock bank account -> 지갑
-    // 지갑 출금, 지갑 -> mock bank account
-    // 지갑 <-> 지갑 P2P 송금
-    // 지갑 내 환전
-
     @Transactional
     public TransactionResponse charge(Long userId, ChargeRequest request) {
         BigDecimal amount = request.amount();
