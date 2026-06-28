@@ -151,7 +151,7 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
     if (redirectCountdown === null) return
 
     if (redirectCountdown <= 0) {
-      router.push("/transactions?tab=remittance")
+      router.push(`/transactions?tab=remittance&transferId=${transferId}`)
       return
     }
 

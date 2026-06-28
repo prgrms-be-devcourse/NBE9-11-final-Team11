@@ -284,6 +284,62 @@ class RemittanceTransactionServiceTest {
     }
 
     @Test
+    @DisplayName("실패: 해외송금 견적 산출 시 금액 기준이 없으면 비즈니스 예외가 발생한다")
+    void createQuote_fail_amountNotProvided() {
+        // given
+        Long userId = 1L;
+        RemittanceTransactionQuoteRequest request = new RemittanceTransactionQuoteRequest(
+                1L,
+                null,
+                null,
+                RemittanceReason.LIVING_EXPENSES
+        );
+        Recipient recipient = createRecipient(userId);
+        FxRateSnapshot fxRateSnapshot = createFxRateSnapshot();
+
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
+                .thenReturn(Optional.of(recipient));
+        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+                .thenReturn(Optional.of(fxRateSnapshot));
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createQuote(userId, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RemittanceTransactionErrorCode.INVALID_REMITTANCE_AMOUNT);
+
+        verifyNoInteractions(redisTemplate);
+    }
+
+    @Test
+    @DisplayName("실패: 해외송금 견적 산출 시 원화 금액과 수취 외화 금액을 동시에 입력하면 비즈니스 예외가 발생한다")
+    void createQuote_fail_multipleAmountCriteria() {
+        // given
+        Long userId = 1L;
+        RemittanceTransactionQuoteRequest request = new RemittanceTransactionQuoteRequest(
+                1L,
+                new BigDecimal("1000000"),
+                new BigDecimal("20"),
+                RemittanceReason.LIVING_EXPENSES
+        );
+        Recipient recipient = createRecipient(userId);
+        FxRateSnapshot fxRateSnapshot = createFxRateSnapshot();
+
+        when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
+                .thenReturn(Optional.of(recipient));
+        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+                .thenReturn(Optional.of(fxRateSnapshot));
+
+        // when & then
+        assertThatThrownBy(() -> remittanceTransactionService.createQuote(userId, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(RemittanceTransactionErrorCode.INVALID_REMITTANCE_AMOUNT);
+
+        verifyNoInteractions(redisTemplate);
+    }
+
+    @Test
     @DisplayName("성공: 송금 주문을 생성하고 가상계좌를 발급한다")
     void createTransfer_success() {
         // given

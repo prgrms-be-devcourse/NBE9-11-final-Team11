@@ -565,6 +565,7 @@ public class RemittanceTransactionService {
                 ));
 
         BigDecimal exchangeRate = applyRemittanceExchangeSpread(fxRateSnapshot.midRate());
+        validateQuoteAmountRequest(request);
         BigDecimal receiveAmountUsd = resolveReceiveAmountUsd(request, exchangeRate);
         BigDecimal sendAmountKrw = resolveSendAmountKrw(request, exchangeRate, receiveAmountUsd);
         validateMinimumSendAmount(sendAmountKrw);
@@ -606,6 +607,15 @@ public class RemittanceTransactionService {
                 quoteId,
                 expiredAt
         );
+    }
+
+    private void validateQuoteAmountRequest(RemittanceTransactionQuoteRequest request) {
+        boolean hasSendAmount = request.sendAmountKrw() != null;
+        boolean hasReceiveAmount = request.receiveAmountUsd() != null;
+
+        if (hasSendAmount == hasReceiveAmount) {
+            throw new BusinessException(RemittanceTransactionErrorCode.INVALID_REMITTANCE_AMOUNT);
+        }
     }
 
     private BigDecimal resolveReceiveAmountUsd(

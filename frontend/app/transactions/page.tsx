@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { Suspense, useMemo, useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Send, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { AppShell } from "@/components/app/app-shell"
@@ -28,6 +29,7 @@ const typeMeta: Record<TxType, { label: string; icon: typeof ArrowDownLeft }> = 
 
 const PAGE_SIZE = 20
 const PAGE_GROUP_SIZE = 5
+const REMITTANCE_REDIRECT_RETRY_LIMIT = 6
 
 const statusLabels: Record<TxStatus | "all", string> = {
   all: "전체 상태",
@@ -48,7 +50,30 @@ function formatRate(rate: number) {
 }
 
 export default function TransactionsPage() {
-  const [activeTab, setActiveTab] = useState<"wallet" | "remittance">("wallet")
+  return (
+    <Suspense fallback={<TransactionsFallback />}>
+      <TransactionsContent />
+    </Suspense>
+  )
+}
+
+function TransactionsFallback() {
+  return (
+    <AppShell title="거래내역">
+      <Card className="p-10 text-center">
+        <p className="text-sm text-muted-foreground">거래 내역을 불러오는 중입니다...</p>
+      </Card>
+    </AppShell>
+  )
+}
+
+function TransactionsContent() {
+  const searchParams = useSearchParams()
+  const requestedTab = searchParams.get("tab")
+  const targetTransferId = searchParams.get("transferId")
+  const [activeTab, setActiveTab] = useState<"wallet" | "remittance">(
+    () => (requestedTab === "remittance" ? "remittance" : "wallet")
+  )
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [fromDate, setFromDate] = useState("")
@@ -58,13 +83,17 @@ export default function TransactionsPage() {
   const [detail, setDetail] = useState<Transaction | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
+  const [remittanceRefreshKey, setRemittanceRefreshKey] = useState(0)
+  const [remittanceRedirectRetryCount, setRemittanceRedirectRetryCount] = useState(0)
 
   useEffect(() => {
-    const tab = new URLSearchParams(window.location.search).get("tab")
-    if (tab === "remittance") {
-      setActiveTab("remittance")
-    }
-  }, [])
+    setActiveTab(requestedTab === "remittance" ? "remittance" : "wallet")
+  }, [requestedTab])
+
+  useEffect(() => {
+    setRemittanceRedirectRetryCount(0)
+    setRemittanceRefreshKey((key) => key + 1)
+  }, [targetTransferId])
 
   // Reset page when tab, filter, or type changes
   useEffect(() => {
@@ -224,6 +253,18 @@ export default function TransactionsPage() {
 
           setTotalCount(mapped.length)
           setTransactions(mapped)
+
+          const missingRedirectedTransfer =
+            targetTransferId &&
+            !mapped.some((tx) => tx.id === `r-${targetTransferId}`) &&
+            remittanceRedirectRetryCount < REMITTANCE_REDIRECT_RETRY_LIMIT
+
+          if (missingRedirectedTransfer) {
+            window.setTimeout(() => {
+              setRemittanceRedirectRetryCount((count) => count + 1)
+              setRemittanceRefreshKey((key) => key + 1)
+            }, 500)
+          }
         }
       } catch (err) {
         console.error("Failed to load transactions:", err)
@@ -234,7 +275,17 @@ export default function TransactionsPage() {
       }
     }
     load()
-  }, [activeTab, fromDate, toDate, walletType, remitStatus, currentPage])
+  }, [
+    activeTab,
+    fromDate,
+    toDate,
+    walletType,
+    remitStatus,
+    currentPage,
+    remittanceRefreshKey,
+    remittanceRedirectRetryCount,
+    targetTransferId,
+  ])
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const pagedTransactions = activeTab === "wallet"
