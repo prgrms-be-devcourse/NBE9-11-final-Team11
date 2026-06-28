@@ -22,13 +22,17 @@ public class DevSecurityConfig {
             String testUserId = req.getHeader("X-Test-User-Id");
 
             if (testUserId != null) {
-                UsernamePasswordAuthenticationToken auth =
-                        new UsernamePasswordAuthenticationToken(
-                                Long.parseLong(testUserId),
-                                null,
-                                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
-                        );
-                SecurityContextHolder.getContext().setAuthentication(auth);
+                try {
+                    UsernamePasswordAuthenticationToken auth =
+                            new UsernamePasswordAuthenticationToken(
+                                    Long.parseLong(testUserId),
+                                    null,
+                                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+                            );
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                } catch (NumberFormatException e) {
+                    // Invalid user ID format, skip authentication
+                }
             }
             chain.doFilter(request, response);
         };
