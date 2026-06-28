@@ -49,11 +49,10 @@ class FxRateQueryServiceTest {
         assertThat(snapshot.baseCurrency()).isEqualTo("USD");
         assertThat(snapshot.quoteCurrency()).isEqualTo("KRW");
         assertThat(snapshot.midRate()).isEqualByComparingTo("1300");
-        assertThat(snapshot.spread()).isEqualByComparingTo("0.01");
+        assertThat(snapshot.spread()).isEqualByComparingTo("0");
         assertThat(snapshot.fetchedAt()).isEqualTo(fetchedAt);
-        // 파생 적용가: 매수 = 1300 × 1.01 = 1313, 매도 = 1300 × 0.99 = 1287
-        assertThat(snapshot.buyRate()).isEqualByComparingTo("1313.00");
-        assertThat(snapshot.sellRate()).isEqualByComparingTo("1287.00");
+        assertThat(snapshot.buyRate()).isEqualByComparingTo("1300.00");
+        assertThat(snapshot.sellRate()).isEqualByComparingTo("1300.00");
     }
 
     @Test

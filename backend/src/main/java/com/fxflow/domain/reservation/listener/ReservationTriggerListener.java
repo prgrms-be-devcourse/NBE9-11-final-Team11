@@ -66,10 +66,11 @@ public class ReservationTriggerListener {
     /**
      * 목표 환율 도달 판정 — 체결 적용가(매수/매도) 기준이라 실제 체결 환율이 목표를 반드시 만족하도록.
      * 매수(KRW→USD): buyRate ≤ target / 매도(USD→KRW): sellRate ≥ target
-     * 만료 시각이 지난 예약은 제외(만료 전이는 별도 스케줄러가 담당)
+     * 만료 시각이 지난 예약은 제외(만료 전이는 별도 스케줄러가 담당). 만료 시각이 null 이면 무기한이라 통과
      */
     private boolean isTargetReached(Reservation reservation, FxRateSnapshot snapshot) {
-        if (!reservation.getExpiresAt().isAfter(LocalDateTime.now())) {
+        // null = 무기한(만료 없음) → 통과. 값이 있고 이미 지난 예약만 제외.
+        if (reservation.getExpiresAt() != null && !reservation.getExpiresAt().isAfter(LocalDateTime.now())) {
             return false;
         }
         String from = reservation.getFromCurrency();

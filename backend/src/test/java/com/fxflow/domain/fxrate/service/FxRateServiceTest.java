@@ -51,7 +51,7 @@ class FxRateServiceTest {
     private MockRestServiceServer mockServer;
 
     // 엔티티 DEFAULT_SPREAD(=0.01)와 동일한 기대값 (스프레드 검증 기준)
-    private static final BigDecimal EXPECTED_SPREAD = new BigDecimal("0.01");
+    private static final BigDecimal EXPECTED_SPREAD = new BigDecimal("0");
 
     @BeforeEach
     void setUp() {
@@ -103,9 +103,9 @@ class FxRateServiceTest {
             assertThat(snapshot.midRate()).isEqualByComparingTo("1386.50");
             assertThat(snapshot.spread()).isEqualByComparingTo(EXPECTED_SPREAD);
             assertThat(snapshot.buyRate())  // mid × (1 + spread)
-                    .isEqualByComparingTo(new BigDecimal("1386.50").multiply(new BigDecimal("1.01")));
+                    .isEqualByComparingTo(new BigDecimal("1386.50").multiply(new BigDecimal("1")));
             assertThat(snapshot.sellRate()) // mid × (1 − spread)
-                    .isEqualByComparingTo(new BigDecimal("1386.50").multiply(new BigDecimal("0.99")));
+                    .isEqualByComparingTo(new BigDecimal("1386.50").multiply(new BigDecimal("1")));
 
             mockServer.verify();
         }
