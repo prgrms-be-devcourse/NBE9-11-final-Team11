@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useMemo, useState } from "react"
-import { CalendarClock, AlertTriangle, Plus, Eye, X, RefreshCw } from "lucide-react"
+import { CalendarClock, AlertTriangle, Plus, X, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -20,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ReservationStatusBadge } from "@/components/app/status-badges"
 import { usePollingRefresh } from "@/hooks/use-polling-refresh"
 import { CURRENCY_META, formatKRW, formatCurrency } from "@/lib/fx-data"
+import { getLocalIsoDate } from "@/lib/utils"
 import {
   getLatestRate,
   getReservations,
@@ -53,10 +54,24 @@ function directionOf(r: ReservationResponse): Direction {
   return r.fromCurrency === "USD" ? "SELL" : "BUY"
 }
 
-// 로컬 타임존 오프셋을 반영한 ISO 스트링 생성 유틸 함수
-function getLocalIsoDate(date: Date) {
-  const offset = date.getTimezoneOffset() * 60000
-  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
+// 예약 금액은 fromCurrency 기준 — 매도(USD)는 $, 매수(KRW)는 ₩ 로 표기
+function formatAmount(r: ReservationResponse): string {
+  return r.fromCurrency === "USD" ? formatCurrency(r.amount, "USD") : formatKRW(r.amount)
+}
+
+// 매수=파랑(primary) / 매도=빨강(destructive) 색상 뱃지 (아이콘 없이 라벨+색으로 구분)
+function DirectionBadge({ direction }: { direction: Direction }) {
+  const isBuy = direction === "BUY"
+  return (
+    <span
+      className={
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium " +
+        (isBuy ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")
+      }
+    >
+      {isBuy ? "USD 매수" : "USD 매도"}
+    </span>
+  )
 }
 
 export default function ReservationsPage() {
@@ -67,15 +82,17 @@ export default function ReservationsPage() {
   const [direction, setDirection] = useState<Direction>("BUY")
   const [targetRate, setTargetRate] = useState("")
   const [amount, setAmount] = useState("")
+  const [indefinite, setIndefinite] = useState(true) // 기본 무기한
   const [expiresAt, setExpiresAt] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 14)
     return getLocalIsoDate(d)
   })
   const [submitting, setSubmitting] = useState(false)
-  const [detail, setDetail] = useState<ReservationResponse | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<ReservationResponse | null>(null)
+  const [canceling, setCanceling] = useState(false)
 
-  const todayStr = useMemo(() => getLocalIsoDate(new Date()), [])
+  const todayStr = useMemo(() => getLocalIsoDate(), [])
 
   const loadReservations = useCallback(async () => {
     try {
@@ -107,12 +124,20 @@ export default function ReservationsPage() {
   const amountNum = Number(amount) || 0
   const amountCurrency = direction === "BUY" ? "KRW" : "USD"
 
-  // 방향별 제약: 매수는 현재 환율보다 낮게, 매도는 현재 환율보다 높게 설정해야 함 (현재가와 동일한 예약 방지)
+  // 목표 환율 기준 예상 수령액 (단순 환산, 수수료 미반영)
+  const estimateReceive =
+    targetNum > 0 && amountNum > 0
+      ? direction === "BUY"
+        ? formatCurrency(amountNum / targetNum, "USD") // KRW로 USD 매수 → 수령 USD
+        : formatKRW(amountNum * targetNum) // USD 매도 → 수령 KRW
+      : null
+
+  // 방향별 제약: 매수는 현재 환율보다 높게, 매도는 현재 환율보다 낮게 예약 불가
   const violatesDirection =
     currentRate > 0 &&
     targetNum > 0 &&
-    ((direction === "BUY" && targetNum >= currentRate) ||
-      (direction === "SELL" && targetNum <= currentRate))
+    ((direction === "BUY" && targetNum > currentRate) ||
+      (direction === "SELL" && targetNum < currentRate))
 
   function switchDirection(d: Direction) {
     if (d === direction) return
@@ -126,10 +151,10 @@ export default function ReservationsPage() {
       return toast.error("현재 환율을 불러오는 중입니다. 잠시 후 다시 시도하세요.")
     if (targetNum <= 0) return toast.error("목표 환율을 입력하세요.")
     if (amountNum <= 0) return toast.error("금액을 입력하세요.")
-    if (direction === "BUY" && targetNum >= currentRate)
-      return toast.error("매수 예약은 현재 환율보다 낮은 목표 환율이어야 합니다.")
-    if (direction === "SELL" && targetNum <= currentRate)
-      return toast.error("매도 예약은 현재 환율보다 높은 목표 환율이어야 합니다.")
+    if (direction === "BUY" && targetNum > currentRate)
+      return toast.error("매수 예약은 현재 환율보다 높은 목표 환율로 설정할 수 없습니다.")
+    if (direction === "SELL" && targetNum < currentRate)
+      return toast.error("매도 예약은 현재 환율보다 낮은 목표 환율로 설정할 수 없습니다.")
 
     const [fromCurrency, toCurrency] = direction === "BUY" ? ["KRW", "USD"] : ["USD", "KRW"]
 
@@ -142,8 +167,8 @@ export default function ReservationsPage() {
           toCurrency,
           amount: amountNum,
           targetRate: targetNum,
-          // 만료일 끝(23:59:59)으로 보내 @Future 검증과 사용자 기대를 맞춘다.
-          expiresAt: `${expiresAt}T23:59:59`,
+          // 무기한이면 expiresAt 미전송(백엔드에서 null = 만료 없음). 아니면 만료일 끝(23:59:59).
+          ...(indefinite ? {} : { expiresAt: `${expiresAt}T23:59:59` }),
         },
         crypto.randomUUID(),
       )
@@ -152,20 +177,32 @@ export default function ReservationsPage() {
       setAmount("")
       await loadReservations()
     } catch (err: any) {
-      toast.error(err?.message || "예약 등록에 실패했습니다.")
+      // 중복 예약(R-007)은 방향별 문구로 안내 — 메시지 텍스트가 아닌 에러 코드로 분기
+      if (err?.code === "R-007") {
+        toast.error(
+          direction === "BUY"
+            ? "이미 예약 중인 매수 신청이 있습니다."
+            : "이미 예약 중인 매도 신청이 있습니다.",
+        )
+      } else {
+        toast.error(err?.message || "예약 등록에 실패했습니다.")
+      }
     } finally {
       setSubmitting(false)
     }
   }
 
-  async function handleCancel(id: number) {
+  async function doCancel(id: number) {
+    setCanceling(true)
     try {
       await cancelReservationApi(id)
       toast.success("예약이 취소되었습니다.")
-      setDetail(null)
+      setCancelTarget(null)
       await loadReservations()
     } catch (err: any) {
       toast.error(err?.message || "예약 취소에 실패했습니다.")
+    } finally {
+      setCanceling(false)
     }
   }
 
@@ -245,8 +282,8 @@ export default function ReservationsPage() {
                 <div className="flex items-start gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">
                   <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                   {direction === "BUY"
-                    ? "매수 예약은 현재 환율보다 낮은 목표 환율로 설정해야 합니다."
-                    : "매도 예약은 현재 환율보다 높은 목표 환율로 설정해야 합니다."}
+                    ? "매수 예약은 현재 환율보다 높은 목표 환율로 설정할 수 없습니다."
+                    : "매도 예약은 현재 환율보다 낮은 목표 환율로 설정할 수 없습니다."}
                 </div>
               )}
             </div>
@@ -258,7 +295,9 @@ export default function ReservationsPage() {
                 id="res-amount"
                 inputMode={direction === "BUY" ? "numeric" : "decimal"}
                 placeholder="0"
-                value={amount}
+                value={
+                  direction === "BUY" ? (amount ? Number(amount).toLocaleString("ko-KR") : "") : amount
+                }
                 onChange={(e) =>
                   setAmount(
                     direction === "BUY"
@@ -267,24 +306,52 @@ export default function ReservationsPage() {
                   )
                 }
               />
-              {direction === "BUY" && amount && (
-                <p className="text-right text-xs text-muted-foreground tabular-nums">
-                  {Number(amount).toLocaleString("ko-KR")} 원
-                </p>
-              )}
             </div>
 
-            {/* 만료일 */}
+            {/* 만료일 (기본 무기한, 지정 시 날짜 입력) */}
             <div className="space-y-2">
-              <Label htmlFor="res-expires">만료일</Label>
-              <Input
-                id="res-expires"
-                type="date"
-                min={todayStr}
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
-              />
+              <Label>만료일</Label>
+              {indefinite ? (
+                <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/40 px-3 py-2 text-sm">
+                  <span className="font-medium">무기한</span>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setIndefinite(false)}>
+                    만료일 지정하기
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Input
+                    id="res-expires"
+                    type="date"
+                    min={todayStr}
+                    value={expiresAt}
+                    onChange={(e) => setExpiresAt(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                    onClick={() => setIndefinite(true)}
+                  >
+                    무기한으로 변경
+                  </button>
+                </>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {indefinite
+                  ? "만료 없이 목표 환율 도달 시까지 유지됩니다."
+                  : "지정한 날짜까지 도달하지 않으면 만료됩니다."}
+              </p>
             </div>
+
+            {/* 예상 수령액 (목표 환율 기준 단순 환산, 수수료 미반영) */}
+            {estimateReceive && (
+              <div className="flex items-center justify-between rounded-xl bg-primary/5 px-3 py-2.5 text-sm">
+                <span className="text-muted-foreground">
+                  예상 수령액 <span className="text-[11px]">(목표 환율 기준)</span>
+                </span>
+                <span className="font-bold tabular-nums text-primary">≈ {estimateReceive}</span>
+              </div>
+            )}
 
             <Button
               className="w-full"
@@ -318,8 +385,10 @@ export default function ReservationsPage() {
                     <TableHead>예약번호</TableHead>
                     <TableHead>유형</TableHead>
                     <TableHead className="text-right">목표환율</TableHead>
+                    <TableHead className="text-right">신청 금액</TableHead>
                     <TableHead>상태</TableHead>
                     <TableHead>생성일</TableHead>
+                    <TableHead>만료일</TableHead>
                     <TableHead className="text-right">관리</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -328,36 +397,35 @@ export default function ReservationsPage() {
                     <TableRow key={r.reservationId}>
                       <TableCell className="font-mono text-xs">#{r.reservationId}</TableCell>
                       <TableCell>
-                        <span className="inline-flex items-center gap-1.5">
-                          <span aria-hidden>{usd.flag}</span>
-                          {directionOf(r) === "BUY" ? "USD 매수" : "USD 매도"}
-                        </span>
+                        <DirectionBadge direction={directionOf(r)} />
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         ₩{r.targetRate.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-right tabular-nums">{formatAmount(r)}</TableCell>
+                      <TableCell title={r.status === "FAILED" ? r.failureReason : undefined}>
                         <ReservationStatusBadge status={r.status} />
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground tabular-nums">
                         {formatDate(r.createdAt)}
                       </TableCell>
+                      <TableCell className="text-sm text-muted-foreground tabular-nums">
+                        {r.expiresAt ? formatDate(r.expiresAt) : "무기한"}
+                      </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => setDetail(r)}>
-                            <Eye className="size-4" />
-                            <span className="sr-only">상세보기</span>
-                          </Button>
-                          {r.status === "ACTIVE" && (
+                          {r.status === "ACTIVE" ? (
                             <Button
                               variant="ghost"
                               size="sm"
                               className="text-destructive hover:text-destructive"
-                              onClick={() => handleCancel(r.reservationId)}
+                              onClick={() => setCancelTarget(r)}
                             >
                               <X className="size-4" />
                               <span className="sr-only">취소</span>
                             </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </div>
                       </TableCell>
@@ -370,58 +438,29 @@ export default function ReservationsPage() {
         </Card>
       </div>
 
-      {/* Detail dialog */}
-      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+      {/* Cancel confirm dialog */}
+      <Dialog open={!!cancelTarget} onOpenChange={(o) => !o && !canceling && setCancelTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>예약 상세</DialogTitle>
-            <DialogDescription className="font-mono text-xs">#{detail?.reservationId}</DialogDescription>
+            <DialogTitle>예약 취소</DialogTitle>
+            <DialogDescription>
+              정말 예약을 취소하시겠습니까? 취소한 예약은 되돌릴 수 없습니다.
+            </DialogDescription>
           </DialogHeader>
-          {detail && (
-            <dl className="space-y-2.5 text-sm">
-              <Row label="유형" value={`${usd.flag} ${directionOf(detail) === "BUY" ? "USD 매수" : "USD 매도"}`} />
-              <Row
-                label="목표 환율"
-                value={`₩${detail.targetRate.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}`}
-              />
-              <Row
-                label="예약 금액"
-                value={detail.fromCurrency === "USD" ? formatCurrency(detail.amount, "USD") : formatKRW(detail.amount)}
-              />
-              <Separator />
-              <div className="flex items-center justify-between">
-                <dt className="text-muted-foreground">상태</dt>
-                <dd>
-                  <ReservationStatusBadge status={detail.status} />
-                </dd>
-              </div>
-              <Row label="생성일" value={formatDate(detail.createdAt)} />
-              <Row label="만료일" value={formatDate(detail.expiresAt)} />
-              {detail.status === "FAILED" && detail.failureReason && (
-                <Row label="실패 사유" value={detail.failureReason} />
-              )}
-            </dl>
-          )}
-          {detail?.status === "ACTIVE" && (
-            <Button
-              variant="outline"
-              className="w-full text-destructive hover:text-destructive"
-              onClick={() => detail && handleCancel(detail.reservationId)}
-            >
-              예약 취소
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCancelTarget(null)} disabled={canceling}>
+              닫기
             </Button>
-          )}
+            <Button
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => cancelTarget && doCancel(cancelTarget.reservationId)}
+              disabled={canceling}
+            >
+              {canceling ? "취소 중..." : "예약 취소"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </AppShell>
-  )
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium tabular-nums">{value}</dd>
-    </div>
   )
 }

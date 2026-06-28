@@ -253,7 +253,7 @@ export interface ReservationResponse {
   toCurrency: string
   amount: number
   targetRate: number
-  expiresAt: string // ISO LocalDateTime (예: "2026-07-09T23:59:59")
+  expiresAt?: string // ISO LocalDateTime. null(무기한)이면 응답에서 생략됨
   recipientId?: number
   remittanceReason?: string
   remittanceReasonDetail?: string
@@ -279,7 +279,7 @@ export interface CreateReservationRequest {
   toCurrency: string
   amount: number
   targetRate: number
-  expiresAt: string // LocalDateTime — 타임존 없는 ISO (예: "2026-07-09T23:59:59")
+  expiresAt?: string | null // LocalDateTime(타임존 없는 ISO). 생략/null = 무기한(만료 없음)
   recipientId?: number | null
   remittanceReason?: string | null
   remittanceReasonDetail?: string | null
