@@ -50,8 +50,8 @@ public class Reservation extends BaseEntity {
     @Column(name = "type", length = 30, nullable = false)
     private ReservationType type;                 // 예약 조건: TARGET_RATE / SCHEDULED
 
-    @Column(name = "expires_at", nullable = false)
-    private LocalDateTime expiresAt;              // 만료 시각 (기한 내 미도달 시 EXPIRED)
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;              // 만료 시각 (기한 내 미도달 시 EXPIRED). null = 무기한(만료 없음)
 
     @Column(name = "recipient_id")
     private Long recipientId;                     // 수취인 — REMITTANCE 일 때만 (타 도메인 ID)
@@ -102,7 +102,6 @@ public class Reservation extends BaseEntity {
                 || fromCurrency.equals(toCurrency)
                 || amount == null || amount.compareTo(BigDecimal.ZERO) <= 0
                 || targetRate == null || targetRate.compareTo(BigDecimal.ZERO) <= 0
-                || expiresAt == null
                 || idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new BusinessException(ReservationErrorCode.INVALID_RESERVATION_REQUEST);
         }

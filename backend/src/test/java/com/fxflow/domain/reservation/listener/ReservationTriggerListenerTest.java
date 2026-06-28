@@ -97,6 +97,21 @@ class ReservationTriggerListenerTest {
     }
 
     @Test
+    @DisplayName("무기한(만료 null) 예약도 목표 도달 시 체결한다")
+    void indefinite_reached_executes() {
+        Reservation reservation = reservation(12L, "KRW", "USD", null);
+        when(reservationRepository.findByStatusAndAction(ReservationStatus.ACTIVE, ReservationAction.EXCHANGE))
+                .thenReturn(List.of(reservation));
+        when(reservationExecutionService.preempt(12L)).thenReturn(true);
+
+        // mid=1280, spread=0.01 → buyRate=1292.80 ≤ 1300, 만료 없음이라 통과
+        reservationTriggerListener.onFxRateUpdated(event("USD", "KRW", "1280", "0.01"));
+
+        verify(reservationExecutionService).preempt(12L);
+        verify(reservationExecutionService).executeTriggered(12L);
+    }
+
+    @Test
     @DisplayName("만료된 예약은 도달해도 체결하지 않는다")
     void expired_skips() {
         Reservation reservation = reservation(10L, "KRW", "USD", PAST);
