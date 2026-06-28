@@ -51,6 +51,7 @@ public class MockBankAccountService {
 
     private final MockBankAccountRepository mockBankAccountRepository;
     private final KycVerificationRepository kycVerificationRepository;
+    private final KycAttemptService kycAttemptService;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final UserRepository userRepository;
     private final WalletRepository walletRepository;
@@ -275,7 +276,18 @@ public class MockBankAccountService {
         KycVerification verification = kycVerificationRepository.findByIdAndUserId(verificationId, userId)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.KYC_VERIFICATION_NOT_FOUND));
 
-        verification.verify(code, LocalDateTime.now());
+        verification.assertVerifiable(LocalDateTime.now());
+
+        if (!verification.matchesCode(code)) {
+            // 실패 시도 횟수는 이 트랜잭션이 롤백돼도 남아야 하므로 별도 트랜잭션으로 즉시 커밋한다.
+            int remaining = kycAttemptService.recordFailedAttempt(verificationId);
+            throw new BusinessException(
+                    MockBankAccountErrorCode.KYC_CODE_MISMATCH,
+                    "인증코드가 일치하지 않습니다. (남은 시도 %d회)".formatted(remaining)
+            );
+        }
+
+        verification.markVerified();
 
         log.info("[1원 인증 완료] userId={}, verificationId={}", userId, verificationId);
 

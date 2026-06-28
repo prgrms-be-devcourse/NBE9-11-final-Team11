@@ -24,7 +24,7 @@ import java.time.LocalDateTime;
 @EntityListeners(AuditingEntityListener.class)
 public class KycVerification extends BaseEntity {
 
-    private static final int MAX_ATTEMPTS = 5;
+    public static final int MAX_ATTEMPTS = 5;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -90,31 +90,35 @@ public class KycVerification extends BaseEntity {
     }
 
     /**
-     * 입력된 코드를 검증한다. 만료/시도 초과/불일치 시 예외를 던지고,
-     * 일치하면 상태를 VERIFIED로 변경한다.
+     * 만료/이미인증됨/시도초과 여부를 검사한다. (상태 변경 없는 순수 검사)
      */
-    public void verify(String inputCode, LocalDateTime now) {
+    public void assertVerifiable(LocalDateTime now) {
         if (status == KycVerificationStatus.VERIFIED) {
             throw new BusinessException(MockBankAccountErrorCode.KYC_ALREADY_VERIFIED);
         }
         if (isExpired(now)) {
-            this.status = KycVerificationStatus.EXPIRED;
             throw new BusinessException(MockBankAccountErrorCode.KYC_CODE_EXPIRED);
         }
         if (attemptCount >= MAX_ATTEMPTS) {
             throw new BusinessException(MockBankAccountErrorCode.KYC_ATTEMPTS_EXCEEDED);
         }
+    }
 
-        this.attemptCount++;
+    public boolean matchesCode(String inputCode) {
+        return this.code.equals(inputCode);
+    }
 
-        if (!this.code.equals(inputCode)) {
-            int remaining = MAX_ATTEMPTS - attemptCount;
-            throw new BusinessException(
-                    MockBankAccountErrorCode.KYC_CODE_MISMATCH,
-                    "인증코드가 일치하지 않습니다. (남은 시도 %d회)".formatted(remaining)
-            );
-        }
-
+    public void markVerified() {
         this.status = KycVerificationStatus.VERIFIED;
+    }
+
+    /**
+     * 실패한 시도를 1 증가시키고 남은 시도 횟수를 반환한다.
+     * 이 메서드는 별도의 독립 트랜잭션(KycAttemptService)에서 호출되어,
+     * 인증 실패로 인한 예외가 트랜잭션을 롤백시켜도 시도 횟수는 그대로 저장되어야 한다.
+     */
+    public int incrementAttemptAndGetRemaining() {
+        this.attemptCount++;
+        return MAX_ATTEMPTS - attemptCount;
     }
 }
