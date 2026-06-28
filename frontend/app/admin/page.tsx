@@ -60,6 +60,7 @@ function PoolCard({ pool, isSellSource, showRecommended, sellAmount, bothBelowFl
   const ref = pool.ceilingBalance
   const balancePct = Math.min((pool.balance / ref) * 100, 100)
   const floorPct = (pool.floorBalance / ref) * 100
+  const safeFloorPct = (pool.safeFloorBalance / ref) * 100
   const targetPct = (pool.targetBalance / ref) * 100
 
   const action = pool.recommendedAction
@@ -178,6 +179,10 @@ function PoolCard({ pool, isSellSource, showRecommended, sellAmount, bothBelowFl
             />
             <div
               className="absolute inset-y-0 w-0.5"
+              style={{ left: `${safeFloorPct}%`, background: "#52525b" }}
+            />
+            <div
+              className="absolute inset-y-0 w-0.5"
               style={{ left: `${targetPct}%`, background: "#18181b" }}
             />
           </div>
@@ -193,6 +198,13 @@ function PoolCard({ pool, isSellSource, showRecommended, sellAmount, bothBelowFl
             style={{ left: `${floorPct}%`, transform: "translateX(-50%)", color: "#52525b" }}
           >
             하한 {formatAmount(pool.currencyCode, pool.floorBalance)}
+          </span>
+          {/* 리필 */}
+          <span
+            className="absolute whitespace-nowrap text-[11px] font-medium"
+            style={{ left: `${safeFloorPct}%`, transform: "translateX(-50%)", color: "#52525b" }}
+          >
+            리필 {formatAmount(pool.currencyCode, pool.safeFloorBalance)}
           </span>
           {/* 목표 */}
           <span

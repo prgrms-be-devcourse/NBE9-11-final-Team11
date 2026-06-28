@@ -98,7 +98,7 @@ public class CompanyPoolService {
                 if (sellSurplus.compareTo(BigDecimal.ZERO) <= 0) {
                     return new PoolDashboardRes.PoolStatusRes(
                             pool.getCurrencyCode(), pool.getBalance(),
-                            pool.getTargetBalance(), pool.getFloorBalance(), pool.getSafeFloorBalance(),
+                            pool.getTargetBalance(), pool.getFloorBalance(), pool.effectiveSafeFloor(),
                             pool.getCeilingBalance(), status, utilizationRate, null);
                 }
                 if (appliedRate != null && appliedRate.compareTo(BigDecimal.ZERO) > 0) {
@@ -121,7 +121,7 @@ public class CompanyPoolService {
                 pool.getBalance(),
                 pool.getTargetBalance(),
                 pool.getFloorBalance(),
-                pool.getSafeFloorBalance(),
+                pool.effectiveSafeFloor(),
                 pool.getCeilingBalance(),
                 status,
                 utilizationRate,
