@@ -18,7 +18,15 @@ import java.time.LocalDateTime;
  * 1원을 입금했다고 가정하고, 사용자가 해당 코드를 직접 조회해 입력하면 검증이 완료된다.
  */
 @Entity
-@Table(name = "kyc_verifications")
+@Table(
+        name = "kyc_verifications",
+        indexes = {
+                // countByUserIdAndCreatedAtAfter(일일 요청 한도 체크)와
+                // findAllByUserIdAndStatus(이전 PENDING 만료 처리) 조회 최적화
+                @Index(name = "idx_kyc_verifications_user_id_created_at", columnList = "user_id, created_at"),
+                @Index(name = "idx_kyc_verifications_user_id_status", columnList = "user_id, status")
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
