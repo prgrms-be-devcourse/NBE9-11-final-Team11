@@ -68,7 +68,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/signup",
                                 "/api/v1/auth/refresh",
                                 "/api/v1/mockbank/check",
-                                "/api/v1/mockbank/inquiry/usd"
+                                "/api/v1/mockbank/inquiry/usd",
+                                "/api/v1/mockbank/kyc/inquiry"
                         ).permitAll()
                         .requestMatchers("/api/v1/fxrates/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
