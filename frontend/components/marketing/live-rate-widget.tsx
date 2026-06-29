@@ -52,7 +52,7 @@ export function LiveRateWidget() {
         <p className="text-sm font-semibold">실시간 환율</p>
         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
           <span className="size-2 animate-pulse rounded-full bg-accent" />
-          1분마다 갱신
+          2분마다 갱신
         </span>
       </div>
       <div className="flex flex-col gap-2">
