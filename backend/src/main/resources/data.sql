@@ -50,20 +50,20 @@ CREATE INDEX IF NOT EXISTS idx_rebalancing_orders_status_created_at ON rebalanci
 -- ═══════════════════════════════════════════════════════════════
 INSERT INTO users (id, email, name, password_hash, role, status, kyc_status, limit_tier, wallet_limit_krw, created_at, updated_at)
 VALUES
-    (1,  'test1@example.com',     'Test1',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 20000000, now(), now()),
-    (2,  'test2@example.com',     'Test2',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 20000000, now(), now()),
-    (3,  'test3@example.com',     'Test3',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 20000000, now(), now()),
-    (4,  'test4@example.com',     'Test4',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 20000000, now(), now()),
-    (5,  'test5@example.com',     'Test5',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 20000000, now(), now()),
-    (6,  'test6@example.com',     'Test6',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 20000000, now(), now()),
-    (7,  'test7@example.com',     'Test7',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 20000000, now(), now()),
-    (8,  'test8@example.com',     'Test8',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 20000000, now(), now()),
-    (9,  'test9@example.com',     'Test9',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 20000000, now(), now()),
-    (10, 'test10@example.com',    'Test10',    '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 20000000, now(), now()),
-    (11, 'recipient@example.com', 'Recipient', '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 20000000, now(), now())
+    (1,  'test1@example.com',     'Test1',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
+    (2,  'test2@example.com',     'Test2',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
+    (3,  'test3@example.com',     'Test3',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
+    (4,  'test4@example.com',     'Test4',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
+    (5,  'test5@example.com',     'Test5',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
+    (6,  'test6@example.com',     'Test6',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
+    (7,  'test7@example.com',     'Test7',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
+    (8,  'test8@example.com',     'Test8',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
+    (9,  'test9@example.com',     'Test9',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
+    (10, 'test10@example.com',    'Test10',    '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
+    (11, 'recipient@example.com', 'Recipient', '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now())
 ON CONFLICT (email) DO NOTHING;
 
-SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 0) FROM users));
+SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE(MAX(id), 1), true) FROM users;
 
 -- ── 지갑 (KRW + USD per user, wallet_id = user_id*2-1/user_id*2) ──
 INSERT INTO wallets (id, user_id, currency_code, balance, version, deleted_at, created_at, updated_at)
@@ -92,7 +92,7 @@ VALUES
     (22, 11, 'USD',    1000.00, 0, NULL, now(), now())
 ON CONFLICT DO NOTHING;
 
-SELECT setval('wallets_id_seq', (SELECT COALESCE(MAX(id), 0) FROM wallets));
+SELECT setval(pg_get_serial_sequence('wallets', 'id'), COALESCE(MAX(id), 1), true) FROM wallets;
 
 -- ── 모의 은행 계좌 ────────────────────────────────────────────
 INSERT INTO mock_bank_accounts (id, user_id, owner_type, currency_code, bank_name, account_number, account_holder_name, balance, version, deleted_at, created_at, updated_at)
@@ -108,8 +108,9 @@ VALUES
     (9,  9,  'USER',      'KRW', '국민은행',       '90123456789', 'Test9',     35000000.00, 0, NULL, now(), now()),
     (10, 10, 'USER',      'KRW', '신한은행',       '01234567890', 'Test10',    70000000.00, 0, NULL, now(), now()),
     (11, 11, 'USER',      'KRW', '우리은행',       '11234567890', 'Recipient', 20000000.00, 0, NULL, now(), now()),
-    (12, 1,  'RECIPIENT', 'USD', 'Bank of America', '10000001',   'Test1',     10000.00,    0, NULL, now(), now()),
-    (13, 11, 'RECIPIENT', 'USD', 'Bank of America', '10000011',   'Recipient', 5000.00,     0, NULL, now(), now())
+    (12, NULL, 'RECIPIENT', 'USD', 'Bank of America', '10000001',   'Test1',     10000.00,    0, NULL, now(), now()),
+    (13, NULL, 'RECIPIENT', 'USD', 'Bank of America', '10000011',   'Recipient', 5000.00,     0, NULL, now(), now()),
+    (14, NULL, 'RECIPIENT', 'USD', 'Chase',           '10000002',   'Test2',     5000.00,     0, NULL, now(), now())
 ON CONFLICT DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('mock_bank_accounts', 'id'), COALESCE(MAX(id), 1), true) FROM mock_bank_accounts;
