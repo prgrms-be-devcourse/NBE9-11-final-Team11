@@ -318,7 +318,7 @@ export default function ExchangePage() {
                 <dd className="font-medium tabular-nums">{formatCurrency(netAmount, fromCurrency)}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-muted-foreground">수수료 (0.1%)</dt>
+                <dt className="text-muted-foreground">수수료 (0%)</dt>
                 <dd className="font-medium tabular-nums">{formatCurrency(fee, fromCurrency)}</dd>
               </div>
               <Separator />
