@@ -24,6 +24,7 @@ import com.fxflow.domain.wallet.dto.response.TransactionHistoryResponse;
 import com.fxflow.domain.wallet.entity.Wallet;
 import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
+import com.fxflow.global.util.KstClock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -217,7 +218,7 @@ public class MockBankAccountService {
             throw new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NUMBER_DUPLICATED);
         }
 
-        LocalDateTime todayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime todayStart = KstClock.now().toLocalDate().atStartOfDay();
         long todayRequestCount = kycVerificationRepository.countByUserIdAndCreatedAtAfter(userId, todayStart);
         if (todayRequestCount >= KYC_DAILY_REQUEST_LIMIT) {
             throw new BusinessException(MockBankAccountErrorCode.KYC_DAILY_LIMIT_EXCEEDED);
@@ -238,7 +239,7 @@ public class MockBankAccountService {
                 accountNumber,
                 accountHolderName,
                 code,
-                LocalDateTime.now().plusMinutes(KYC_CODE_TTL_MINUTES)
+                KstClock.now().plusMinutes(KYC_CODE_TTL_MINUTES)
         );
         kycVerificationRepository.save(verification);
 
@@ -261,7 +262,7 @@ public class MockBankAccountService {
                 )
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.KYC_VERIFICATION_NOT_FOUND));
 
-        if (verification.isExpired(LocalDateTime.now())) {
+        if (verification.isExpired(KstClock.now())) {
             throw new BusinessException(MockBankAccountErrorCode.KYC_CODE_EXPIRED);
         }
 
@@ -279,7 +280,7 @@ public class MockBankAccountService {
         KycVerification verification = kycVerificationRepository.findByIdAndUserId(verificationId, userId)
                 .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.KYC_VERIFICATION_NOT_FOUND));
 
-        verification.assertVerifiable(LocalDateTime.now());
+        verification.assertVerifiable(KstClock.now());
 
         if (!verification.matchesCode(code)) {
             int remaining = verification.incrementAttemptAndGetRemaining();

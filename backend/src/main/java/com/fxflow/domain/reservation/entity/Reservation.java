@@ -7,6 +7,7 @@ import com.fxflow.domain.reservation.exception.ReservationErrorCode;
 import com.fxflow.domain.remittancetransaction.enums.RemittanceReason;
 import com.fxflow.global.entity.BaseEntity;
 import com.fxflow.global.exception.BusinessException;
+import com.fxflow.global.util.KstClock;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -156,7 +157,7 @@ public class Reservation extends BaseEntity {
 
     /** 목표 도달 — 체결 시작. ACTIVE 에서만 가능 (이중 체결 방지). */
     public void markTriggered() {
-        markTriggered(LocalDateTime.now());
+        markTriggered(KstClock.now());
     }
 
     /** 목표 도달 — 체결 시작. ACTIVE 에서만 가능 (이중 체결 방지). */
@@ -171,7 +172,7 @@ public class Reservation extends BaseEntity {
 
     /** 환전 체결 완료 — TRIGGERED·EXCHANGE 에서만, 결과 환전 거래 ID 기록. */
     public void markCompletedAsExchange(Long exchangeTransactionId) {
-        markCompletedAsExchange(exchangeTransactionId, LocalDateTime.now());
+        markCompletedAsExchange(exchangeTransactionId, KstClock.now());
     }
 
     /** 환전 체결 완료 — TRIGGERED·EXCHANGE 에서만, 결과 환전 거래 ID 기록. */
@@ -186,7 +187,7 @@ public class Reservation extends BaseEntity {
 
     /** 송금 체결 완료 — TRIGGERED·REMITTANCE 에서만, 결과 송금 거래 ID 기록. */
     public void markCompletedAsRemittance(Long remittanceTransactionId) {
-        markCompletedAsRemittance(remittanceTransactionId, LocalDateTime.now());
+        markCompletedAsRemittance(remittanceTransactionId, KstClock.now());
     }
 
     /** 송금 체결 완료 — TRIGGERED·REMITTANCE 에서만, 결과 송금 거래 ID 기록. */

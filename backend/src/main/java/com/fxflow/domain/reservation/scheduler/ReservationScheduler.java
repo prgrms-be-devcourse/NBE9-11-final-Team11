@@ -1,6 +1,7 @@
 package com.fxflow.domain.reservation.scheduler;
 
 import com.fxflow.domain.reservation.service.ReservationService;
+import com.fxflow.global.util.KstClock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,7 +22,7 @@ public class ReservationScheduler {
 
     @Scheduled(fixedDelayString = "${reservation.expiration-scheduler.fixed-delay-ms:60000}")
     public void expireOverdueReservations() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = KstClock.now();
         int expiredCount = reservationService.expireOverdueReservations(now);
 
         if (expiredCount > 0) {

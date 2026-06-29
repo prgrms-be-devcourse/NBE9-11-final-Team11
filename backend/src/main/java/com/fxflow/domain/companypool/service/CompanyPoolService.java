@@ -14,6 +14,7 @@ import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.ExchangeRateProvider;
+import com.fxflow.global.util.KstClock;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -74,7 +75,7 @@ public class CompanyPoolService {
                 toPoolStatusRes(krwPool, usdPool, appliedRate),
                 toPoolStatusRes(usdPool, krwPool, appliedRate)
         );
-        return new PoolDashboardRes(OffsetDateTime.now(), pools);
+        return new PoolDashboardRes(OffsetDateTime.now(KstClock.ZONE), pools);
     }
 
     private PoolDashboardRes.PoolStatusRes toPoolStatusRes(CompanyPool pool, CompanyPool otherPool, BigDecimal appliedRate) {

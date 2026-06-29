@@ -7,6 +7,7 @@ import com.fxflow.domain.fxrate.repository.FxRateRepository;
 import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.FxRateSnapshot;
 import com.fxflow.global.fx.FxRateUpdatedEvent;
+import com.fxflow.global.util.KstClock;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -18,7 +19,6 @@ import org.springframework.web.client.RestClientException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 
 @Slf4j
 @Service
@@ -105,8 +105,8 @@ public class FxRateService {
 
     private LocalDateTime toFetchedAt(Long epochSeconds) {
         if (epochSeconds == null) {
-            return LocalDateTime.now();
+            return KstClock.now();
         }
-        return LocalDateTime.ofInstant(Instant.ofEpochSecond(epochSeconds), ZoneId.systemDefault());
+        return LocalDateTime.ofInstant(Instant.ofEpochSecond(epochSeconds), KstClock.ZONE);
     }
 }

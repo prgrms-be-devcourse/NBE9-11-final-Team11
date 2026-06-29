@@ -1,6 +1,7 @@
 package com.fxflow.domain.remittancetransaction.service;
 
 import com.fxflow.domain.companypool.service.CompanyPoolService;
+import com.fxflow.global.util.KstClock;
 import com.fxflow.domain.ledger.entity.LedgerEntry;
 import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
@@ -280,7 +281,7 @@ public class RemittanceTransactionService {
 
         validateIssuedVirtualAccount(virtualAccount);
 
-        LocalDateTime paidAt = LocalDateTime.now();
+        LocalDateTime paidAt = KstClock.now();
         validateVirtualAccountNotExpired(virtualAccount, paidAt);
 
         String journalId = remittanceTransaction.getJournalId();
@@ -537,7 +538,7 @@ public class RemittanceTransactionService {
             RemittanceTransaction remittanceTransaction,
             BigDecimal expectedAmount
     ) {
-        LocalDateTime issuedAt = LocalDateTime.now();
+        LocalDateTime issuedAt = KstClock.now();
         LocalDateTime expiredAt = issuedAt.plusMinutes(VIRTUAL_ACCOUNT_EXPIRATION_MINUTES);
 
         return VirtualAccount.create(
@@ -589,7 +590,7 @@ public class RemittanceTransactionService {
         remittanceValidator.validateLimits(userId, receiveAmountUsd);
 
         String quoteId = UUID.randomUUID().toString();
-        LocalDateTime expiredAt = LocalDateTime.now().plusMinutes(QUOTE_EXPIRATION_MINUTES);
+        LocalDateTime expiredAt = KstClock.now().plusMinutes(QUOTE_EXPIRATION_MINUTES);
 
         RemittanceQuoteCache cache = new RemittanceQuoteCache(
                 userId,

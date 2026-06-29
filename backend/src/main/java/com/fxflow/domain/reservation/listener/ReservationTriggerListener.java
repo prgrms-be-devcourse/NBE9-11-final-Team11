@@ -7,6 +7,7 @@ import com.fxflow.domain.reservation.repository.ReservationRepository;
 import com.fxflow.domain.reservation.service.ReservationExecutionService;
 import com.fxflow.global.fx.FxRateSnapshot;
 import com.fxflow.global.fx.FxRateUpdatedEvent;
+import com.fxflow.global.util.KstClock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -70,7 +71,7 @@ public class ReservationTriggerListener {
      */
     private boolean isTargetReached(Reservation reservation, FxRateSnapshot snapshot) {
         // null = 무기한(만료 없음) → 통과. 값이 있고 이미 지난 예약만 제외.
-        if (reservation.getExpiresAt() != null && !reservation.getExpiresAt().isAfter(LocalDateTime.now())) {
+        if (reservation.getExpiresAt() != null && !reservation.getExpiresAt().isAfter(KstClock.now())) {
             return false;
         }
         String from = reservation.getFromCurrency();

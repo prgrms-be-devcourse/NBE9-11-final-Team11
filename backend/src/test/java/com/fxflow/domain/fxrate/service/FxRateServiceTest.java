@@ -6,6 +6,7 @@ import com.fxflow.domain.fxrate.repository.FxRateRepository;
 import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.FxRateSnapshot;
 import com.fxflow.global.fx.FxRateUpdatedEvent;
+import com.fxflow.global.util.KstClock;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -23,7 +24,6 @@ import org.springframework.web.client.RestClient;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -94,7 +94,7 @@ class FxRateServiceTest {
             assertThat(saved.getSource()).isEqualTo("TwelveData");
             // epoch(seconds) → LocalDateTime 변환 검증 (시스템 타임존 기준)
             assertThat(saved.getFetchedAt())
-                    .isEqualTo(LocalDateTime.ofInstant(Instant.ofEpochSecond(epochSeconds), ZoneId.systemDefault()));
+                    .isEqualTo(LocalDateTime.ofInstant(Instant.ofEpochSecond(epochSeconds), KstClock.ZONE));
 
             // then - 발행된 이벤트의 스냅샷 검증 (mid/spread + 파생 매수/매도가)
             ArgumentCaptor<FxRateUpdatedEvent> eventCaptor = ArgumentCaptor.forClass(FxRateUpdatedEvent.class);
@@ -162,7 +162,7 @@ class FxRateServiceTest {
         @DisplayName("최신 환율이 있으면 mid 환율을 반환한다 (스프레드 미반영)")
         void found() {
             // given
-            FxRate fxRate = FxRate.create("USD", "KRW", new BigDecimal("1386.50"), "TwelveData", LocalDateTime.now());
+            FxRate fxRate = FxRate.create("USD", "KRW", new BigDecimal("1386.50"), "TwelveData", KstClock.now());
             given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyOrderByFetchedAtDesc("USD", "KRW"))
                     .willReturn(Optional.of(fxRate));
 

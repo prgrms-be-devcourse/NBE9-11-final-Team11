@@ -26,6 +26,7 @@ import com.fxflow.domain.wallet.repository.WalletRepository;
 import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.ExchangeRateProvider;
 import com.fxflow.global.fx.FxRateSnapshot;
+import com.fxflow.global.util.KstClock;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -93,7 +94,7 @@ public class ExchangeService {
                 : amount.multiply(appliedRate).setScale(0, RoundingMode.FLOOR); // 소수점 버림
         BigDecimal feeAmount = amount.multiply(feeRate);  // 출발 통화 기준 수수료
         BigDecimal totalAmount = amount.add(feeAmount);  // 출발 통화 기준 총 차감액
-        LocalDateTime expiredAt = LocalDateTime.now().plusMinutes(exchangeProperties.getQuoteExpirationMinutes());
+        LocalDateTime expiredAt = KstClock.now().plusMinutes(exchangeProperties.getQuoteExpirationMinutes());
         String quoteId = UUID.randomUUID().toString();
 
         // Quote redis에 저장

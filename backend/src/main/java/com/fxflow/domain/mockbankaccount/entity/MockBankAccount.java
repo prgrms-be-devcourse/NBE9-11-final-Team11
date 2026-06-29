@@ -5,6 +5,7 @@ import com.fxflow.domain.mockbankaccount.enums.MockBankAccountOwnerType;
 import com.fxflow.domain.user.entity.User;
 import com.fxflow.global.entity.BaseEntity;
 import com.fxflow.global.exception.BusinessException;
+import com.fxflow.global.util.KstClock;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -129,7 +130,7 @@ public class MockBankAccount extends BaseEntity {
 
     // soft delete
     public void delete() {
-        this.deletedAt = LocalDateTime.now();
+        this.deletedAt = KstClock.now();
     }
 
     public boolean isDeleted() {

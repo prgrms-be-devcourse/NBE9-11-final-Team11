@@ -7,6 +7,7 @@ import com.fxflow.domain.fxrate.repository.FxRateHistoryRow;
 import com.fxflow.domain.fxrate.repository.FxRateRepository;
 import com.fxflow.global.fx.ExchangeRateProvider;
 import com.fxflow.global.fx.FxRateSnapshot;
+import com.fxflow.global.util.KstClock;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -45,7 +46,7 @@ public class FxRateQueryService implements ExchangeRateProvider {
     // 환율 이력 조회 — 기간별 윈도우/버킷 단위로 집계해 시계열 응답을 만든다.
     @Transactional(readOnly = true)
     public FxRateHistoryResponse getHistory(String baseCurrency, String quoteCurrency, FxRateHistoryPeriod period) {
-        LocalDateTime from = LocalDateTime.now().minus(period.getLookback());
+        LocalDateTime from = KstClock.now().minus(period.getLookback());
         List<FxRateHistoryRow> rows =
                 fxRateRepository.findHistory(baseCurrency, quoteCurrency, from, period.getBucketUnit());
         return FxRateHistoryResponse.of(baseCurrency, quoteCurrency, period, rows);
@@ -56,7 +57,7 @@ public class FxRateQueryService implements ExchangeRateProvider {
     // 기준값이 없으면(예: 누적 데이터 부족) Optional.empty → 변동 정보 미노출.
     @Transactional(readOnly = true)
     public Optional<BigDecimal> getPreviousDayBaselineMid(String baseCurrency, String quoteCurrency) {
-        LocalDateTime target = LocalDate.now().minusDays(1).atTime(BASELINE_TIME);
+        LocalDateTime target = LocalDate.now(KstClock.ZONE).minusDays(1).atTime(BASELINE_TIME);
         return fxRateRepository
                 .findFirstByBaseCurrencyAndQuoteCurrencyAndFetchedAtLessThanEqualOrderByFetchedAtDesc(
                         baseCurrency, quoteCurrency, target)
