@@ -15,6 +15,7 @@ import {
   getRebalanceHistory,
   type PoolDashboardResponse,
   type RebalanceHistoryItem,
+  type RebalanceHistoryPageResponse,
   type ApiError,
   type PoolStatusRes,
 } from "@/lib/api"
@@ -305,10 +306,13 @@ function RebalanceCard({ onDone, onHoverChange }: { onDone: () => void; onHoverC
 
 // ── 리밸런싱 이력 표 ─────────────────────────────────────────────
 
-function RebalanceHistory({ items, loading, error }: {
+function RebalanceHistory({ items, loading, error, page, totalPages, onPageChange }: {
   items: RebalanceHistoryItem[]
   loading: boolean
   error: string | null
+  page: number
+  totalPages: number
+  onPageChange: (page: number) => void
 }) {
   return (
     <Card className="overflow-hidden p-0">
@@ -346,7 +350,7 @@ function RebalanceHistory({ items, loading, error }: {
                     {Number(item.appliedRate).toLocaleString("ko-KR")}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {({ MANUAL: "수동실행", AUTO: "거래 후 자동실행", SCHEDULER: "스케줄러" } as Record<string, string>)[item.triggerType] ?? item.triggerType}
+                    {({ MANUAL: "수동실행", AUTO: "거래 후 자동실행" } as Record<string, string>)[item.triggerType] ?? item.triggerType}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground tabular-nums">
                     <span className="inline-flex items-center gap-1.5">
@@ -359,6 +363,32 @@ function RebalanceHistory({ items, loading, error }: {
             </TableBody>
           </Table>
         </div>
+      )}
+      {!loading && !error && totalPages > 1 && (
+        <>
+          <Separator />
+          <div className="flex items-center justify-between px-5 py-3">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page === 0}
+              onClick={() => onPageChange(page - 1)}
+            >
+              이전
+            </Button>
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {page + 1} / {totalPages}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page >= totalPages - 1}
+              onClick={() => onPageChange(page + 1)}
+            >
+              다음
+            </Button>
+          </div>
+        </>
       )}
     </Card>
   )
@@ -374,6 +404,8 @@ export default function AdminPage() {
   const [history, setHistory] = useState<RebalanceHistoryItem[]>([])
   const [histLoading, setHistLoading] = useState(true)
   const [histError, setHistError] = useState<string | null>(null)
+  const [histPage, setHistPage] = useState(0)
+  const [histTotalPages, setHistTotalPages] = useState(1)
   const [rebalanceHover, setRebalanceHover] = useState(false)
 
   const fetchDashboard = useCallback(async () => {
@@ -388,11 +420,14 @@ export default function AdminPage() {
     }
   }, [])
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async (page = 0) => {
     setHistLoading(true)
     setHistError(null)
     try {
-      setHistory(await getRebalanceHistory())
+      const res = await getRebalanceHistory(page)
+      setHistory(res.data)
+      setHistPage(res.page)
+      setHistTotalPages(res.totalPages)
     } catch (e) {
       setHistError((e as ApiError)?.message ?? "이력을 불러오지 못했습니다.")
     } finally {
@@ -446,6 +481,9 @@ export default function AdminPage() {
           items={history}
           loading={histLoading}
           error={histError}
+          page={histPage}
+          totalPages={histTotalPages}
+          onPageChange={(p) => fetchHistory(p)}
         />
       </div>
     </AdminShell>
