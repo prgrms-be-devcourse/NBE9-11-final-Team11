@@ -1,9 +1,9 @@
 package com.fxflow.global.fx;
 
+import com.fxflow.global.util.KstClock;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
@@ -20,7 +20,7 @@ public class DummyExchangeRateProvider implements ExchangeRateProvider {
                         quoteCurrency,
                         new BigDecimal("1350"),
                         new BigDecimal("0.001"),
-                        LocalDateTime.now()
+                        KstClock.now()
                 )
         );
     }

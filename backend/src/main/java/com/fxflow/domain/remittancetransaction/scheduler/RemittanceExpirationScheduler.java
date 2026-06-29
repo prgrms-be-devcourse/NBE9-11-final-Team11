@@ -1,12 +1,11 @@
 package com.fxflow.domain.remittancetransaction.scheduler;
 
 import com.fxflow.domain.remittancetransaction.service.RemittanceTransactionService;
+import com.fxflow.global.util.KstClock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
-import java.time.LocalDateTime;
 
 @Slf4j
 @Component
@@ -21,7 +20,7 @@ public class RemittanceExpirationScheduler {
      */
     @Scheduled(fixedDelayString = "${remittance.expiration-scheduler.fixed-delay-ms:60000}")
     public void expirePendingTransfers() {
-        int expiredCount = remittanceTransactionService.expirePendingTransfers(LocalDateTime.now());
+        int expiredCount = remittanceTransactionService.expirePendingTransfers(KstClock.now());
 
         if (expiredCount > 0) {
             log.info("입금 기한 만료 해외송금 주문 자동 취소 완료. count={}", expiredCount);

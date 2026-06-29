@@ -14,8 +14,8 @@ import java.util.TimeZone;
 @SpringBootApplication
 public class FxflowApplication {
 
-	// JVM 기본 타임존이 실행 환경(운영 docker, 로컬, CI)마다 달라
-	// LocalDateTime.now() 기준 시각이 어긋나는 것을 막기 위해 클래스 로드 시점에 고정한다.
+	// 비즈니스 로직은 KstClock.now()로 타임존을 명시하므로 이 블록에 의존하지 않지만,
+	// Spring 컨텍스트 없이 동작하는 외부 라이브러리 등을 위한 보조 안전망으로 유지한다.
 	static {
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Seoul"));
 	}

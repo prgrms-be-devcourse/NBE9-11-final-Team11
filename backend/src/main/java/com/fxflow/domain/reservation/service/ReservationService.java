@@ -9,6 +9,7 @@ import com.fxflow.domain.reservation.enums.ReservationStatus;
 import com.fxflow.domain.reservation.exception.ReservationErrorCode;
 import com.fxflow.domain.reservation.repository.ReservationRepository;
 import com.fxflow.global.exception.BusinessException;
+import com.fxflow.global.util.KstClock;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -122,7 +123,7 @@ public class ReservationService {
      */
     private void validateNotExpired(LocalDateTime expiresAt) {
         // null = 무기한(만료 없음) 허용. 값이 있을 때만 과거 시각을 차단한다.
-        if (expiresAt != null && !expiresAt.isAfter(LocalDateTime.now())) {
+        if (expiresAt != null && !expiresAt.isAfter(KstClock.now())) {
             throw new BusinessException(ReservationErrorCode.EXPIRES_AT_IN_PAST);
         }
     }
