@@ -1,12 +1,22 @@
 "use client"
 
+import type React from "react"
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Wallet, ArrowLeftRight, Send, Plus, Landmark, RefreshCw } from "lucide-react"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { TransactionRow } from "@/components/app/transaction-row"
 import { RateChart, type RateChartPoint } from "@/components/app/rate-chart"
 import { useStore, type Transaction, type TxStatus } from "@/lib/store"
@@ -28,6 +38,10 @@ const PERIODS: { key: FxRateHistoryPeriod; label: string }[] = [
   { key: "1W", label: "1주일" },
   { key: "1M", label: "1달" },
 ]
+
+function formatRate(rate: number) {
+  return `₩${Number(rate).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
 
 // 기간별 X축 라벨 포맷 — 1일은 시:분, 그 외(주/월)는 월/일
 function formatHistoryLabel(iso: string, period: FxRateHistoryPeriod): string {
@@ -140,9 +154,18 @@ export default function DashboardPage() {
   // null = 확인 중, true = 연결됨, false = 미연결
   const [accountLinked, setAccountLinked] = useState<boolean | null>(null)
   const [rate, setRate] = useState<FxRateLatest | null>(null)
+  const [showKycPrompt, setShowKycPrompt] = useState(false)
+  const router = useRouter()
   const [period, setPeriod] = useState<FxRateHistoryPeriod>("1D")
   const [history, setHistory] = useState<FxRateHistory | null>(null)
   const [historyLoading, setHistoryLoading] = useState(true)
+
+  function handleQuickActionClick(e: React.MouseEvent) {
+    if (accountLinked === false) {
+      e.preventDefault()
+      setShowKycPrompt(true)
+    }
+  }
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -258,32 +281,46 @@ export default function DashboardPage() {
         {/* Quick actions */}
         <div className="grid gap-3 sm:grid-cols-3">
           <Button
-            render={<Link href="/wallet" />}
+            render={<Link href="/wallet" onClick={handleQuickActionClick} />}
             size="lg"
             className="h-auto justify-start gap-3 rounded-2xl py-4"
-            disabled={accountLinked === false}
           >
             <Plus className="size-5" /> 충전하기
           </Button>
           <Button
-            render={<Link href="/exchange" />}
+            render={<Link href="/exchange" onClick={handleQuickActionClick} />}
             size="lg"
             variant="outline"
             className="h-auto justify-start gap-3 rounded-2xl py-4"
-            disabled={accountLinked === false}
           >
             <ArrowLeftRight className="size-5" /> 환전하기
           </Button>
           <Button
-            render={<Link href="/remittance" />}
+            render={<Link href="/remittance" onClick={handleQuickActionClick} />}
             size="lg"
             variant="outline"
             className="h-auto justify-start gap-3 rounded-2xl py-4"
-            disabled={accountLinked === false}
           >
             <Send className="size-5" /> 해외송금
           </Button>
         </div>
+
+        <Dialog open={showKycPrompt} onOpenChange={setShowKycPrompt}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>KYC 인증이 필요합니다</DialogTitle>
+              <DialogDescription>
+                이 서비스를 이용하려면 계좌 연결(KYC 인증)이 필요합니다. 지금 인증하시겠습니까?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowKycPrompt(false)}>
+                아니요
+              </Button>
+              <Button onClick={() => router.push("/onboarding/link-account")}>예</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Wallet balance */}
@@ -308,7 +345,7 @@ export default function DashboardPage() {
               오늘의 환율 · USD/KRW
             </span>
             <p className="mt-2 text-3xl font-bold tabular-nums">
-              {rate ? formatKRW(rate.midRate) : loading ? "로딩 중..." : "-"}
+              {rate ? formatRate(rate.midRate) : loading ? "로딩 중..." : "-"}
             </p>
             {rate && <p className="text-sm text-muted-foreground">{formatFetchedAt(rate.fetchedAt)} 기준</p>}
           </Card>
