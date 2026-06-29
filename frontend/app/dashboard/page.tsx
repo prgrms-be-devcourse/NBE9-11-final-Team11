@@ -1,10 +1,10 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Wallet, ArrowLeftRight, Send, Plus, Landmark } from "lucide-react"
+import { Wallet, ArrowLeftRight, Send, Plus, Landmark, RefreshCw } from "lucide-react"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,10 +18,36 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { TransactionRow } from "@/components/app/transaction-row"
+import { RateChart, type RateChartPoint } from "@/components/app/rate-chart"
 import { useStore, type Transaction, type TxStatus } from "@/lib/store"
-import { formatKRW, type CurrencyCode } from "@/lib/fx-data"
-import { apiRequest, getLatestRate, getTransactionHistory, type FxRateLatest, type TransactionHistoryItem } from "@/lib/api"
+import { formatKRW, CURRENCY_META, type CurrencyCode } from "@/lib/fx-data"
+import {
+  apiRequest,
+  getLatestRate,
+  getFxRateHistory,
+  getTransactionHistory,
+  type FxRateLatest,
+  type FxRateHistory,
+  type FxRateHistoryPeriod,
+  type TransactionHistoryItem,
+} from "@/lib/api"
 import { formatFetchedAt } from "@/lib/utils"
+
+const PERIODS: { key: FxRateHistoryPeriod; label: string }[] = [
+  { key: "1D", label: "1일" },
+  { key: "1W", label: "1주일" },
+  { key: "1M", label: "1달" },
+]
+
+// 기간별 X축 라벨 포맷 — 1일은 시:분, 그 외(주/월)는 월/일
+function formatHistoryLabel(iso: string, period: FxRateHistoryPeriod): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  if (period === "1D") {
+    return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
+  }
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
 
 function mapRemittanceStatus(status: string): TxStatus {
   if (status === "PENDING" || status === "FUNDED" || status === "PROCESSING") return "processing"
@@ -126,6 +152,9 @@ export default function DashboardPage() {
   const [rate, setRate] = useState<FxRateLatest | null>(null)
   const [showKycPrompt, setShowKycPrompt] = useState(false)
   const router = useRouter()
+  const [period, setPeriod] = useState<FxRateHistoryPeriod>("1D")
+  const [history, setHistory] = useState<FxRateHistory | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(true)
 
   function handleQuickActionClick(e: React.MouseEvent) {
     if (accountLinked === false) {
@@ -187,7 +216,35 @@ export default function DashboardPage() {
     loadDashboardData()
   }, [])
 
+  // 기간 변경 시 환율 이력 조회 — 늦게 도착한 이전 기간 응답이 최신 선택을 덮어쓰지 않도록 stale-guard
+  useEffect(() => {
+    let active = true
+    setHistoryLoading(true)
+    const load = async () => {
+      try {
+        const data = await getFxRateHistory("USD", "KRW", period)
+        if (!active) return
+        setHistory(data)
+      } catch {
+        if (active) setHistory(null)
+      } finally {
+        if (active) setHistoryLoading(false)
+      }
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [period])
+
   const pct = Math.min(100, (annualUsedUSD / limit) * 100)
+  const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? ""
+
+  // 이력 응답을 차트 포인트로 가공 (응답에 실린 history.period 기준으로 라벨 포맷)
+  const chartData = useMemo<RateChartPoint[]>(() => {
+    if (!history) return []
+    return history.points.map((p) => ({ label: formatHistoryLabel(p.timestamp, history.period), rate: p.midRate }))
+  }, [history])
 
   return (
     <AppShell title="대시보드">
@@ -277,7 +334,12 @@ export default function DashboardPage() {
 
           {/* Today rate */}
           <Card className="gap-2 p-6">
-            <span className="text-sm font-medium text-muted-foreground">오늘의 환율 · USD/KRW</span>
+            <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+              <span className="text-base" aria-hidden>
+                {CURRENCY_META.USD.flag}
+              </span>
+              오늘의 환율 · USD/KRW
+            </span>
             <p className="mt-2 text-3xl font-bold tabular-nums">
               {rate ? formatKRW(rate.midRate) : loading ? "로딩 중..." : "-"}
             </p>
@@ -297,6 +359,50 @@ export default function DashboardPage() {
             </p>
           </Card>
         </div>
+
+        {/* 환율 추이 차트 */}
+        <Card className="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold">USD/KRW 추이</h2>
+              <p className="text-sm text-muted-foreground">최근 {periodLabel}</p>
+            </div>
+            {/* 기간 선택 토글 */}
+            <div className="inline-flex gap-1 rounded-lg bg-secondary/60 p-1">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setPeriod(p.key)}
+                  className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                    period === p.key
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 h-72 w-full">
+            {historyLoading ? (
+              <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+                <RefreshCw className="size-4 animate-spin" /> 추이를 불러오는 중...
+              </div>
+            ) : (
+              <RateChart data={chartData} />
+            )}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button render={<Link href="/exchange" />} className="flex-1 sm:flex-none">
+              환전하기
+            </Button>
+            <Button render={<Link href="/reservations" />} variant="outline" className="flex-1 sm:flex-none">
+              목표 환율 예약
+            </Button>
+          </div>
+        </Card>
 
         {/* Recent transactions */}
         <Card className="p-5">

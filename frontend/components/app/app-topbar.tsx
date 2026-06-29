@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Menu, Bell, LogOut, User, Settings } from "lucide-react"
+import { Menu, LogOut, User, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
 import {
@@ -20,10 +20,9 @@ import { useLogout } from "@/hooks/use-logout"
 import Link from "next/link"
 
 export function AppTopbar({ title }: { title: string }) {
-  const { user, notifications } = useStore()
+  const { user } = useStore()
   const handleLogout = useLogout()
   const [open, setOpen] = useState(false)
-  const unread = notifications.filter((n) => !n.read).length
   const initial = user?.name?.charAt(0) ?? "U"
 
   return (
@@ -47,13 +46,6 @@ export function AppTopbar({ title }: { title: string }) {
       </div>
 
       <div className="flex items-center gap-1">
-        <Button render={<Link href="/notifications" />} variant="ghost" size="icon" className="relative">
-          <Bell className="size-5" />
-          {unread > 0 && (
-            <span className="absolute right-1.5 top-1.5 flex size-2 rounded-full bg-primary" />
-          )}
-          <span className="sr-only">알림</span>
-        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
