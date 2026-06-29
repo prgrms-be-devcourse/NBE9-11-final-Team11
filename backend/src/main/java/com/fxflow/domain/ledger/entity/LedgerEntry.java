@@ -14,7 +14,10 @@ import java.util.UUID;
 
 @Entity
 @Getter
-@Table(name = "ledger_entries")
+@Table(name = "ledger_entries", indexes = {
+        @Index(name = "idx_ledger_entries_wallet_created", columnList = "wallet_id, created_at DESC"),
+        @Index(name = "idx_ledger_entries_mockbank_remittance", columnList = "mock_bank_account_id, ref_type, ledger_direction, created_at DESC")
+})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LedgerEntry extends BaseEntity {
 

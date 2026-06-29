@@ -10,7 +10,9 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "remittance_transactions")
+@Table(name = "remittance_transactions", indexes = {
+        @Index(name = "idx_remittance_user_created", columnList = "user_id, created_at DESC")
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RemittanceTransaction extends BaseEntity {
