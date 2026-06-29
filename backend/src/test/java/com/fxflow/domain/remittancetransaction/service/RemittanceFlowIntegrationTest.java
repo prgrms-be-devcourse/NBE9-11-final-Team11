@@ -23,7 +23,6 @@ import com.fxflow.domain.remittancetransaction.entity.VirtualAccount;
 import com.fxflow.domain.remittancetransaction.enums.RemittanceReason;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.domain.remittancetransaction.enums.VirtualAccountStatus;
-import com.fxflow.domain.remittancetransaction.event.RemittanceFundedEventListener;
 import com.fxflow.domain.remittancetransaction.repository.RecipientRepository;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.remittancetransaction.repository.VirtualAccountRepository;
@@ -81,7 +80,6 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockitoBean private FxRateQueryService exchangeRateProvider;
-    @MockitoBean private RemittanceFundedEventListener remittanceFundedEventListener;
 
     @BeforeEach
     void setUp() {

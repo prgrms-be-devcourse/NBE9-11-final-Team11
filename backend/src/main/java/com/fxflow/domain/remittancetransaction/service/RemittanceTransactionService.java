@@ -17,7 +17,6 @@ import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.domain.remittancetransaction.enums.VirtualAccountStatus;
 import com.fxflow.domain.remittancetransaction.errorcode.RecipientErrorCode;
 import com.fxflow.domain.remittancetransaction.errorcode.RemittanceTransactionErrorCode;
-import com.fxflow.domain.remittancetransaction.event.RemittanceFundedEvent;
 import com.fxflow.domain.remittancetransaction.repository.RecipientRepository;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.remittancetransaction.repository.VirtualAccountRepository;
@@ -37,9 +36,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -74,7 +74,7 @@ public class RemittanceTransactionService {
     private final MockBankAccountService mockBankAccountService;
     private final CompanyPoolService companyPoolService;
     private final RecipientPayoutAccountService recipientPayoutAccountService;
-    private final ApplicationEventPublisher eventPublisher;
+    private final RemittancePayoutService remittancePayoutService;
 
     private static final BigDecimal FIXED_FEE_KRW = new BigDecimal("5000.00000000");
     private static final BigDecimal PERCENT_FEE_RATE = new BigDecimal("0.005");
@@ -300,10 +300,23 @@ public class RemittanceTransactionService {
         remittanceTransaction.fund(sourceMockAccountId);
         virtualAccount.pay(paidAt);
 
-        // 트랜잭션 커밋 이후 TRF-08 등 후속 처리가 이어질 수 있도록 입금 완료 이벤트를 발행한다.
-        eventPublisher.publishEvent(RemittanceFundedEvent.of(remittanceTransaction, virtualAccount));
+        runPayoutAfterCommit(remittanceTransaction.getId());
 
         return RemittanceMockFundedResponse.of(remittanceTransaction, virtualAccount);
+    }
+
+    private void runPayoutAfterCommit(Long transferId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            remittancePayoutService.processPayout(transferId);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                remittancePayoutService.processPayout(transferId);
+            }
+        });
     }
 
     /**
