@@ -178,6 +178,7 @@ export default function RemittancePage() {
   useEffect(() => {
     setQuote(null)
     quoteRequestId.current += 1
+    setLoadingQuote(false)
   }, [amountMode, recipientId, krwInput, receiveInput, reason])
 
   useEffect(() => {
