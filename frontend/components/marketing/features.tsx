@@ -2,7 +2,7 @@ import { LineChart, Wallet, CalendarClock, Send, ListChecks } from "lucide-react
 import { Card } from "@/components/ui/card"
 
 const features = [
-  { icon: LineChart, title: "실시간 환율 조회", desc: "USD, JPY, EUR, CNY 환율을 3분마다 갱신합니다." },
+  { icon: LineChart, title: "실시간 환율 조회", desc: "USD 환율을 2분마다 갱신합니다." },
   { icon: Wallet, title: "다중 통화 지갑", desc: "여러 통화를 한 곳에서 보관하고 관리하세요." },
   { icon: CalendarClock, title: "환전 예약", desc: "목표 환율에 도달하면 자동으로 환전합니다." },
   { icon: Send, title: "해외송금 시뮬레이션", desc: "수취인 등록부터 해외송금까지 단계별로 체험하세요." },
