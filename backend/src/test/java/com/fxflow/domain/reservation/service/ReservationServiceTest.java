@@ -111,6 +111,22 @@ class ReservationServiceTest {
     }
 
     @Test
+    @DisplayName("예약 생성 — 같은 키로 만료 시각만 다르면(유기한↔무기한) 거부")
+    void create_sameKeyDifferentExpiresAt_rejected() {
+        Reservation existing =
+                Reservation.createExchange(1L, "KRW", "USD", AMOUNT, TARGET, FUTURE, "key-1");
+        when(reservationRepository.findByIdempotencyKey("key-1")).thenReturn(Optional.of(existing));
+        // 같은 키·같은 내용이지만 만료 시각만 무기한(null)으로 다른 요청
+        ReservationCreateRequest indefinite = new ReservationCreateRequest(
+                ReservationAction.EXCHANGE, "KRW", "USD", AMOUNT, TARGET, null,
+                null, null, null);
+
+        assertThatThrownBy(() -> reservationService.create(1L, indefinite, "key-1"))
+                .isInstanceOf(BusinessException.class);
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("예약 생성 — 만료 시각이 과거면 거부")
     void create_rejectsPastExpiresAt() {
         ReservationCreateRequest past = new ReservationCreateRequest(

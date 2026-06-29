@@ -82,10 +82,12 @@ services:
     image: prom/node-exporter:latest
     container_name: node-exporter
     restart: unless-stopped
+    pid: host
     command:
       - '--path.rootfs=/host'
     volumes:
-      - /:/host:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro       # macOS compatible 설정 (avoids rslave mount error)
     networks:
       - fxflow-network
 

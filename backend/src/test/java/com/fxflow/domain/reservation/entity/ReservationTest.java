@@ -67,10 +67,16 @@ class ReservationTest {
                 .isInstanceOf(BusinessException.class);   // non-positive amount
         assertThatThrownBy(() -> Reservation.createExchange(1L, "KRW", "USD", AMOUNT, BigDecimal.ZERO, EXPIRES, "k"))
                 .isInstanceOf(BusinessException.class);   // non-positive targetRate
-        assertThatThrownBy(() -> Reservation.createExchange(1L, "KRW", "USD", AMOUNT, TARGET, null, "k"))
-                .isInstanceOf(BusinessException.class);   // null expiresAt
         assertThatThrownBy(() -> Reservation.createExchange(1L, "KRW", "USD", AMOUNT, TARGET, EXPIRES, " "))
                 .isInstanceOf(BusinessException.class);   // blank idempotencyKey
+    }
+
+    @Test
+    @DisplayName("만료 시각이 null 이면 무기한 예약으로 생성된다")
+    void createExchange_nullExpiresAt_isIndefinite() {
+        Reservation r = Reservation.createExchange(1L, "KRW", "USD", AMOUNT, TARGET, null, "key-inf");
+        assertThat(r.getExpiresAt()).isNull();
+        assertThat(r.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
     }
 
     @Test

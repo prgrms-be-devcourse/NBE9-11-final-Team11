@@ -13,6 +13,6 @@ public interface P2pTransferRepository extends JpaRepository<P2pTransfer, Long> 
     @Query("SELECT p FROM P2pTransfer p " +
             "JOIN FETCH p.fromWallet fw JOIN FETCH fw.user " +
             "JOIN FETCH p.toWallet tw JOIN FETCH tw.user " +
-            "WHERE p.transferId IN :transferIds") // transferId 필드명으로 수정
+            "WHERE p.transferId IN :transferIds")
     List<P2pTransfer> findAllWithUsersByIdIn(@Param("transferIds") List<String> transferIds);
 }

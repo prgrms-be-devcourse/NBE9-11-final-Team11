@@ -50,13 +50,15 @@ class RebalancingServiceTest {
 
     @InjectMocks private RebalancingService rebalancingService;
 
-    private static final BigDecimal KRW_TARGET  = PoolTestFixtures.KRW_TARGET;
-    private static final BigDecimal KRW_FLOOR   = PoolTestFixtures.KRW_FLOOR;
-    private static final BigDecimal KRW_CEILING = PoolTestFixtures.KRW_CEILING;
-    private static final BigDecimal USD_TARGET  = PoolTestFixtures.USD_TARGET;
-    private static final BigDecimal USD_FLOOR   = PoolTestFixtures.USD_FLOOR;
-    private static final BigDecimal USD_CEILING = PoolTestFixtures.USD_CEILING;
-    private static final BigDecimal MID_RATE    = PoolTestFixtures.MID_RATE;
+    private static final BigDecimal KRW_TARGET     = PoolTestFixtures.KRW_TARGET;
+    private static final BigDecimal KRW_SAFE_FLOOR = PoolTestFixtures.KRW_SAFE_FLOOR;
+    private static final BigDecimal KRW_FLOOR      = PoolTestFixtures.KRW_FLOOR;
+    private static final BigDecimal KRW_CEILING    = PoolTestFixtures.KRW_CEILING;
+    private static final BigDecimal USD_TARGET     = PoolTestFixtures.USD_TARGET;
+    private static final BigDecimal USD_SAFE_FLOOR = PoolTestFixtures.USD_SAFE_FLOOR;
+    private static final BigDecimal USD_FLOOR      = PoolTestFixtures.USD_FLOOR;
+    private static final BigDecimal USD_CEILING    = PoolTestFixtures.USD_CEILING;
+    private static final BigDecimal MID_RATE       = PoolTestFixtures.MID_RATE;
 
     @BeforeEach
     void setUp() {
@@ -79,9 +81,10 @@ class RebalancingServiceTest {
     }
 
     @Test
-    @DisplayName("둘 다 floor 미만 → executed=false, reason=BOTH_BELOW_FLOOR, MANUAL_REQUIRED 기록 저장")
+    @DisplayName("둘 다 floor(60%) 미만 → executed=false, reason=BOTH_BELOW_FLOOR, MANUAL_REQUIRED 기록 저장")
     void execute_bothBelowFloor_returnsNotExecuted() {
-        givenPools(new BigDecimal("7000000000"), new BigDecimal("5000000")); // 7B, 500만
+        // KRW=5B < 6B floor, USD=3M < 3.9M floor
+        givenPools(new BigDecimal("5000000000"), new BigDecimal("3000000"));
 
         RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
 
@@ -104,21 +107,21 @@ class RebalancingServiceTest {
 
     // 매입/매도량 계산 ────────────────────────────────────────────
     @Test
-    @DisplayName("KRW floor 미만 — 완전 체결 (부족분 < USD 여유분, cappedBy = null)")
+    @DisplayName("KRW floor(60%) 미만 — 완전 체결 (부족분 < USD safeFloor 여유분, cappedBy = null)")
     void execute_krwBelowFloor_fullFill() {
-        // KRW: 7.9B → shortageToTarget = 10B - 7.9B = 2.1B
-        // USD: 7M  → surplusAboveFloor = 7M - 5.2M = 1.8M
-        // appliedRate = 1300 × 1.003 = 1303.9
-        // maxBuyableKRW = 1,800,000 × 1303.9 = 2,347,020,000
-        // 2.1B < 2.347B → 완전 체결, buyAmount = 2,100,000,000
-        givenPools(new BigDecimal("7900000000"), new BigDecimal("7000000")); // KRW 7.9B, USD 7M
+        // KRW: 5.5B → shortageToSafeFloor = 8B - 5.5B = 2.5B
+        // USD: 9M  → surplusAboveSafeFloor = 9M - 5.2M = 3.8M
+        // appliedRate = 1300 × 1.002 = 1302.6
+        // maxBuyableKRW = 3,800,000 × 1302.6 = 4,949,880,000
+        // 2.5B < 4.95B → 완전 체결, buyAmount = 2,500,000,000
+        givenPools(new BigDecimal("5500000000"), new BigDecimal("9000000")); // KRW 5.5B, USD 9M
 
         RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
 
         assertThat(result.executed()).isTrue();
         assertThat(result.action().buyCurrency()).isEqualTo("KRW");
         assertThat(result.action().sellCurrency()).isEqualTo("USD");
-        assertThat(result.action().buyAmount()).isEqualByComparingTo("2100000000");
+        assertThat(result.action().buyAmount()).isEqualByComparingTo("2500000000");
         assertThat(result.cappedBy()).isNull();
         verify(companyPoolRepository).increaseBalance(eq("KRW"), any());
         verify(companyPoolRepository).decreaseBalance(eq("USD"), any());
@@ -126,29 +129,28 @@ class RebalancingServiceTest {
     }
 
     @Test
-    @DisplayName("KRW floor 미만 — 부분 체결 (부족분 > USD 여유분, cappedBy = USD_FLOOR)")
+    @DisplayName("KRW floor(60%) 미만 — 부분 체결 (부족분 > USD safeFloor 여유분, cappedBy = USD_FLOOR)")
     void execute_krwBelowFloor_partialFill_cappedByUsdFloor() {
-        // KRW: 7B → shortageToTarget = 3B
-        // USD: 6.5M → surplusAboveFloor = 1.3M
-        // maxBuyableKRW = 1,300,000 × 1303.9 = 1,695,070,000
-        // 3B > 1.695B → 부분 체결, cappedBy = USD_FLOOR
-        givenPools(new BigDecimal("7000000000"), new BigDecimal("6500000"));
+        // KRW: 5.5B → shortageToSafeFloor = 2.5B
+        // USD: 7M  → surplusAboveSafeFloor = 7M - 5.2M = 1.8M
+        // maxBuyableKRW = 1,800,000 × 1302.6 = 2,344,680,000
+        // 2.5B > 2.344B → 부분 체결, cappedBy = USD_FLOOR
+        givenPools(new BigDecimal("5500000000"), new BigDecimal("7000000"));
 
         RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
 
         assertThat(result.executed()).isTrue();
         assertThat(result.action().buyCurrency()).isEqualTo("KRW");
         assertThat(result.cappedBy()).isEqualTo("USD_FLOOR");
-        assertThat(result.action().buyAmount()).isEqualByComparingTo("1695070000.00");
+        assertThat(result.action().buyAmount()).isEqualByComparingTo("2344680000");
         verify(rebalancingRepository).save(any(RebalancingOrder.class));
     }
 
     @Test
-    @DisplayName("USD floor 미만, KRW 정상 → USD 매입, KRW 매도")
+    @DisplayName("USD floor(60%) 미만, KRW 정상 → USD 매입, KRW 매도")
     void execute_usdBelowFloor_buyUsd() {
-        // USD: 500만 < 520만 floor
-        // KRW: 10B 정상
-        givenPools(new BigDecimal("10000000000"), new BigDecimal("5000000"));
+        // USD: 3M < 3.9M floor
+        givenPools(new BigDecimal("10000000000"), new BigDecimal("3000000"));
 
         RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
 
@@ -160,11 +162,11 @@ class RebalancingServiceTest {
     }
 
     @Test
-    @DisplayName("KRW floor 미만 + USD ceiling 초과 → floor 우선, KRW 매입 (USD 여유 더 큼)")
+    @DisplayName("KRW floor(60%) 미만 + USD ceiling 초과 → floor 우선, KRW 매입 (USD safeFloor 여유분 있음)")
     void execute_krwBelowFloor_usdAboveCeiling_floorPriority() {
-        // KRW: 7B < 8B floor
-        // USD: 800만 > 780만 ceiling
-        givenPools(new BigDecimal("7000000000"), new BigDecimal("8000000"));
+        // KRW: 5B < 6B floor
+        // USD: 8M > 7.8M ceiling
+        givenPools(new BigDecimal("5000000000"), new BigDecimal("8000000"));
 
         RebalancingExecuteRes result = rebalancingService.execute(TriggerType.MANUAL, null);
 
@@ -173,9 +175,9 @@ class RebalancingServiceTest {
     }
 
     @Test
-    @DisplayName("둘 다 floor 미만 — 관리자 알림 실패해도 MANUAL_REQUIRED audit 기록은 저장됨")
+    @DisplayName("둘 다 floor(60%) 미만 — 관리자 알림 실패해도 MANUAL_REQUIRED audit 기록은 저장됨")
     void execute_bothBelowFloor_alertFails_auditStillSaved() {
-        givenPools(new BigDecimal("7000000000"), new BigDecimal("5000000"));
+        givenPools(new BigDecimal("5000000000"), new BigDecimal("3000000"));
         doThrow(new RuntimeException("알림 전송 실패"))
                 .when(adminAlertService).sendBothBelowFloorAlert(any(), any());
 
@@ -189,7 +191,7 @@ class RebalancingServiceTest {
     @Test
     @DisplayName("수동 실행 중 환율 데이터 없음(Optional.empty) → RATE_UNAVAILABLE 예외")
     void execute_manual_rateFetchFails_throwsRateUnavailable() {
-        givenPools(new BigDecimal("7000000000"), new BigDecimal("6500000")); // KRW floor 미만
+        givenPools(new BigDecimal("5000000000"), new BigDecimal("6500000")); // KRW floor(60%) 미만
         given(exchangeRateProvider.getLatestRate("USD", "KRW")).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> rebalancingService.execute(TriggerType.MANUAL, null))
@@ -201,14 +203,14 @@ class RebalancingServiceTest {
     // 헬퍼 ───────────────────────────────────────────────────────
 
     private void givenPools(BigDecimal krwBalance, BigDecimal usdBalance) {
-        CompanyPool krwPool = mockPool("KRW", krwBalance, KRW_TARGET, KRW_FLOOR, KRW_CEILING);
-        CompanyPool usdPool = mockPool("USD", usdBalance, USD_TARGET, USD_FLOOR, USD_CEILING);
+        CompanyPool krwPool = mockPool("KRW", krwBalance, KRW_SAFE_FLOOR, KRW_FLOOR, KRW_CEILING);
+        CompanyPool usdPool = mockPool("USD", usdBalance, USD_SAFE_FLOOR, USD_FLOOR, USD_CEILING);
         given(companyPoolRepository.findByCurrencyCodeWithLock("KRW")).willReturn(Optional.of(krwPool));
         given(companyPoolRepository.findByCurrencyCodeWithLock("USD")).willReturn(Optional.of(usdPool));
     }
 
     private CompanyPool mockPool(String currencyCode, BigDecimal balance,
-                                  BigDecimal target, BigDecimal floor, BigDecimal ceiling) {
+                                  BigDecimal safeFloor, BigDecimal floor, BigDecimal ceiling) {
         CompanyPool pool = mock(CompanyPool.class);
         given(pool.getCurrencyCode()).willReturn(currencyCode);
         given(pool.getBalance()).willReturn(balance);
@@ -217,12 +219,12 @@ class RebalancingServiceTest {
         given(pool.isWithinThreshold()).willReturn(
                 balance.compareTo(floor) >= 0 && balance.compareTo(ceiling) <= 0
         );
-        BigDecimal shortage = target.subtract(balance);
-        given(pool.shortageToTarget()).willReturn(
+        BigDecimal shortage = safeFloor.subtract(balance);
+        given(pool.shortageToSafeFloor()).willReturn(
                 shortage.compareTo(BigDecimal.ZERO) > 0 ? shortage : BigDecimal.ZERO
         );
-        BigDecimal surplus = balance.subtract(floor);
-        given(pool.surplusAboveFloor()).willReturn(
+        BigDecimal surplus = balance.subtract(safeFloor);
+        given(pool.surplusAboveSafeFloor()).willReturn(
                 surplus.compareTo(BigDecimal.ZERO) > 0 ? surplus : BigDecimal.ZERO
         );
         given(pool.getFloorBalance()).willReturn(floor);
@@ -232,11 +234,11 @@ class RebalancingServiceTest {
     // 리밸런싱 후에도 floor 미달 ────────────────────────────────────
 
     @Test
-    @DisplayName("KRW 리밸런싱 후에도 floor 미달 → sendStillBelowFloorAfterRebalancing 호출")
+    @DisplayName("KRW 리밸런싱 후에도 floor(60%) 미달 → sendStillBelowFloorAfterRebalancing 호출")
     void execute_krwStillBelowFloorAfterRebalancing_alertSent() {
-        // KRW=5B, shortage=5B / USD surplus=1.3M × 1303.9=1.695B → capping
-        // buyBalanceAfter=6.695B < floor(8B) → 알림 발화
-        givenPools(new BigDecimal("5000000000"), new BigDecimal("6500000"));
+        // KRW=1B: shortage=7B / USD surplus(safeFloor기준)=1.3M × 1302.6=1.693B → capping
+        // buyBalanceAfter = 1B + 1.693B = 2.693B < floor(6B) → 알림 발화
+        givenPools(new BigDecimal("1000000000"), new BigDecimal("6500000"));
 
         rebalancingService.execute(TriggerType.MANUAL, null);
 
@@ -248,7 +250,7 @@ class RebalancingServiceTest {
     @Test
     @DisplayName("리밸런싱 후 floor 미달 알림 실패해도 RebalancingOrder 저장됨")
     void execute_stillBelowFloorAlertFails_rebalancingOrderStillSaved() {
-        givenPools(new BigDecimal("5000000000"), new BigDecimal("6500000"));
+        givenPools(new BigDecimal("1000000000"), new BigDecimal("6500000"));
         doThrow(new RuntimeException("알림 전송 실패"))
                 .when(adminAlertService).sendStillBelowFloorAfterRebalancing(any(), any(), any());
 
@@ -262,8 +264,8 @@ class RebalancingServiceTest {
     @Test
     @DisplayName("execute() 동시 호출 → 먼저 진입한 스레드만 완료, 나머지는 REBALANCE_IN_PROGRESS")
     void execute_concurrent_onlyOneSucceeds() throws InterruptedException {
-        // KRW floor 미만 → 실제 리밸런싱 로직이 실행됨
-        givenPools(new BigDecimal("7000000000"), new BigDecimal("6500000"));
+        // KRW floor(60%) 미만 → 실제 리밸런싱 로직이 실행됨 (환율 조회까지 진행)
+        givenPools(new BigDecimal("5000000000"), new BigDecimal("6500000"));
 
         CountDownLatch thread1InProgress = new CountDownLatch(1);
         CountDownLatch releaseThread1 = new CountDownLatch(1);

@@ -44,7 +44,7 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
       <head>
-        <script
+        <script  
           dangerouslySetInnerHTML={{
             __html: `
               try {

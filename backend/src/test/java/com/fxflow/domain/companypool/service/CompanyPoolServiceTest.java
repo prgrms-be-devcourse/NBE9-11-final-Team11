@@ -135,8 +135,6 @@ class CompanyPoolServiceTest {
 
     @Test
     @DisplayName("deposit - 원장 저장 실패 시 예외 전파 + 이벤트 미발행")
-    // @Transactional AOP가 롤백을 담당하므로 단위 테스트에서는 예외 전파와 이벤트 미발행만 검증.
-    // 실제 풀 잔액 롤백은 통합 테스트에서 확인해야 한다.
     void deposit_ledgerSaveFails_exceptionPropagatesAndEventNotPublished() {
         CompanyPool pool = mockPoolForDeposit();
         given(companyPoolRepository.findByCurrencyCodeWithLock("KRW")).willReturn(Optional.of(pool));
@@ -223,14 +221,20 @@ class CompanyPoolServiceTest {
     // ── getDashboard() 테스트 ─────────────────────────────────────
 
     @Test
-    @DisplayName("KRW floor 미만 → amount=USD 여유분으로 cap, counterAmount=USD 여유분")
+    @DisplayName("KRW floor(60%) 미만 → safeFloor 기준 amount cap, counterAmount 계산")
     void getDashboard_krwBelowFloor_correctStatusAndAction() {
-        BigDecimal krwBalance = new BigDecimal("7000000000");
-        // usdPool: balance=target=650만 → surplusAboveFloor = 650만 - 520만 = 130만
+        // KRW: 5B (< 6B floor=60%) — shortageToSafeFloor = 3B
+        // USD: target=6.5M — surplusAboveSafeFloor = 6.5M - 5.2M = 1.3M
+        // appliedRate = 1300 × 1.002 = 1302.6
+        // maxBuyableKRW = 1,300,000 × 1302.6 = 1,693,380,000 → cap 적용
+        // counterAmount = 1,693,380,000 / 1302.6 = 1,300,000 (정확히 떨어짐)
+        BigDecimal krwBalance = new BigDecimal("5000000000");
         CompanyPool krwPool = mockPoolFor("KRW", krwBalance,
-                PoolTestFixtures.KRW_TARGET, PoolTestFixtures.KRW_FLOOR, PoolTestFixtures.KRW_CEILING);
+                PoolTestFixtures.KRW_TARGET, PoolTestFixtures.KRW_SAFE_FLOOR,
+                PoolTestFixtures.KRW_FLOOR, PoolTestFixtures.KRW_CEILING);
         CompanyPool usdPool = mockPoolFor("USD", PoolTestFixtures.USD_TARGET,
-                PoolTestFixtures.USD_TARGET, PoolTestFixtures.USD_FLOOR, PoolTestFixtures.USD_CEILING);
+                PoolTestFixtures.USD_TARGET, PoolTestFixtures.USD_SAFE_FLOOR,
+                PoolTestFixtures.USD_FLOOR, PoolTestFixtures.USD_CEILING);
         given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(krwPool));
         given(companyPoolRepository.findByCurrencyCode("USD")).willReturn(Optional.of(usdPool));
         given(exchangeRateProvider.getLatestRate("USD", "KRW")).willReturn(
@@ -241,22 +245,23 @@ class CompanyPoolServiceTest {
         assertThat(result.asOf()).isNotNull();
         PoolDashboardRes.PoolStatusRes krw = result.pools().getFirst();
         assertThat(krw.status()).isEqualTo("BELOW_FLOOR");
-        assertThat(krw.utilizationRate()).isEqualByComparingTo("0.7000");
+        assertThat(krw.utilizationRate()).isEqualByComparingTo("0.5000");
         assertThat(krw.recommendedAction().type()).isEqualTo("BUY");
-        // shortage=3B > maxBuyable(130만 * 1303.9 = 1,695,070,000) → cap 적용
-        assertThat(krw.recommendedAction().amount()).isEqualByComparingTo("1695070000.00");
-        // counterAmount = 1,695,070,000 / 1303.9 = 1,300,000.00 (USD 여유분 그대로)
-        assertThat(krw.recommendedAction().counterAmount()).isEqualByComparingTo("1300000.00");
+        assertThat(krw.recommendedAction().amount()).isEqualByComparingTo("1693380000");
+        assertThat(krw.recommendedAction().counterAmount()).isEqualByComparingTo("1300000");
     }
 
     @Test
-    @DisplayName("KRW ceiling 초과 → amount=초과분 3B, counterAmount=3B÷1303.9=2,300,789.93 USD (버림)")
+    @DisplayName("KRW ceiling 초과 → amount=초과분 3B, counterAmount=3B÷1302.6 (버림, 8자리)")
     void getDashboard_krwAboveCeiling_correctStatusAndAction() {
+        // counterAmount = 3,000,000,000 / 1302.6 = 2,303,086.13542146...
         BigDecimal krwBalance = new BigDecimal("13000000000");
         CompanyPool krwPool = mockPoolFor("KRW", krwBalance,
-                PoolTestFixtures.KRW_TARGET, PoolTestFixtures.KRW_FLOOR, PoolTestFixtures.KRW_CEILING);
+                PoolTestFixtures.KRW_TARGET, PoolTestFixtures.KRW_SAFE_FLOOR,
+                PoolTestFixtures.KRW_FLOOR, PoolTestFixtures.KRW_CEILING);
         CompanyPool usdPool = mockPoolFor("USD", PoolTestFixtures.USD_TARGET,
-                PoolTestFixtures.USD_TARGET, PoolTestFixtures.USD_FLOOR, PoolTestFixtures.USD_CEILING);
+                PoolTestFixtures.USD_TARGET, PoolTestFixtures.USD_SAFE_FLOOR,
+                PoolTestFixtures.USD_FLOOR, PoolTestFixtures.USD_CEILING);
         given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(krwPool));
         given(companyPoolRepository.findByCurrencyCode("USD")).willReturn(Optional.of(usdPool));
         given(exchangeRateProvider.getLatestRate("USD", "KRW")).willReturn(
@@ -268,19 +273,19 @@ class CompanyPoolServiceTest {
         assertThat(krw.status()).isEqualTo("ABOVE_CEILING");
         assertThat(krw.utilizationRate()).isEqualByComparingTo("1.3000");
         assertThat(krw.recommendedAction().type()).isEqualTo("SELL");
-        // ABOVE_CEILING은 cap 없음 → amount = 13B - 10B = 3B
         assertThat(krw.recommendedAction().amount()).isEqualByComparingTo("3000000000");
-        // counterAmount = 3,000,000,000 / 1303.9 = 2,300,789.937... → 버림 → 2,300,789.93
-        assertThat(krw.recommendedAction().counterAmount()).isEqualByComparingTo("2300789.93");
+        assertThat(krw.recommendedAction().counterAmount()).isEqualByComparingTo("2303086.13542146");
     }
 
     @Test
     @DisplayName("양 통화 모두 정상 범위 → status=NORMAL, recommendedAction=null")
     void getDashboard_bothNormal_noRecommendedAction() {
         CompanyPool krwPool = mockPoolFor("KRW", PoolTestFixtures.KRW_TARGET,
-                PoolTestFixtures.KRW_TARGET, PoolTestFixtures.KRW_FLOOR, PoolTestFixtures.KRW_CEILING);
+                PoolTestFixtures.KRW_TARGET, PoolTestFixtures.KRW_SAFE_FLOOR,
+                PoolTestFixtures.KRW_FLOOR, PoolTestFixtures.KRW_CEILING);
         CompanyPool usdPool = mockPoolFor("USD", PoolTestFixtures.USD_TARGET,
-                PoolTestFixtures.USD_TARGET, PoolTestFixtures.USD_FLOOR, PoolTestFixtures.USD_CEILING);
+                PoolTestFixtures.USD_TARGET, PoolTestFixtures.USD_SAFE_FLOOR,
+                PoolTestFixtures.USD_FLOOR, PoolTestFixtures.USD_CEILING);
         given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(krwPool));
         given(companyPoolRepository.findByCurrencyCode("USD")).willReturn(Optional.of(usdPool));
         given(exchangeRateProvider.getLatestRate("USD", "KRW")).willReturn(Optional.empty());
@@ -297,11 +302,14 @@ class CompanyPoolServiceTest {
     @Test
     @DisplayName("환율 조회 실패 시 counterAmount=null, 대시보드는 정상 반환")
     void getDashboard_rateFetchFails_counterAmountNull() {
-        BigDecimal krwBalance = new BigDecimal("7000000000");
+        // KRW: 5B (< 6B floor=60%)
+        BigDecimal krwBalance = new BigDecimal("5000000000");
         CompanyPool krwPool = mockPoolFor("KRW", krwBalance,
-                PoolTestFixtures.KRW_TARGET, PoolTestFixtures.KRW_FLOOR, PoolTestFixtures.KRW_CEILING);
+                PoolTestFixtures.KRW_TARGET, PoolTestFixtures.KRW_SAFE_FLOOR,
+                PoolTestFixtures.KRW_FLOOR, PoolTestFixtures.KRW_CEILING);
         CompanyPool usdPool = mockPoolFor("USD", PoolTestFixtures.USD_TARGET,
-                PoolTestFixtures.USD_TARGET, PoolTestFixtures.USD_FLOOR, PoolTestFixtures.USD_CEILING);
+                PoolTestFixtures.USD_TARGET, PoolTestFixtures.USD_SAFE_FLOOR,
+                PoolTestFixtures.USD_FLOOR, PoolTestFixtures.USD_CEILING);
         given(companyPoolRepository.findByCurrencyCode("KRW")).willReturn(Optional.of(krwPool));
         given(companyPoolRepository.findByCurrencyCode("USD")).willReturn(Optional.of(usdPool));
         given(exchangeRateProvider.getLatestRate("USD", "KRW")).willReturn(Optional.empty());
@@ -315,20 +323,22 @@ class CompanyPoolServiceTest {
     }
 
     private CompanyPool mockPoolFor(String currencyCode, BigDecimal balance,
-                                    BigDecimal target, BigDecimal floor, BigDecimal ceiling) {
+                                    BigDecimal target, BigDecimal safeFloor,
+                                    BigDecimal floor, BigDecimal ceiling) {
         CompanyPool pool = mock(CompanyPool.class);
         given(pool.getCurrencyCode()).willReturn(currencyCode);
         given(pool.getBalance()).willReturn(balance);
         given(pool.getTargetBalance()).willReturn(target);
         given(pool.getFloorBalance()).willReturn(floor);
+        given(pool.getSafeFloorBalance()).willReturn(safeFloor);
         given(pool.getCeilingBalance()).willReturn(ceiling);
         given(pool.isBelowFloor()).willReturn(balance.compareTo(floor) < 0);
         given(pool.isAboveCeiling()).willReturn(balance.compareTo(ceiling) > 0);
-        BigDecimal shortage = target.subtract(balance);
-        given(pool.shortageToTarget()).willReturn(
+        BigDecimal shortage = safeFloor.subtract(balance);
+        given(pool.shortageToSafeFloor()).willReturn(
                 shortage.compareTo(BigDecimal.ZERO) > 0 ? shortage : BigDecimal.ZERO);
-        BigDecimal surplus = balance.subtract(floor);
-        given(pool.surplusAboveFloor()).willReturn(
+        BigDecimal surplus = balance.subtract(safeFloor);
+        given(pool.surplusAboveSafeFloor()).willReturn(
                 surplus.compareTo(BigDecimal.ZERO) > 0 ? surplus : BigDecimal.ZERO);
         return pool;
     }

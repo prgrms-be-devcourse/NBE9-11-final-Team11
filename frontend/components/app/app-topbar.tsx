@@ -38,7 +38,7 @@ export function AppTopbar({ title }: { title: string }) {
               </Button>
             }
           />
-          <SheetContent side="left" className="w-72 p-0">
+          <SheetContent side="left" className="data-[side=left]:w-56 p-0">
             <SheetTitle className="sr-only">내비게이션</SheetTitle>
             <AppSidebar onNavigate={() => setOpen(false)} />
           </SheetContent>

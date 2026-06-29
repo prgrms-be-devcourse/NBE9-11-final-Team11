@@ -15,6 +15,7 @@ export interface PoolStatusRes {
   balance: number
   targetBalance: number
   floorBalance: number
+  safeFloorBalance: number
   ceilingBalance: number
   status: PoolStatus
   utilizationRate: number
@@ -233,6 +234,72 @@ export const getTransactionHistory = (params: TransactionHistoryParams = {}) => 
   return apiRequest<UnifiedTransactionHistoryResponse>("GET", `/api/v1/transactions${query ? `?${query}` : ""}`)
 }
 
+// ── Reservation (지정가 예약) API ───────────────────────────────
+
+export type ReservationAction = "EXCHANGE" | "REMITTANCE"
+export type ReservationStatusCode =
+  | "ACTIVE"
+  | "TRIGGERED"
+  | "COMPLETED"
+  | "CANCELED"
+  | "FAILED"
+  | "EXPIRED"
+
+// 백엔드 ReservationResponse (null 필드는 응답에서 생략됨)
+export interface ReservationResponse {
+  reservationId: number
+  action: ReservationAction
+  status: ReservationStatusCode
+  fromCurrency: string
+  toCurrency: string
+  amount: number
+  targetRate: number
+  expiresAt?: string // ISO LocalDateTime. null(무기한)이면 응답에서 생략됨
+  recipientId?: number
+  remittanceReason?: string
+  remittanceReasonDetail?: string
+  triggeredAt?: string
+  executedAt?: string
+  resultExchangeTransactionId?: number
+  resultRemittanceTransactionId?: number
+  failureReason?: string
+  createdAt: string
+}
+
+export interface ReservationPageResponse {
+  data: ReservationResponse[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export interface CreateReservationRequest {
+  action: ReservationAction
+  fromCurrency: string
+  toCurrency: string
+  amount: number
+  targetRate: number
+  expiresAt?: string | null // LocalDateTime(타임존 없는 ISO). 생략/null = 무기한(만료 없음)
+  recipientId?: number | null
+  remittanceReason?: string | null
+  remittanceReasonDetail?: string | null
+}
+
+// 예약 목록 (최신순 페이지)
+export const getReservations = (page = 0, size = 20) =>
+  apiRequest<ReservationPageResponse>("GET", `/api/v1/reservations?page=${page}&size=${size}`)
+
+// 예약 생성 — 멱등 키는 헤더로 전달 (요청마다 새 UUID)
+export const createReservation = (body: CreateReservationRequest, idempotencyKey: string) =>
+  apiRequest<ReservationResponse>("POST", "/api/v1/reservations", body, {
+    "Idempotency-Key": idempotencyKey,
+  })
+
+// 예약 취소 — 체결 전(ACTIVE)만 가능
+export const cancelReservation = (reservationId: number) =>
+  apiRequest<ReservationResponse>("PATCH", `/api/v1/reservations/${reservationId}/cancel`)
+
 // ── 핵심: fetch 단일 실행 ───────────────────────────────────────
 
 async function fetchOnce(
@@ -350,7 +417,7 @@ export async function apiRequest<T>(
     let errorData: any = {}
     try {
       errorData = await res.clone().json()
-    } catch {}
+    } catch { }
 
     if (errorData?.code === "UNAUTHORIZED") {
       const refreshed = await tryRefresh()
@@ -364,7 +431,7 @@ export async function apiRequest<T>(
         let retryError: any = {}
         try {
           retryError = await retryRes.json()
-        } catch {}
+        } catch { }
         const err = new Error(retryError?.message ?? "요청에 실패했습니다.")
         Object.assign(err, retryError, { status: retryRes.status })
         throw err
@@ -376,7 +443,7 @@ export async function apiRequest<T>(
 
       // throw하지 않고 pending 상태로 두어 각 페이지의 에러 핸들러가
       // 토스트를 띄우지 않도록 함 — SessionWatcher가 처리
-      return new Promise(() => {})
+      return new Promise(() => { })
     }
 
     // UNAUTHORIZED 외의 401 (로그인 실패 등)은 세션 만료 처리 안 함
@@ -389,7 +456,7 @@ export async function apiRequest<T>(
     let errorData: any = {}
     try {
       errorData = await res.json()
-    } catch {}
+    } catch { }
     const message = errorData?.message || errorData?.code || res.statusText
     const error = new Error(message)
     Object.assign(error, errorData, { status: res.status })

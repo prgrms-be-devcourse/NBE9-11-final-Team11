@@ -7,8 +7,12 @@ import com.fxflow.domain.ledger.enums.LedgerRefType;
 import com.fxflow.domain.ledger.repository.LedgerEntryRepository;
 import com.fxflow.domain.mockbankaccount.dto.request.UsdMockAccountInquiryRequest;
 import com.fxflow.domain.mockbankaccount.dto.response.*;
+import com.fxflow.domain.mockbankaccount.entity.KycVerification;
 import com.fxflow.domain.mockbankaccount.entity.MockBankAccount;
+import com.fxflow.domain.mockbankaccount.enums.KycVerificationStatus;
 import com.fxflow.domain.mockbankaccount.errorcode.MockBankAccountErrorCode;
+import com.fxflow.domain.mockbankaccount.exception.KycCodeMismatchException;
+import com.fxflow.domain.mockbankaccount.repository.KycVerificationRepository;
 import com.fxflow.domain.mockbankaccount.repository.MockBankAccountRepository;
 import com.fxflow.domain.remittancetransaction.entity.RemittanceTransaction;
 import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
@@ -29,6 +33,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -40,8 +46,12 @@ import java.util.stream.Collectors;
 public class MockBankAccountService {
     private static final String KRW = "KRW";
     private static final String USD = "USD";
+    private static final long KYC_CODE_TTL_MINUTES = 5;
+    private static final int KYC_DAILY_REQUEST_LIMIT = 5;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final MockBankAccountRepository mockBankAccountRepository;
+    private final KycVerificationRepository kycVerificationRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final UserRepository userRepository;
     private final WalletRepository walletRepository;
@@ -189,6 +199,103 @@ public class MockBankAccountService {
         log.info("[모의계좌 연결 완료] userId={}, accountNumber={}", userId, accountNumber);
 
         return MockBankLinkResponse.of(account, wallets);
+    }
+
+    /**
+     * 1원 인증(KYC) 시작 — 계좌번호/은행명/예금주명을 입력받아
+     * 무작위 4자리 코드를 생성하고, "fxflow{code}" 입금자명으로 1원을 입금했다고 가정한다.
+     * 사용자는 별도의 계좌번호 조회 화면에서 이 입금자명을 확인해 코드를 알아낸다.
+     */
+    @Transactional
+    public KycStartResponse startKyc(Long userId, String bankName, String accountNumber, String accountHolderName) {
+        validateAccountNumberFormat(accountNumber);
+
+        if (mockBankAccountRepository.existsByUserIdAndCurrencyCode(userId, KRW)) {
+            throw new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_ALREADY_LINKED);
+        }
+        if (mockBankAccountRepository.existsByAccountNumber(accountNumber)) {
+            throw new BusinessException(MockBankAccountErrorCode.MOCK_ACCOUNT_NUMBER_DUPLICATED);
+        }
+
+        LocalDateTime todayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
+        long todayRequestCount = kycVerificationRepository.countByUserIdAndCreatedAtAfter(userId, todayStart);
+        if (todayRequestCount >= KYC_DAILY_REQUEST_LIMIT) {
+            throw new BusinessException(MockBankAccountErrorCode.KYC_DAILY_LIMIT_EXCEEDED);
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        // '다시 요청' 등으로 이전에 발급된 대기 중 인증 건이 있다면 무효화한다.
+        List<KycVerification> pendingVerifications =
+                kycVerificationRepository.findAllByUserIdAndStatus(userId, KycVerificationStatus.PENDING);
+        pendingVerifications.forEach(KycVerification::expire);
+
+        String code = generateCode();
+        KycVerification verification = KycVerification.create(
+                user,
+                bankName,
+                accountNumber,
+                accountHolderName,
+                code,
+                LocalDateTime.now().plusMinutes(KYC_CODE_TTL_MINUTES)
+        );
+        kycVerificationRepository.save(verification);
+
+        log.info("[1원 인증 시작] userId={}, bankName={}, accountNumber={}", userId, bankName, accountNumber);
+
+        int remainingDailyRequests = KYC_DAILY_REQUEST_LIMIT - (int) (todayRequestCount + 1);
+        return KycStartResponse.of(verification, remainingDailyRequests);
+    }
+
+    /**
+     * 계좌번호 조회 — 사용자가 입력한 계좌번호/은행명/예금주명과 일치하는
+     * 대기 중인 1원 인증 건의 입금자명("fxflow{code}")을 보여준다.
+     * 실제 은행 앱에서 입금 내역을 조회하는 행위를 모사한다.
+     */
+    @Transactional(readOnly = true)
+    public KycInquiryResponse inquireKyc(String bankName, String accountNumber, String accountHolderName) {
+        KycVerification verification = kycVerificationRepository
+                .findFirstByBankNameAndAccountNumberAndAccountHolderNameAndStatusOrderByCreatedAtDesc(
+                        bankName, accountNumber, accountHolderName, KycVerificationStatus.PENDING
+                )
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.KYC_VERIFICATION_NOT_FOUND));
+
+        if (verification.isExpired(LocalDateTime.now())) {
+            throw new BusinessException(MockBankAccountErrorCode.KYC_CODE_EXPIRED);
+        }
+
+        return KycInquiryResponse.of(verification);
+    }
+
+    /**
+     * 1원 인증 코드 검증 — 일치하면 즉시 모의계좌 연결까지 완료한다.
+     * findByIdAndUserId가 비관적 쓰기 락을 걸어 동시 요청을 줄 세우고,
+     * KycCodeMismatchException은 noRollbackFor 대상이라 시도 횟수 증가분이 그대로 커밋된다.
+     * (다른 BusinessException은 noRollbackFor 대상이 아니므로 정상적으로 롤백된다.)
+     */
+    @Transactional(noRollbackFor = KycCodeMismatchException.class)
+    public MockBankLinkResponse verifyKyc(Long userId, Long verificationId, String code) {
+        KycVerification verification = kycVerificationRepository.findByIdAndUserId(verificationId, userId)
+                .orElseThrow(() -> new BusinessException(MockBankAccountErrorCode.KYC_VERIFICATION_NOT_FOUND));
+
+        verification.assertVerifiable(LocalDateTime.now());
+
+        if (!verification.matchesCode(code)) {
+            int remaining = verification.incrementAttemptAndGetRemaining();
+            kycVerificationRepository.save(verification);
+            throw new KycCodeMismatchException(remaining);
+        }
+
+        verification.markVerified();
+
+        log.info("[1원 인증 완료] userId={}, verificationId={}", userId, verificationId);
+
+        return linkAccount(userId, verification.getBankName(), verification.getAccountNumber());
+    }
+
+    private String generateCode() {
+        return String.format("%04d", RANDOM.nextInt(10_000));
     }
 
     /**
