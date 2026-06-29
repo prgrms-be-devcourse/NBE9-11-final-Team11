@@ -68,7 +68,7 @@ export function krwPerUnit(code: CurrencyCode): number {
 }
 
 export function formatKRW(amount: number): string {
-  return "₩" + Math.floor(amount).toLocaleString("ko-KR")
+  return "₩" + Math.round(amount).toLocaleString("ko-KR")
 }
 
 export function floorToTwoDecimals(value: number): number {
