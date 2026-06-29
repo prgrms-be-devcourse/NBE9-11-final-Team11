@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "remittance_transactions", indexes = {
-        @Index(name = "idx_remittance_user_created", columnList = "user_id, created_at DESC, id DESC")
+        @Index(name = "idx_remittance_user_created", columnList = "user_id, created_at DESC")
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
