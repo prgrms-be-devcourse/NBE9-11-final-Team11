@@ -18,8 +18,10 @@ import {
   sanitizeDecimalInput,
 } from "@/lib/fx-data"
 import { apiRequest } from "@/lib/api"
+import { useRequireKyc } from "@/lib/use-require-kyc"
 
 export default function ExchangePage() {
+  const { blocked: kycBlocked, dialog: kycDialog } = useRequireKyc()
   const router = useRouter()
   const [krwBalance, setKrwBalance] = useState<number>(0)
   const [usdBalance, setUsdBalance] = useState<number>(0)
@@ -170,6 +172,8 @@ export default function ExchangePage() {
       setIsSubmitting(false)
     }
   }
+
+  if (kycBlocked) return kycDialog
 
   return (
     <AppShell title="환전">

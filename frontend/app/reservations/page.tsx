@@ -29,6 +29,7 @@ import {
   type FxRateLatest,
   type ReservationResponse,
 } from "@/lib/api"
+import { useRequireKyc } from "@/lib/use-require-kyc"
 
 const POLL_INTERVAL_MS = 60_000 // 60초마다 최신 환율·예약 목록 폴링
 
@@ -75,6 +76,7 @@ function DirectionBadge({ direction }: { direction: Direction }) {
 }
 
 export default function ReservationsPage() {
+  const { blocked: kycBlocked, dialog: kycDialog } = useRequireKyc()
   const [rate, setRate] = useState<FxRateLatest | null>(null)
   const [reservations, setReservations] = useState<ReservationResponse[]>([])
   const [loadingList, setLoadingList] = useState(true)
@@ -212,6 +214,8 @@ export default function ReservationsPage() {
   )
 
   const usd = CURRENCY_META.USD
+
+  if (kycBlocked) return kycDialog
 
   return (
     <AppShell title="예약">

@@ -1,12 +1,22 @@
 "use client"
 
+import type React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Wallet, ArrowLeftRight, Send, Plus, Landmark } from "lucide-react"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { TransactionRow } from "@/components/app/transaction-row"
 import { useStore, type Transaction, type TxStatus } from "@/lib/store"
 import { formatKRW, type CurrencyCode } from "@/lib/fx-data"
@@ -114,6 +124,15 @@ export default function DashboardPage() {
   // null = 확인 중, true = 연결됨, false = 미연결
   const [accountLinked, setAccountLinked] = useState<boolean | null>(null)
   const [rate, setRate] = useState<FxRateLatest | null>(null)
+  const [showKycPrompt, setShowKycPrompt] = useState(false)
+  const router = useRouter()
+
+  function handleQuickActionClick(e: React.MouseEvent) {
+    if (accountLinked === false) {
+      e.preventDefault()
+      setShowKycPrompt(true)
+    }
+  }
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -201,32 +220,46 @@ export default function DashboardPage() {
         {/* Quick actions */}
         <div className="grid gap-3 sm:grid-cols-3">
           <Button
-            render={<Link href="/wallet" />}
+            render={<Link href="/wallet" onClick={handleQuickActionClick} />}
             size="lg"
             className="h-auto justify-start gap-3 rounded-2xl py-4"
-            disabled={accountLinked === false}
           >
             <Plus className="size-5" /> 충전하기
           </Button>
           <Button
-            render={<Link href="/exchange" />}
+            render={<Link href="/exchange" onClick={handleQuickActionClick} />}
             size="lg"
             variant="outline"
             className="h-auto justify-start gap-3 rounded-2xl py-4"
-            disabled={accountLinked === false}
           >
             <ArrowLeftRight className="size-5" /> 환전하기
           </Button>
           <Button
-            render={<Link href="/remittance" />}
+            render={<Link href="/remittance" onClick={handleQuickActionClick} />}
             size="lg"
             variant="outline"
             className="h-auto justify-start gap-3 rounded-2xl py-4"
-            disabled={accountLinked === false}
           >
             <Send className="size-5" /> 해외송금
           </Button>
         </div>
+
+        <Dialog open={showKycPrompt} onOpenChange={setShowKycPrompt}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>KYC 인증이 필요합니다</DialogTitle>
+              <DialogDescription>
+                이 서비스를 이용하려면 계좌 연결(KYC 인증)이 필요합니다. 지금 인증하시겠습니까?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowKycPrompt(false)}>
+                아니요
+              </Button>
+              <Button onClick={() => router.push("/onboarding/link-account")}>예</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Wallet balance */}

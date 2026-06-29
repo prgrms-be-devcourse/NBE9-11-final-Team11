@@ -12,6 +12,7 @@ import { useStore } from "@/lib/store"
 import { formatKRW, formatCurrency, type CurrencyCode } from "@/lib/fx-data"
 import { cn } from "@/lib/utils"
 import { apiRequest } from "@/lib/api"
+import { useRequireKyc } from "@/lib/use-require-kyc"
 
 const STAGES = [
   { key: "received", label: "해외송금 신청 접수", icon: Package, desc: "해외송금 요청이 정상적으로 접수되었습니다." },
@@ -42,6 +43,7 @@ interface TransferDetailResponse {
 }
 
 export default function RemittanceTrackingPage({ params }: { params: Promise<{ id: string }> }) {
+  const { blocked: kycBlocked, dialog: kycDialog } = useRequireKyc()
   const { id } = use(params)
   const router = useRouter()
   const transferId = id.replace(/^r-/, "")
@@ -208,6 +210,8 @@ export default function RemittanceTrackingPage({ params }: { params: Promise<{ i
 
     return () => window.clearTimeout(timer)
   }, [depositExpiredCountdown, router])
+
+  if (kycBlocked) return kycDialog
 
   if (loading) {
     return (

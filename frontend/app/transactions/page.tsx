@@ -18,6 +18,7 @@ import { timeAgo } from "@/components/app/transaction-row"
 import type { Transaction, TxType, TxStatus } from "@/lib/store"
 import { formatKRW, formatCurrency, type CurrencyCode } from "@/lib/fx-data"
 import { apiRequest } from "@/lib/api"
+import { useRequireKyc } from "@/lib/use-require-kyc"
 
 const typeMeta: Record<TxType, { label: string; icon: typeof ArrowDownLeft }> = {
   deposit: { label: "입금", icon: ArrowDownLeft },
@@ -72,6 +73,7 @@ function TransactionsFallback() {
 }
 
 function TransactionsContent() {
+  const { blocked: kycBlocked, dialog: kycDialog } = useRequireKyc()
   const searchParams = useSearchParams()
   const requestedTab = searchParams.get("tab")
   const targetTransferId = searchParams.get("transferId")
@@ -323,6 +325,8 @@ function TransactionsContent() {
     }
     return formatKRW(Math.abs(tx.amountKRW))
   }
+
+  if (kycBlocked) return kycDialog
 
   return (
     <AppShell title="거래내역">

@@ -17,6 +17,7 @@ import { useStore, type Transaction, type TxType, type TxStatus } from "@/lib/st
 import { CURRENCY_META, formatKRW, formatCurrency, krwPerUnit, type CurrencyCode, sanitizeDecimalInput } from "@/lib/fx-data"
 import { KOREAN_BANKS } from "@/lib/fx-data"
 import { apiRequest, getLatestRate } from "@/lib/api"
+import { useRequireKyc } from "@/lib/use-require-kyc"
 import { useEffect } from "react"
 
 const FX_CODES: CurrencyCode[] = ["USD"/*, "JPY", "EUR", "CNY"*/]
@@ -29,6 +30,7 @@ interface MockAccountInfo {
 }
 
 export default function WalletPage() {
+  const { blocked: kycBlocked, dialog: kycDialog } = useRequireKyc()
   const [krwBalance, setKrwBalance] = useState<number>(0)
   const [totalKrw, setTotalKrw] = useState<number>(0)
   const [fxBalances, setFxBalances] = useState<Record<CurrencyCode, number>>({
@@ -302,6 +304,8 @@ export default function WalletPage() {
   const walletTx = transactions.filter((t) => t.type === "deposit" || t.type === "withdraw")
   const exchangeTx = transactions.filter((t) => t.type === "exchange")
   const transferTx = transactions.filter((t) => t.type === "transfer")
+
+  if (kycBlocked) return kycDialog
 
   return (
     <AppShell title="내 지갑">

@@ -34,6 +34,7 @@ import {
 } from "@/lib/fx-data"
 import { cn } from "@/lib/utils"
 import { apiRequest } from "@/lib/api"
+import { useRequireKyc } from "@/lib/use-require-kyc"
 
 const STEPS = ["수취인", "금액", "확인"]
 const MIN_SEND_AMOUNT_KRW = 10000
@@ -107,6 +108,7 @@ interface CreateTransferResponse {
 }
 
 export default function RemittancePage() {
+  const { blocked: kycBlocked, dialog: kycDialog } = useRequireKyc()
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [recipients, setRecipients] = useState<Recipient[]>([])
@@ -462,6 +464,8 @@ export default function RemittancePage() {
       setSubmitting(false)
     }
   }
+
+  if (kycBlocked) return kycDialog
 
   return (
     <AppShell title="해외송금">
