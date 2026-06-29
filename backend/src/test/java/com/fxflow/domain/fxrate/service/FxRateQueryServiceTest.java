@@ -1,21 +1,30 @@
 package com.fxflow.domain.fxrate.service;
 
+import com.fxflow.domain.fxrate.dto.response.FxRateHistoryResponse;
 import com.fxflow.domain.fxrate.entity.FxRate;
+import com.fxflow.domain.fxrate.enums.FxRateHistoryPeriod;
+import com.fxflow.domain.fxrate.repository.FxRateHistoryRow;
 import com.fxflow.domain.fxrate.repository.FxRateRepository;
 import com.fxflow.global.fx.FxRateSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 /**
  * 도메인 간 환율 제공 포트(ExchangeRateProvider) 구현 검증.
@@ -67,5 +76,61 @@ class FxRateQueryServiceTest {
 
         // then
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("전일 기준값 조회 시 '전일 15:30' 이전 최신 환율을 as-of로 조회한다")
+    void getPreviousDayBaselineMid_usesYesterday1530AsOf() {
+        // given
+        FxRate baseline = FxRate.create("USD", "KRW", new BigDecimal("1300"), "TwelveData",
+                LocalDateTime.of(2026, 6, 17, 15, 28));
+        given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyAndFetchedAtLessThanEqualOrderByFetchedAtDesc(
+                eq("USD"), eq("KRW"), any(LocalDateTime.class)))
+                .willReturn(Optional.of(baseline));
+
+        // when
+        Optional<BigDecimal> result = fxRateQueryService.getPreviousDayBaselineMid("USD", "KRW");
+
+        // then - 반환값은 기준 환율(mid)
+        assertThat(result).isPresent();
+        assertThat(result.get()).isEqualByComparingTo("1300");
+
+        // and - 조회 기준 시각은 전일 15:30
+        ArgumentCaptor<LocalDateTime> targetCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        org.mockito.Mockito.verify(fxRateRepository)
+                .findFirstByBaseCurrencyAndQuoteCurrencyAndFetchedAtLessThanEqualOrderByFetchedAtDesc(
+                        eq("USD"), eq("KRW"), targetCaptor.capture());
+        assertThat(targetCaptor.getValue()).isEqualTo(LocalDate.now().minusDays(1).atTime(15, 30));
+    }
+
+    @Test
+    @DisplayName("기준값이 없으면 전일 대비 변동 기준은 Optional.empty 를 반환한다")
+    void getPreviousDayBaselineMid_empty() {
+        given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyAndFetchedAtLessThanEqualOrderByFetchedAtDesc(
+                eq("USD"), eq("KRW"), any(LocalDateTime.class)))
+                .willReturn(Optional.empty());
+
+        assertThat(fxRateQueryService.getPreviousDayBaselineMid("USD", "KRW")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("이력 조회는 버킷 행을 시계열 포인트로 매핑하고 mid 자리수(8)로 정규화한다")
+    void getHistory_mapsRowsToPoints() {
+        // given - 1주일은 시간 버킷으로 집계 (AVG 결과의 잔여 소수 정규화 확인)
+        FxRateHistoryRow row = mock(FxRateHistoryRow.class);
+        given(row.getBucket()).willReturn(LocalDateTime.of(2026, 6, 18, 9, 0));
+        given(row.getRate()).willReturn(new BigDecimal("1305.123456785"));
+        given(fxRateRepository.findHistory(eq("USD"), eq("KRW"), any(LocalDateTime.class), eq("hour")))
+                .willReturn(List.of(row));
+
+        // when
+        FxRateHistoryResponse response = fxRateQueryService.getHistory("USD", "KRW", FxRateHistoryPeriod.ONE_WEEK);
+
+        // then
+        assertThat(response.period()).isEqualTo("1W");
+        assertThat(response.points()).hasSize(1);
+        assertThat(response.points().get(0).timestamp()).isEqualTo(LocalDateTime.of(2026, 6, 18, 9, 0));
+        // 8자리 HALF_UP 정규화: 1305.123456785 → 1305.12345679 (scale 8)
+        assertThat(response.points().get(0).midRate()).isEqualByComparingTo("1305.12345679");
     }
 }
