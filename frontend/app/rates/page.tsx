@@ -27,12 +27,16 @@ const PERIODS: { key: FxRateHistoryPeriod; label: string }[] = [
   { key: "1M", label: "1달" },
 ]
 
-// 기간별 X축 라벨 포맷 — 1일은 시:분, 그 외(주/월)는 월/일
+// 기간별 X축 라벨 포맷 — 1D: HH:mm / 1W: M/D HH:00(시간 버킷) / 1M: M/D(일 버킷)
 function formatHistoryLabel(iso: string, period: FxRateHistoryPeriod): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   if (period === "1D") {
     return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
+  }
+  if (period === "1W") {
+    const h = String(d.getHours()).padStart(2, "0")
+    return `${d.getMonth() + 1}/${d.getDate()} ${h}:00`
   }
   return `${d.getMonth() + 1}/${d.getDate()}`
 }
