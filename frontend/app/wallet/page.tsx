@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Minus, ArrowLeftRight, Wallet as WalletIcon, Landmark } from "lucide-react"
+import { Plus, Minus, ArrowLeftRight, Wallet as WalletIcon, Landmark, RefreshCw } from "lucide-react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app/app-shell"
 import { Card } from "@/components/ui/card"
@@ -15,7 +16,7 @@ import { TransactionRow } from "@/components/app/transaction-row"
 import { useStore, type Transaction, type TxType, type TxStatus } from "@/lib/store"
 import { CURRENCY_META, formatKRW, formatCurrency, krwPerUnit, type CurrencyCode, sanitizeDecimalInput } from "@/lib/fx-data"
 import { KOREAN_BANKS } from "@/lib/fx-data"
-import { apiRequest } from "@/lib/api"
+import { apiRequest, getLatestRate } from "@/lib/api"
 import { useEffect } from "react"
 
 const FX_CODES: CurrencyCode[] = ["USD"/*, "JPY", "EUR", "CNY"*/]
@@ -55,6 +56,7 @@ export default function WalletPage() {
     totalProfit: number
     currentRate: number
   } | null>(null)
+  const [usdRate, setUsdRate] = useState<number>(1387.5)
 
   function handleAddAmount(amountToAdd: number) {
     setAmount((prev) => {
@@ -90,6 +92,15 @@ export default function WalletPage() {
       setKrwBalance(localKrw)
       setFxBalances(newFxBalances)
       setTotalKrw(balanceRes.totalKrw || 0)
+
+      try {
+        const rateRes = await getLatestRate("USD", "KRW")
+        if (rateRes && rateRes.midRate) {
+          setUsdRate(rateRes.midRate)
+        }
+      } catch (err) {
+        console.error("Failed to fetch USD rate", err)
+      }
 
       try {
         const profitRes = await apiRequest<{
@@ -233,7 +244,7 @@ export default function WalletPage() {
     }
   }
 
-  const fxValueKRW = FX_CODES.reduce((sum, c) => sum + (fxBalances[c] ?? 0) * krwPerUnit(c), 0)
+  const fxValueKRW = FX_CODES.reduce((sum, c) => sum + (fxBalances[c] ?? 0) * (c === "USD" ? usdRate : krwPerUnit(c)), 0)
   const totalKRW = totalKrw
 
   async function submit() {
@@ -324,6 +335,9 @@ export default function WalletPage() {
                   </Button>
                 }
               />
+              <Button render={<Link href="/exchange" />} variant="secondary" size="sm">
+                <RefreshCw className="size-4" /> 환전
+              </Button>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>
@@ -511,7 +525,7 @@ export default function WalletPage() {
                   <div className="text-right">
                     <p className="text-lg font-bold tabular-nums">{formatCurrency(fxBalances[c] ?? 0, c)}</p>
                     <p className="text-xs text-muted-foreground tabular-nums">
-                      ≈ {formatKRW((fxBalances[c] ?? 0) * krwPerUnit(c))}
+                      ≈ {formatKRW((fxBalances[c] ?? 0) * (c === "USD" ? usdRate : krwPerUnit(c)))}
                     </p>
                   </div>
                 </div>

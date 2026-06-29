@@ -1,10 +1,10 @@
 -- ── 자금 풀 초기 데이터 ───────────────────────────────────────
--- KRW: target 100억, floor 80억(80%), ceiling 120억(120%)
--- USD: target 650만, floor 520만(80%), ceiling 780만(120%)
-INSERT INTO company_pools (currency_code, balance, target_balance, floor_balance, ceiling_balance, created_at, updated_at)
+-- KRW: target 100억, safeFloor 80억(80%), floor 60억(60%), ceiling 120억(120%)
+-- USD: target 650만, safeFloor 520만(80%), floor 390만(60%), ceiling 780만(120%)
+INSERT INTO company_pools (currency_code, balance, target_balance, floor_balance, safe_floor_balance, ceiling_balance, created_at, updated_at)
 VALUES
-    ('KRW', 10000000000.00, 10000000000.00,  8000000000.00, 12000000000.00, now(), now()),
-    ('USD',     6500000.00,     6500000.00,     5200000.00,     7800000.00, now(), now())
+    ('KRW', 10000000000.00, 10000000000.00, 6000000000.00, 8000000000.00, 12000000000.00, now(), now()),
+    ('USD',     6500000.00,     6500000.00,    3900000.00,    5200000.00,     7800000.00, now(), now())
 ON CONFLICT (currency_code) DO NOTHING;
 
 -- ── 통화 ──────────────────────────────────────────────────
@@ -39,3 +39,7 @@ VALUES
     ('ANNUAL_EXCHANGE',   'STANDARD', 'USD', 100000.00000000,  true, now(), now())
 
     ON CONFLICT ON CONSTRAINT uk_limit_type_tier_currency DO NOTHING;
+
+-- ── 성능 인덱스 ───────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_ledger_entries_created_at ON ledger_entries(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rebalancing_orders_status_created_at ON rebalancing_orders(status, created_at DESC);

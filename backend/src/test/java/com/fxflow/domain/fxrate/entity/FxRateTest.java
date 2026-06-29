@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class FxRateTest {
 
     @Test
-    @DisplayName("create()는 전달값을 채우고, 스프레드는 기본 정책값(0.01)으로 설정한다")
+    @DisplayName("create()는 전달값을 채우고, 스프레드는 기본 정책값(0)으로 설정한다")
     void create_setsFieldsAndDefaultSpread() {
         // given
         LocalDateTime fetchedAt = LocalDateTime.of(2026, 6, 17, 9, 0, 0);
@@ -32,7 +32,7 @@ class FxRateTest {
         assertThat(fxRate.getSource()).isEqualTo("TwelveData");
         assertThat(fxRate.getFetchedAt()).isEqualTo(fetchedAt);
         // 정책 고정값: 기획 확정 전 임시 1%
-        assertThat(fxRate.getSpread()).isEqualByComparingTo("0.01");
+        assertThat(fxRate.getSpread()).isEqualByComparingTo("0");
     }
 
     @Test

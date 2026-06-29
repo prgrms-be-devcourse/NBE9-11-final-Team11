@@ -36,7 +36,7 @@ public record ReservationCreateRequest(
         @Positive(message = "목표 환율은 0보다 커야 합니다.")
         BigDecimal targetRate,
 
-        @NotNull(message = "만료 시각은 필수입니다.")
+        // 만료 시각 — null 이면 무기한(만료 없음). 값이 있으면 현재 이후여야 한다(@Future 는 null 을 통과시킴).
         @Future(message = "만료 시각은 현재 이후여야 합니다.")
         LocalDateTime expiresAt,
 

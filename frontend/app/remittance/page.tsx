@@ -39,6 +39,7 @@ const STEPS = ["수취인", "금액", "확인"]
 const MIN_SEND_AMOUNT_KRW = 10000
 const PER_TRANSFER_LIMIT_USD = 5000
 const QUOTE_EXPIRATION_SECONDS = 300
+const QUOTE_DEBOUNCE_MS = 400
 const REASON_TO_API: Record<string, string> = {
   가족생활비: "FAMILY_SUPPORT",
   유학경비: "TUITION",
@@ -141,15 +142,17 @@ export default function RemittancePage() {
   const receiveAmount = Number(receiveInput) || 0
   const { fee, received } = useMemo(() => {
     const fee = quote?.totalFee ?? (krwAmount > 0 ? remittanceFee(krwAmount) : 0)
-    const received = quote?.receiveAmountUsd ?? (amountMode === "receive" ? receiveAmount : krwAmount / krwPerUnit(currency))
+    const received = quote?.receiveAmountUsd ?? (amountMode === "receive" ? receiveAmount : 0)
     return { fee, received }
-  }, [amountMode, krwAmount, currency, quote, receiveAmount])
+  }, [amountMode, krwAmount, quote, receiveAmount])
 
   const sendAmountKrw = quote?.sendAmountKrw ?? krwAmount
   const total = sendAmountKrw + fee
   const estimatedAmountUsd = amountMode === "receive" ? receiveAmount : krwAmount / krwPerUnit(currency)
   const estimatedMaxKrw = Math.floor(PER_TRANSFER_LIMIT_USD * krwPerUnit(currency))
   const isQuoteExpired = quoteExpiredCountdown !== null
+  const displayReceived = amountMode === "receive" && receiveAmount > 0 ? receiveAmount : received
+  const canRequestQuote = !!recipient && krwAmount >= MIN_SEND_AMOUNT_KRW && estimatedAmountUsd <= PER_TRANSFER_LIMIT_USD
 
   useEffect(() => {
     async function loadInitialData() {
@@ -175,6 +178,7 @@ export default function RemittancePage() {
   useEffect(() => {
     setQuote(null)
     quoteRequestId.current += 1
+    setLoadingQuote(false)
   }, [amountMode, recipientId, krwInput, receiveInput, reason])
 
   useEffect(() => {
@@ -259,7 +263,7 @@ export default function RemittancePage() {
     krwCursorDigitPosition.current = null
   }, [krwInput])
 
-  const fetchQuote = useCallback(async () => {
+  const fetchQuote = useCallback(async (showError = true) => {
     if (!recipient) return null
     const requestId = ++quoteRequestId.current
     setLoadingQuote(true)
@@ -279,7 +283,9 @@ export default function RemittancePage() {
       return data
     } catch (err: any) {
       console.error(err)
-      toast.error(err.message || "해외송금 견적을 불러오지 못했습니다.")
+      if (showError) {
+        toast.error(err.message || "해외송금 견적을 불러오지 못했습니다.")
+      }
       return null
     } finally {
       if (requestId === quoteRequestId.current) {
@@ -287,6 +293,16 @@ export default function RemittancePage() {
       }
     }
   }, [amountMode, krwAmount, reason, recipient, receiveAmount])
+
+  useEffect(() => {
+    if (step !== 1 || !canRequestQuote || quoteExpiredCountdown !== null) return
+
+    const timeout = window.setTimeout(() => {
+      fetchQuote(false)
+    }, QUOTE_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timeout)
+  }, [canRequestQuote, fetchQuote, quoteExpiredCountdown, step])
 
   async function saveRecipient() {
     if (!form.name.trim() || !form.bank.trim() || !form.account.trim())
@@ -622,28 +638,28 @@ export default function RemittancePage() {
                   <Input
                     ref={krwInputRef}
                     inputMode="numeric"
-                    value={krwInput ? Number(krwInput).toLocaleString("ko-KR") : ""}
+                    value={krwInput ? "₩ " + Number(krwInput).toLocaleString("ko-KR") : ""}
                     onKeyDown={handleKrwInputKeyDown}
                     onChange={(e) => handleKrwInputChange(e.target.value, e.target.selectionStart)}
                     className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
-                    placeholder="0"
+                    placeholder="₩ 0"
                   />
                 ) : (
                   <Input
                     inputMode="decimal"
-                    value={receiveInput}
+                    value={receiveInput ? `${CURRENCY_META[currency]?.symbol ?? "$"} ${receiveInput}` : ""}
                     onChange={(e) => handleReceiveInputChange(e.target.value)}
                     className="mt-2 border-0 bg-transparent text-right text-2xl font-bold tabular-nums shadow-none focus-visible:ring-0"
-                    placeholder="0.00"
+                    placeholder={`${CURRENCY_META[currency]?.symbol ?? "$"} 0.00`}
                   />
                 )}
                 <p className="mt-1 text-right text-sm text-muted-foreground">
                   {loadingQuote
                     ? "견적 계산 중..."
                     : amountMode === "send"
-                      ? `보낼 금액 ${krwAmount > 0 ? formatCurrency(received, currency) : "-"}`
-                      : `보낼 금액 ${sendAmountKrw > 0 ? formatKRW(sendAmountKrw) : "-"}`}
-                  <span className="ml-4">수수료 {krwAmount > 0 ? formatKRW(fee) : "-"}</span>
+                      ? `보낼 금액 ${quote ? formatCurrency(displayReceived, currency) : "-"}`
+                      : `보낼 금액 ${quote ? formatKRW(sendAmountKrw) : "-"}`}
+                  <span className="ml-4">수수료 {quote ? formatKRW(fee) : "-"}</span>
                 </p>
               </div>
               <div className="space-y-2">
@@ -705,7 +721,7 @@ export default function RemittancePage() {
               )}
               <Separator />
               <Row label="총 출금액" value={formatKRW(total)} bold />
-              <Row label="보낼 금액" value={formatCurrency(received, currency)} bold accent />
+              <Row label="보낼 금액" value={formatCurrency(displayReceived, currency)} bold accent />
             </dl>
             {quoteExpiredCountdown !== null ? (
               <QuoteExpiredNotice seconds={quoteExpiredCountdown} />

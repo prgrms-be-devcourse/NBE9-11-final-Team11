@@ -15,6 +15,7 @@ export interface PoolStatusRes {
   balance: number
   targetBalance: number
   floorBalance: number
+  safeFloorBalance: number
   ceilingBalance: number
   status: PoolStatus
   utilizationRate: number
@@ -74,6 +75,23 @@ export interface FxRateLatest {
   buyRate: number
   sellRate: number
   fetchedAt: string // ISO-8601 LocalDateTime (예: "2026-06-21T12:34:56")
+  previousRate: number | null // 전일 15:30 기준 매매기준율 (기준값 없으면 null)
+  changeRate: number | null // 전일 대비 변동액 (없으면 null)
+  changePercent: number | null // 전일 대비 변동률(%) (없으면 null)
+}
+
+export type FxRateHistoryPeriod = "1D" | "1W" | "1M"
+
+export interface FxRateHistoryPoint {
+  timestamp: string // ISO-8601 LocalDateTime (버킷 시작 시각)
+  midRate: number
+}
+
+export interface FxRateHistory {
+  baseCurrency: string
+  quoteCurrency: string
+  period: FxRateHistoryPeriod
+  points: FxRateHistoryPoint[]
 }
 
 // ── Unified Transaction History API ─────────────────────────────
@@ -205,12 +223,24 @@ export const getPoolDashboard = () =>
 export const triggerRebalance = (reason?: string) =>
   apiRequest<RebalanceResponse>("POST", "/api/v1/admin/pools/rebalance", reason ? { reason } : {})
 
-export const getRebalanceHistory = () =>
-  apiRequest<RebalanceHistoryItem[]>("GET", "/api/v1/admin/pools/rebalance/history")
+export interface RebalanceHistoryPageResponse {
+  data: RebalanceHistoryItem[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
 
-// 최신 매매기준율 조회 (기본 USD/KRW). 데이터가 없으면 404를 던진다.
+export const getRebalanceHistory = (page = 0, size = 20) =>
+  apiRequest<RebalanceHistoryPageResponse>("GET", `/api/v1/admin/pools/rebalance/history?page=${page}&size=${size}`)
+
+// 최신 매매기준율 + 전일(15:30 기준) 대비 변동 조회 (기본 USD/KRW). 데이터가 없으면 404를 던진다.
 export const getLatestRate = (base = "USD", quote = "KRW") =>
   apiRequest<FxRateLatest>("GET", `/api/v1/fxrates/latest?base=${base}&quote=${quote}`)
+
+// 환율 이력 조회 (기본 USD/KRW, 1D). 데이터가 없으면 points 가 빈 배열로 반환된다.
+export const getFxRateHistory = (base = "USD", quote = "KRW", period: FxRateHistoryPeriod = "1D") =>
+  apiRequest<FxRateHistory>("GET", `/api/v1/fxrates/history?base=${base}&quote=${quote}&period=${period}`)
 
 export const getAdminTransactions = (params: AdminTransactionParams = {}) => {
   const search = new URLSearchParams()
@@ -232,6 +262,72 @@ export const getTransactionHistory = (params: TransactionHistoryParams = {}) => 
   const query = search.toString()
   return apiRequest<UnifiedTransactionHistoryResponse>("GET", `/api/v1/transactions${query ? `?${query}` : ""}`)
 }
+
+// ── Reservation (지정가 예약) API ───────────────────────────────
+
+export type ReservationAction = "EXCHANGE" | "REMITTANCE"
+export type ReservationStatusCode =
+  | "ACTIVE"
+  | "TRIGGERED"
+  | "COMPLETED"
+  | "CANCELED"
+  | "FAILED"
+  | "EXPIRED"
+
+// 백엔드 ReservationResponse (null 필드는 응답에서 생략됨)
+export interface ReservationResponse {
+  reservationId: number
+  action: ReservationAction
+  status: ReservationStatusCode
+  fromCurrency: string
+  toCurrency: string
+  amount: number
+  targetRate: number
+  expiresAt?: string // ISO LocalDateTime. null(무기한)이면 응답에서 생략됨
+  recipientId?: number
+  remittanceReason?: string
+  remittanceReasonDetail?: string
+  triggeredAt?: string
+  executedAt?: string
+  resultExchangeTransactionId?: number
+  resultRemittanceTransactionId?: number
+  failureReason?: string
+  createdAt: string
+}
+
+export interface ReservationPageResponse {
+  data: ReservationResponse[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export interface CreateReservationRequest {
+  action: ReservationAction
+  fromCurrency: string
+  toCurrency: string
+  amount: number
+  targetRate: number
+  expiresAt?: string | null // LocalDateTime(타임존 없는 ISO). 생략/null = 무기한(만료 없음)
+  recipientId?: number | null
+  remittanceReason?: string | null
+  remittanceReasonDetail?: string | null
+}
+
+// 예약 목록 (최신순 페이지)
+export const getReservations = (page = 0, size = 20) =>
+  apiRequest<ReservationPageResponse>("GET", `/api/v1/reservations?page=${page}&size=${size}`)
+
+// 예약 생성 — 멱등 키는 헤더로 전달 (요청마다 새 UUID)
+export const createReservation = (body: CreateReservationRequest, idempotencyKey: string) =>
+  apiRequest<ReservationResponse>("POST", "/api/v1/reservations", body, {
+    "Idempotency-Key": idempotencyKey,
+  })
+
+// 예약 취소 — 체결 전(ACTIVE)만 가능
+export const cancelReservation = (reservationId: number) =>
+  apiRequest<ReservationResponse>("PATCH", `/api/v1/reservations/${reservationId}/cancel`)
 
 // ── 핵심: fetch 단일 실행 ───────────────────────────────────────
 
@@ -350,7 +446,7 @@ export async function apiRequest<T>(
     let errorData: any = {}
     try {
       errorData = await res.clone().json()
-    } catch {}
+    } catch { }
 
     if (errorData?.code === "UNAUTHORIZED") {
       const refreshed = await tryRefresh()
@@ -364,7 +460,7 @@ export async function apiRequest<T>(
         let retryError: any = {}
         try {
           retryError = await retryRes.json()
-        } catch {}
+        } catch { }
         const err = new Error(retryError?.message ?? "요청에 실패했습니다.")
         Object.assign(err, retryError, { status: retryRes.status })
         throw err
@@ -376,7 +472,7 @@ export async function apiRequest<T>(
 
       // throw하지 않고 pending 상태로 두어 각 페이지의 에러 핸들러가
       // 토스트를 띄우지 않도록 함 — SessionWatcher가 처리
-      return new Promise(() => {})
+      return new Promise(() => { })
     }
 
     // UNAUTHORIZED 외의 401 (로그인 실패 등)은 세션 만료 처리 안 함
@@ -389,7 +485,7 @@ export async function apiRequest<T>(
     let errorData: any = {}
     try {
       errorData = await res.json()
-    } catch {}
+    } catch { }
     const message = errorData?.message || errorData?.code || res.statusText
     const error = new Error(message)
     Object.assign(error, errorData, { status: res.status })

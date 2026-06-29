@@ -5,35 +5,28 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
   Wallet,
-  LineChart,
   ArrowLeftRight,
   Send,
   CalendarClock,
   Receipt,
-  Bell,
   Settings,
   TrendingUp,
   ShieldCheck,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useStore } from "@/lib/store"
 
 const nav = [
   { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
   { href: "/wallet", label: "지갑", icon: Wallet },
-  { href: "/rates", label: "환율", icon: LineChart },
   { href: "/exchange", label: "환전", icon: ArrowLeftRight },
   { href: "/remittance", label: "해외송금", icon: Send },
   { href: "/reservations", label: "예약", icon: CalendarClock },
   { href: "/transactions", label: "거래내역", icon: Receipt },
-  { href: "/notifications", label: "알림", icon: Bell },
   { href: "/settings", label: "설정", icon: Settings },
 ]
 
 export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
-  const { notifications } = useStore()
-  const unread = notifications.filter((n) => !n.read).length
 
   return (
     <div className="flex h-full flex-col gap-1 bg-sidebar">
@@ -62,16 +55,6 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
                 <item.icon className="size-[18px]" />
                 {item.label}
               </span>
-              {item.href === "/notifications" && unread > 0 && (
-                <span
-                  className={cn(
-                    "flex size-5 items-center justify-center rounded-full text-[11px] font-bold",
-                    active ? "bg-sidebar-primary-foreground text-sidebar-primary" : "bg-primary text-primary-foreground",
-                  )}
-                >
-                  {unread}
-                </span>
-              )}
             </Link>
           )
         })}

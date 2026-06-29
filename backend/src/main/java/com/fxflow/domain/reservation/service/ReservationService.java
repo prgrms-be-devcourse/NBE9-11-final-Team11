@@ -112,6 +112,7 @@ public class ReservationService {
                 && existing.getToCurrency().equals(toCurrency)
                 && existing.getAmount().compareTo(request.amount()) == 0
                 && existing.getTargetRate().compareTo(request.targetRate()) == 0
+                && Objects.equals(existing.getExpiresAt(), request.expiresAt())
                 && Objects.equals(existing.getRecipientId(), request.recipientId());
     }
 
@@ -120,7 +121,8 @@ public class ReservationService {
      * 이 검증은 @Valid 를 거치지 않는 호출에 대한 백스톱(엔티티는 현재 시각을 비교하지 않음).
      */
     private void validateNotExpired(LocalDateTime expiresAt) {
-        if (expiresAt == null || !expiresAt.isAfter(LocalDateTime.now())) {
+        // null = 무기한(만료 없음) 허용. 값이 있을 때만 과거 시각을 차단한다.
+        if (expiresAt != null && !expiresAt.isAfter(LocalDateTime.now())) {
             throw new BusinessException(ReservationErrorCode.EXPIRES_AT_IN_PAST);
         }
     }

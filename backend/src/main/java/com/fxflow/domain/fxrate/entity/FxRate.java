@@ -29,8 +29,8 @@ public class FxRate extends BaseEntity {
     @Column(name = "spread", precision = 18, scale = 8, nullable = false)
     private BigDecimal spread; // 스프레드 (비율형, 적용 환율은 mid×(1±spread)로 파생)
 
-    // 플랫폼 FX 마진 정책 — 기획 확정 전 임시 1%, 정책 확정 시 이 값 변경
-    private static final BigDecimal DEFAULT_SPREAD = new BigDecimal("0.01");
+    // 플랫폼 FX 마진 정책 — 현재 스프레드 0 (mid=buy=sell). 정책 확정 시 이 값 변경
+    private static final BigDecimal DEFAULT_SPREAD = BigDecimal.ZERO;
 
     @Column(name = "source", length = 50, nullable = false)
     private String source; // 출처

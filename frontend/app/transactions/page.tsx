@@ -49,6 +49,10 @@ function formatRate(rate: number) {
   return `₩${Number(rate).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function hasValidAmount(amount: number | undefined): amount is number {
+  return amount !== undefined && Number.isFinite(amount)
+}
+
 export default function TransactionsPage() {
   return (
     <Suspense fallback={<TransactionsFallback />}>
@@ -570,14 +574,15 @@ function TransactionsContent() {
                         value={`${detail.fromCurrency ?? "KRW"} → ${detail.toCurrency ?? "KRW"}`}
                       />
                       <Row label="체결 환율" value={formatRate(detail.rate)} />
-                      {detail.fromAmount && detail.fromCurrency ? (
+                      {hasValidAmount(detail.fromAmount) && detail.fromCurrency ? (
                         <Row label="환전 금액" value={formatCurrency(detail.fromAmount, detail.fromCurrency)} />
                       ) : (
                         detail.fromCurrency && <Row label="환전 금액" value={formatCurrency(Math.abs(detail.amountKRW), detail.fromCurrency)} />
                       )}
-                      {detail.toAmount && detail.toCurrency ? (
+                      {hasValidAmount(detail.toAmount) && detail.toCurrency ? (
                         <Row label="환산 금액" value={formatCurrency(detail.toAmount, detail.toCurrency)} />
                       ) : (
+                        detail.type !== "remittance" &&
                         detail.toCurrency && <Row label="환산 금액" value={formatCurrency(received(detail), detail.toCurrency)} />
                       )}
                     </dl>

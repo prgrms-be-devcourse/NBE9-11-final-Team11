@@ -16,15 +16,15 @@ export function TxStatusBadge({ status }: { status: TxStatus }) {
 }
 
 const resStatusMap: Record<ReservationStatus, { label: string; cls: string }> = {
-  ACTIVE: { label: "ACTIVE", cls: "bg-primary/10 text-primary border-transparent" },
-  TRIGGERED: { label: "TRIGGERED", cls: "bg-chart-3/15 text-chart-3 border-transparent" },
-  COMPLETED: { label: "COMPLETED", cls: "bg-accent/15 text-accent border-transparent" },
-  CANCELED: { label: "CANCELED", cls: "bg-muted text-muted-foreground border-transparent" },
-  FAILED: { label: "FAILED", cls: "bg-destructive/10 text-destructive border-transparent" },
-  EXPIRED: { label: "EXPIRED", cls: "bg-muted text-muted-foreground border-transparent" },
+  ACTIVE: { label: "대기중", cls: "bg-primary/10 text-primary border-transparent" },
+  TRIGGERED: { label: "체결중", cls: "bg-chart-3/15 text-chart-3 border-transparent" },
+  COMPLETED: { label: "완료", cls: "bg-accent/15 text-accent border-transparent" },
+  CANCELED: { label: "취소됨", cls: "bg-muted text-muted-foreground border-transparent" },
+  FAILED: { label: "실패", cls: "bg-destructive/10 text-destructive border-transparent" },
+  EXPIRED: { label: "만료", cls: "bg-muted text-muted-foreground border-transparent" },
 }
 
 export function ReservationStatusBadge({ status }: { status: ReservationStatus }) {
   const s = resStatusMap[status]
-  return <Badge className={cn("rounded-full font-mono text-[11px] font-semibold", s.cls)}>{s.label}</Badge>
+  return <Badge className={cn("rounded-full font-medium", s.cls)}>{s.label}</Badge>
 }

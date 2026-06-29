@@ -77,12 +77,12 @@ function AccountFlow({
   )
 }
 
-type CategoryKey = "지갑충전" | "지갑출금" | "P2P이체" | "환전" | "해외송금" | "리밸런싱"
+type CategoryKey = "지갑충전" | "지갑출금" | "지갑송금" | "환전" | "해외송금" | "리밸런싱"
 
 const CATEGORY_COLOR: Record<CategoryKey, string> = {
   지갑충전: "bg-emerald-100 text-emerald-700",
   지갑출금: "bg-red-100 text-red-700",
-  P2P이체: "bg-sky-100 text-sky-700",
+  지갑송금: "bg-sky-100 text-sky-700",
   환전: "bg-violet-100 text-violet-700",
   해외송금: "bg-amber-100 text-amber-700",
   리밸런싱: "bg-indigo-100 text-indigo-700",
@@ -93,7 +93,7 @@ function getCategory(sourceType: string, subType: string): CategoryKey | string 
   const map: Record<string, CategoryKey> = {
     CHARGE: "지갑충전",
     WITHDRAW: "지갑출금",
-    TRANSFER: "P2P이체",
+    TRANSFER: "지갑송금",
     EXCHANGE: "환전",
     REMITTANCE: "해외송금",
   }
@@ -152,7 +152,13 @@ function buildGroups(items: AdminTransactionItem[]): GroupedTx[] {
     const krwChange = entries.find((e) => e.krwPoolChange != null)?.krwPoolChange ?? null
     const usdChange = entries.find((e) => e.usdPoolChange != null)?.usdPoolChange ?? null
 
-    const subType = entries.some((e) => e.subType === "REMITTANCE") ? "REMITTANCE" : first.subType
+    const subType = entries.some((e) => e.subType === "REMITTANCE")
+      ? "REMITTANCE"
+      : entries.some((e) => e.subType === "EXCHANGE")
+      ? "EXCHANGE"
+      : entries.some((e) => e.accountRole === "BANK" && e.subType === "TRANSFER")
+      ? "REMITTANCE"
+      : first.subType
 
     result.push({
       key,

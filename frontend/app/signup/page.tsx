@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AlertCircle, Check, Loader2, CircleCheck, Eye, EyeOff } from "lucide-react"
@@ -14,13 +14,20 @@ import { toast } from "sonner"
 import { apiRequest } from "@/lib/api"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { KOREAN_BANKS } from "@/lib/fx-data"
+import { KycTimer } from "@/components/kyc-timer"
 
-type KycState = "idle" | "waiting" | "verified" | "failed"
+type KycState = "idle" | "starting" | "waiting" | "verified" | "failed"
 type KycFailKind = "code" | "api" | null
 type AccountCheckStatus = "idle" | "checking" | "available" | "unavailable"
 type AccountCheckState = {
   status: AccountCheckStatus
   message?: string
+}
+
+interface KycStartResponse {
+  verificationId: number
+  expiresAt: string
+  remainingDailyRequests: number
 }
 
 export default function SignupPage() {
@@ -66,6 +73,16 @@ export default function SignupPage() {
         if (typeof window !== "undefined") {
           localStorage.setItem("fxflow-userId", String(data.userId))
         }
+
+        // 1원 인증(kyc/start, kyc/verify)은 로그인된 사용자만 호출할 수 있으므로
+        // 가입 직후 곧바로 로그인해 인증 쿠키를 받아둔다.
+        const loginData = await apiRequest<{ userId: number; name: string; email: string }>(
+          "POST",
+          "/api/v1/auth/login",
+          { email, password }
+        )
+        login(loginData.email, loginData.name)
+
         setStep("kyc")
       } catch (err: any) {
         console.error(err)
@@ -77,8 +94,32 @@ export default function SignupPage() {
   // --- KYC step ---
   const [kyc, setKyc] = useState<KycState>("idle")
   const [kycFailKind, setKycFailKind] = useState<KycFailKind>(null)
+  const [verificationId, setVerificationId] = useState<number | null>(null)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  const [remainingSeconds, setRemainingSeconds] = useState(0)
   const [code, setCode] = useState("")
-  const correctCode = "1234"
+  const [remainingDailyRequests, setRemainingDailyRequests] = useState<number | null>(null)
+  const [verifying, setVerifying] = useState(false)
+
+  // 만료 시각까지 1초마다 남은 시간을 갱신한다.
+  useEffect(() => {
+    if (!expiresAt || kyc !== "waiting") return
+
+    function tick() {
+      const remaining = Math.max(0, Math.floor((new Date(expiresAt!).getTime() - Date.now()) / 1000))
+      setRemainingSeconds(remaining)
+      if (remaining === 0) {
+        setKyc("failed")
+        setKycFailKind("code")
+        setError("인증 시간이 만료되었습니다. 다시 요청해주세요.")
+      }
+    }
+
+    tick()
+    const timer = setInterval(tick, 1000)
+    return () => clearInterval(timer)
+  }, [expiresAt, kyc])
+
 
   // --- 계좌번호 사전 확인 (중복 체크) ---
   const [accountCheck, setAccountCheck] = useState<AccountCheckState>({ status: "idle" })
@@ -113,51 +154,46 @@ export default function SignupPage() {
     }
   }
 
-  function startKyc() {
+  async function startKyc() {
     if (accountCheck.status !== "available") return
-    setKyc("waiting")
-    setKycFailKind(null)
+    setKyc("starting")
+    setError("")
+    try {
+      const res = await apiRequest<KycStartResponse>("POST", "/api/v1/mockbank/kyc/start", {
+        bankName,
+        accountNumber: accountNumber.replace(/[^\d]/g, ""),
+        accountHolderName: name.trim(),
+      })
+      setVerificationId(res.verificationId)
+      setExpiresAt(res.expiresAt)
+      setRemainingDailyRequests(res.remainingDailyRequests)
+      setCode("")
+      setKyc("waiting")
+      setKycFailKind(null)
+    } catch (err: any) {
+      console.error(err)
+      setKyc("idle")
+      setError(err.message || "1원 인증 요청에 실패했습니다.")
+    }
+  }
+
+  // 코드를 못 받았거나 만료됐을 때 새 코드를 다시 요청한다.
+  async function resendKyc() {
+    setError("")
+    await startKyc()
   }
 
   async function verifyKyc(ev: React.FormEvent) {
     ev.preventDefault()
     setError("")
 
-    const cleanAccount = accountNumber.replace(/[^\d]/g, "")
-    if (cleanAccount.length !== 12) {
-      setError("계좌번호는 정확히 12자리 숫자여야 합니다.")
-      return
-    }
+    if (!verificationId || verifying) return
 
-    if (code !== correctCode) {
-      setKyc("failed")
-      setKycFailKind("code")
-      return
-    }
-
-    // 인증코드는 맞았으니 이제 로그인 + 계좌연결을 시도한다.
-    // 이 두 단계는 회원가입 완료를 위한 "필수" 단계이며,
-    // 어느 한쪽이라도 실패하면 인증 완료(verified) 처리를 하지 않는다.
-    setKyc("waiting")
-    setKycFailKind(null)
-
+    setVerifying(true)
     try {
-      const loginData = await apiRequest<{ userId: number; name: string; email: string }>(
-        "POST",
-        "/api/v1/auth/login",
-        { email, password }
-      )
-      if (typeof window !== "undefined") {
-        localStorage.setItem("fxflow-userId", String(loginData.userId))
-      }
-      login(loginData.email, loginData.name)
-
-      // 모의계좌 연결 + 지갑 생성은 필수 단계.
-      // "계좌번호 확인하기"에서 통과했더라도, 그 사이 다른 요청이 같은 번호를
-      // 선점했을 수 있으므로 여기서 다시 한 번 최종 검증된다.
-      await apiRequest("POST", "/api/v1/mockbank/link", {
-        bankName: bankName,
-        accountNumber: cleanAccount
+      await apiRequest("POST", "/api/v1/mockbank/kyc/verify", {
+        verificationId,
+        code,
       })
 
       setKyc("verified")
@@ -167,8 +203,10 @@ export default function SignupPage() {
     } catch (err: any) {
       console.error(err)
       setKyc("failed")
-      setKycFailKind("api")
-      setError(err.message || "계좌 연결에 실패했습니다. 잠시 후 다시 시도해주세요.")
+      setKycFailKind(err.code === "KYC_CODE_MISMATCH" ? "code" : "api")
+      setError(err.message || "인증코드가 일치하지 않습니다.")
+    } finally {
+      setVerifying(false)
     }
   }
 
@@ -256,6 +294,10 @@ export default function SignupPage() {
                   </span>
                 )}
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-muted-foreground text-xs">예금주명</Label>
+                <span className="font-medium">{name}</span>
+              </div>
             </div>
           </div>
 
@@ -272,14 +314,34 @@ export default function SignupPage() {
             </div>
           )}
 
+          {kyc === "starting" && (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              1원 입금 요청 중...
+            </div>
+          )}
+
           {(kyc === "waiting" || kyc === "failed") && (
             <form onSubmit={verifyKyc} className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
-                <Loader2 className="size-3.5 animate-spin" />
-                인증 대기 중 · 입금자명 코드를 확인하세요 (데모 코드: 1234)
+              <div className="flex flex-col gap-2.5">
+                {kyc === "waiting" && (
+                  <div className="flex justify-center">
+                    <KycTimer remainingSeconds={remainingSeconds} />
+                  </div>
+                )}
+                <p className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+                  입력하신 계좌에 1원이 입금되었습니다. 계좌번호 조회 화면에서 입금자명을 확인하세요.
+                </p>
+                <Link
+                  href="/mockbank/kyc-inquiry"
+                  target="_blank"
+                  className="flex items-center justify-center gap-1 text-center text-xs font-medium text-primary underline underline-offset-2"
+                >
+                  계좌번호 조회하기
+                </Link>
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="code">인증코드</Label>
+                <Label htmlFor="code">인증코드 (입금자명 뒤 4자리)</Label>
                 <Input
                   id="code"
                   inputMode="numeric"
@@ -290,21 +352,29 @@ export default function SignupPage() {
                   className="text-center text-lg tracking-[0.5em]"
                 />
               </div>
-              {kyc === "failed" && kycFailKind === "code" && (
+              {kyc === "failed" && (
                 <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   <AlertCircle className="size-4" />
-                  인증에 실패했습니다. 코드를 다시 확인해주세요.
+                  {error || (kycFailKind === "code" ? "인증코드가 일치하지 않습니다." : "계좌 연결에 실패하여 가입을 완료할 수 없습니다.")}
                 </div>
               )}
-              {kyc === "failed" && kycFailKind === "api" && (
-                <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  <AlertCircle className="size-4" />
-                  계좌 연결에 실패하여 가입을 완료할 수 없습니다. 위 오류 내용을 확인 후 다시 시도해주세요.
-                </div>
-              )}
-              <Button type="submit" className="w-full">
-                인증 확인
+              <Button type="submit" className="w-full" disabled={verifying || code.length !== 4}>
+                {verifying ? "연결 중..." : "인증 확인"}
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={resendKyc}
+                disabled={verifying || remainingDailyRequests === 0}
+              >
+                1원 다시 요청
+              </Button>
+              {remainingDailyRequests !== null && (
+                <p className="text-center text-xs text-muted-foreground">
+                  오늘 다시 요청 가능 횟수: {remainingDailyRequests}회 남음
+                </p>
+              )}
             </form>
           )}
 
