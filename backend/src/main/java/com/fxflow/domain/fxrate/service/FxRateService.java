@@ -107,6 +107,6 @@ public class FxRateService {
         if (epochSeconds == null) {
             return LocalDateTime.now();
         }
-        return LocalDateTime.ofInstant(Instant.ofEpochSecond(epochSeconds), ZoneId.systemDefault());
+        return LocalDateTime.ofInstant(Instant.ofEpochSecond(epochSeconds), ZoneId.of("Asia/Seoul"));
     }
 }

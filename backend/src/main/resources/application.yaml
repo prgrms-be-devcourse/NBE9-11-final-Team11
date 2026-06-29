@@ -3,6 +3,8 @@ spring:
     name: fxflow
   config:
     import: "optional:classpath:application-secret.yaml"
+  jackson:
+    time-zone: Asia/Seoul
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/mydb}
     username: ${SPRING_DATASOURCE_USERNAME:myuser}
