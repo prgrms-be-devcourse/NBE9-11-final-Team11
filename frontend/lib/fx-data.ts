@@ -143,4 +143,3 @@ export function sanitizeDecimalInput(value: string, maxDecimals: number = 2): st
   }
   return clean;
 }
-
