@@ -151,6 +151,7 @@ export default function RemittancePage() {
   const estimatedAmountUsd = amountMode === "receive" ? receiveAmount : krwAmount / krwPerUnit(currency)
   const estimatedMaxKrw = Math.floor(PER_TRANSFER_LIMIT_USD * krwPerUnit(currency))
   const isQuoteExpired = quoteExpiredCountdown !== null
+  const displayReceived = amountMode === "receive" && receiveAmount > 0 ? receiveAmount : received
   const canRequestQuote = !!recipient && krwAmount >= MIN_SEND_AMOUNT_KRW && estimatedAmountUsd <= PER_TRANSFER_LIMIT_USD
 
   useEffect(() => {
@@ -655,7 +656,7 @@ export default function RemittancePage() {
                   {loadingQuote
                     ? "견적 계산 중..."
                     : amountMode === "send"
-                      ? `보낼 금액 ${quote ? formatCurrency(received, currency) : "-"}`
+                      ? `보낼 금액 ${quote ? formatCurrency(displayReceived, currency) : "-"}`
                       : `보낼 금액 ${quote ? formatKRW(sendAmountKrw) : "-"}`}
                   <span className="ml-4">수수료 {quote ? formatKRW(fee) : "-"}</span>
                 </p>
@@ -719,7 +720,7 @@ export default function RemittancePage() {
               )}
               <Separator />
               <Row label="총 출금액" value={formatKRW(total)} bold />
-              <Row label="보낼 금액" value={formatCurrency(received, currency)} bold accent />
+              <Row label="보낼 금액" value={formatCurrency(displayReceived, currency)} bold accent />
             </dl>
             {quoteExpiredCountdown !== null ? (
               <QuoteExpiredNotice seconds={quoteExpiredCountdown} />

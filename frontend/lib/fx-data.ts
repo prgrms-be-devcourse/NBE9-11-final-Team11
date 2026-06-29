@@ -72,7 +72,8 @@ export function formatKRW(amount: number): string {
 }
 
 export function floorToTwoDecimals(value: number): number {
-  return Math.floor(value * 100) / 100
+  const [whole, decimals = ""] = value.toFixed(12).split(".")
+  return Number(`${whole}.${decimals.padEnd(2, "0").slice(0, 2)}`)
 }
 
 export function formatCurrency(amount: number, code: CurrencyCode): string {
@@ -143,4 +144,3 @@ export function sanitizeDecimalInput(value: string, maxDecimals: number = 2): st
   }
   return clean;
 }
-

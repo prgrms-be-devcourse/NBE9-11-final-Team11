@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiRequest } from "@/lib/api"
-import { formatKRW } from "@/lib/fx-data"
+import { formatCurrency, formatKRW } from "@/lib/fx-data"
 
 // ── 타입 ─────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ interface UsdInquiryResponse {
 // ── 헬퍼 ────────────────────────────────────────────────────────
 
 function formatUSD(amount: number) {
-  return "$" + Number(amount).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return formatCurrency(amount, "USD")
 }
 
 function formatRate(rate: number) {
