@@ -39,6 +39,10 @@ const PERIODS: { key: FxRateHistoryPeriod; label: string }[] = [
   { key: "1M", label: "1달" },
 ]
 
+function formatRate(rate: number) {
+  return `₩${Number(rate).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 // 기간별 X축 라벨 포맷 — 1일은 시:분, 그 외(주/월)는 월/일
 function formatHistoryLabel(iso: string, period: FxRateHistoryPeriod): string {
   const d = new Date(iso)
@@ -341,7 +345,7 @@ export default function DashboardPage() {
               오늘의 환율 · USD/KRW
             </span>
             <p className="mt-2 text-3xl font-bold tabular-nums">
-              {rate ? formatKRW(rate.midRate) : loading ? "로딩 중..." : "-"}
+              {rate ? formatRate(rate.midRate) : loading ? "로딩 중..." : "-"}
             </p>
             {rate && <p className="text-sm text-muted-foreground">{formatFetchedAt(rate.fetchedAt)} 기준</p>}
           </Card>
