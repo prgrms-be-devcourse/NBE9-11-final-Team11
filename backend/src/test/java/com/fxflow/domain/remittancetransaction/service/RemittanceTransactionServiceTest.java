@@ -20,7 +20,6 @@ import com.fxflow.domain.remittancetransaction.enums.TransferStatus;
 import com.fxflow.domain.remittancetransaction.enums.VirtualAccountStatus;
 import com.fxflow.domain.remittancetransaction.errorcode.RecipientErrorCode;
 import com.fxflow.domain.remittancetransaction.errorcode.RemittanceTransactionErrorCode;
-import com.fxflow.domain.remittancetransaction.event.RemittanceFundedEvent;
 import com.fxflow.domain.remittancetransaction.repository.RecipientRepository;
 import com.fxflow.domain.remittancetransaction.repository.RemittanceTransactionRepository;
 import com.fxflow.domain.remittancetransaction.repository.VirtualAccountRepository;
@@ -44,7 +43,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -104,7 +102,7 @@ class RemittanceTransactionServiceTest {
     private RecipientPayoutAccountService recipientPayoutAccountService;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private RemittancePayoutService remittancePayoutService;
 
     @Mock
     private ExchangeRateProvider exchangeRateProvider;
@@ -684,17 +682,7 @@ class RemittanceTransactionServiceTest {
                 eq(new BigDecimal("1010000.00")),
                 anyString()
         );
-        ArgumentCaptor<RemittanceFundedEvent> eventCaptor =
-                ArgumentCaptor.forClass(RemittanceFundedEvent.class);
-        verify(eventPublisher).publishEvent(eventCaptor.capture());
-        RemittanceFundedEvent event = eventCaptor.getValue();
-
-        assertThat(event.transferId()).isEqualTo(transferId);
-        assertThat(event.userId()).isEqualTo(userId);
-        assertThat(event.amountKrw()).isEqualByComparingTo(new BigDecimal("1010000.00"));
-        assertThat(event.receiveCurrency()).isEqualTo("USD");
-        assertThat(event.receiveAmount()).isEqualByComparingTo(new BigDecimal("736.52"));
-        assertThat(event.fundedAt()).isNotNull();
+        verify(remittancePayoutService).processPayout(transferId);
     }
 
     @Test

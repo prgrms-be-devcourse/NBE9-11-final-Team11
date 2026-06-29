@@ -13,6 +13,7 @@ import com.fxflow.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
@@ -29,7 +30,7 @@ public class RemittancePayoutProcessor {
      * TRF-08 정상 지급을 하나의 트랜잭션으로 처리한다.
      * 중간 단계에서 실패하면 이 트랜잭션만 롤백되고, 환불은 별도 트랜잭션에서 수행된다.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void process(Long transferId) {
         RemittanceTransaction remittanceTransaction = getTransfer(transferId);
 
