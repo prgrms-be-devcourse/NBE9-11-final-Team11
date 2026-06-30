@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - dev
+      - main
 
 jobs:
   build:
@@ -48,7 +49,7 @@ jobs:
 
   deploy:
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     permissions:
@@ -84,6 +85,6 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ${{ secrets.EC2_DEPLOY_PATH }}
-            git pull origin dev
+            git pull origin main
             docker compose pull backend
             docker compose up -d backend
