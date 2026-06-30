@@ -126,11 +126,13 @@ VALUES
 ON CONFLICT DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('recipients', 'id'), COALESCE(MAX(id), 1), true) FROM recipients;
+
 -- ═══════════════════════════════════════════════════════════════
--- 환율 추이 차트용 과거 시세 (USD/KRW, 2026-06-01 00:00 ~ 06-26 11:00, 1시간 간격)
+-- 환율 추이 차트용 과거 시세 (USD/KRW, 2026-06-01 00:00 ~ 06-30 10:00, 1시간 간격)
 -- 출처: Twelve Data time_series(1h) 실측 종가(close)를 mid_rate로 사용 (timezone=Asia/Seoul).
--- 1W=시간버킷 / 1M=일버킷 차트용. 첫 실데이터(06-26 12:35)의 시간버킷(12:00)과 겹치지 않게 11:00까지만 적재.
--- fx_rates는 UNIQUE 키가 없어 ON CONFLICT 대신, '과거 구간(< 06-26 12:00) 부재' 조건으로 멱등 처리.
+-- 서버 환경에서 DB를 처음부터 새로 만들 때, 실시간 수집(스케줄러) 시작 이전 구간을
+-- 실측 과거 시세로 채워 1W(시간버킷)/1M(일버킷) 차트가 비어 보이지 않도록 한다.
+-- fx_rates는 UNIQUE 키가 없어 ON CONFLICT 대신, '과거 구간(< 06-30 11:00) 부재' 조건으로 멱등 처리.
 -- ═══════════════════════════════════════════════════════════════
 INSERT INTO fx_rates (base_currency, quote_currency, mid_rate, spread, source, fetched_at, created_at, updated_at)
 SELECT 'USD', 'KRW', v.mid, 0, 'TwelveData', v.fetched, now(), now()
@@ -746,10 +748,105 @@ FROM (VALUES
     (1546.76804::numeric, TIMESTAMP '2026-06-26 08:00:00'),
     (1547.95811::numeric, TIMESTAMP '2026-06-26 09:00:00'),
     (1548.3108::numeric, TIMESTAMP '2026-06-26 10:00:00'),
-    (1547.97973::numeric, TIMESTAMP '2026-06-26 11:00:00')
+    (1547.97973::numeric, TIMESTAMP '2026-06-26 11:00:00'),
+    (1548.9854::numeric, TIMESTAMP '2026-06-26 12:00:00'),
+    (1544.17916::numeric, TIMESTAMP '2026-06-26 13:00:00'),
+    (1543.31487::numeric, TIMESTAMP '2026-06-26 14:00:00'),
+    (1538.12718::numeric, TIMESTAMP '2026-06-26 15:00:00'),
+    (1538.99889::numeric, TIMESTAMP '2026-06-26 16:00:00'),
+    (1538.54763::numeric, TIMESTAMP '2026-06-26 17:00:00'),
+    (1537.19868::numeric, TIMESTAMP '2026-06-26 18:00:00'),
+    (1537.74163::numeric, TIMESTAMP '2026-06-26 19:00:00'),
+    (1538.41744::numeric, TIMESTAMP '2026-06-26 20:00:00'),
+    (1535.89896::numeric, TIMESTAMP '2026-06-26 21:00:00'),
+    (1534.82007::numeric, TIMESTAMP '2026-06-26 22:00:00'),
+    (1535.66973::numeric, TIMESTAMP '2026-06-26 23:00:00'),
+    (1534.58343::numeric, TIMESTAMP '2026-06-27 00:00:00'),
+    (1535.04252::numeric, TIMESTAMP '2026-06-27 01:00:00'),
+    (1535.33571::numeric, TIMESTAMP '2026-06-27 02:00:00'),
+    (1535.75023::numeric, TIMESTAMP '2026-06-27 03:00:00'),
+    (1535.52985::numeric, TIMESTAMP '2026-06-27 04:00:00'),
+    (1535.41901::numeric, TIMESTAMP '2026-06-27 05:00:00'),
+    (1535.52793::numeric, TIMESTAMP '2026-06-27 06:00:00'),
+    (1535.38185::numeric, TIMESTAMP '2026-06-27 07:00:00'),
+    (1535.27477::numeric, TIMESTAMP '2026-06-27 08:00:00'),
+    (1535.80316::numeric, TIMESTAMP '2026-06-27 09:00:00'),
+    (1535.80812::numeric, TIMESTAMP '2026-06-27 10:00:00'),
+    (1535.71557::numeric, TIMESTAMP '2026-06-27 11:00:00'),
+    (1535.75823::numeric, TIMESTAMP '2026-06-27 12:00:00'),
+    (1535.7996::numeric, TIMESTAMP '2026-06-27 13:00:00'),
+    (1535.48735::numeric, TIMESTAMP '2026-06-27 14:00:00'),
+    (1535.50501::numeric, TIMESTAMP '2026-06-27 15:00:00'),
+    (1535.6488::numeric, TIMESTAMP '2026-06-27 16:00:00'),
+    (1535.71122::numeric, TIMESTAMP '2026-06-27 17:00:00'),
+    (1535.71868::numeric, TIMESTAMP '2026-06-27 18:00:00'),
+    (1535.74925::numeric, TIMESTAMP '2026-06-27 19:00:00'),
+    (1535.73521::numeric, TIMESTAMP '2026-06-27 20:00:00'),
+    (1535.69368::numeric, TIMESTAMP '2026-06-27 21:00:00'),
+    (1536.20129::numeric, TIMESTAMP '2026-06-27 22:00:00'),
+    (1537.54067::numeric, TIMESTAMP '2026-06-27 23:00:00'),
+    (1536.59144::numeric, TIMESTAMP '2026-06-28 00:00:00'),
+    (1535.68088::numeric, TIMESTAMP '2026-06-28 01:00:00'),
+    (1535.6897::numeric, TIMESTAMP '2026-06-28 02:00:00'),
+    (1536.23993::numeric, TIMESTAMP '2026-06-28 03:00:00'),
+    (1535.95418::numeric, TIMESTAMP '2026-06-28 04:00:00'),
+    (1535.84379::numeric, TIMESTAMP '2026-06-28 05:00:00'),
+    (1536.02508::numeric, TIMESTAMP '2026-06-28 06:00:00'),
+    (1536.88507::numeric, TIMESTAMP '2026-06-28 07:00:00'),
+    (1536.26955::numeric, TIMESTAMP '2026-06-28 08:00:00'),
+    (1535.77233::numeric, TIMESTAMP '2026-06-28 09:00:00'),
+    (1535.83058::numeric, TIMESTAMP '2026-06-28 10:00:00'),
+    (1535.75316::numeric, TIMESTAMP '2026-06-28 11:00:00'),
+    (1535.75389::numeric, TIMESTAMP '2026-06-28 12:00:00'),
+    (1535.73942::numeric, TIMESTAMP '2026-06-28 13:00:00'),
+    (1535.73047::numeric, TIMESTAMP '2026-06-28 14:00:00'),
+    (1535.67859::numeric, TIMESTAMP '2026-06-28 15:00:00'),
+    (1535.70005::numeric, TIMESTAMP '2026-06-28 16:00:00'),
+    (1535.7025::numeric, TIMESTAMP '2026-06-28 17:00:00'),
+    (1535.63185::numeric, TIMESTAMP '2026-06-28 18:00:00'),
+    (1535.63636::numeric, TIMESTAMP '2026-06-28 19:00:00'),
+    (1535.5977::numeric, TIMESTAMP '2026-06-28 20:00:00'),
+    (1535.59353::numeric, TIMESTAMP '2026-06-28 21:00:00'),
+    (1535.64196::numeric, TIMESTAMP '2026-06-28 22:00:00'),
+    (1535.6143::numeric, TIMESTAMP '2026-06-28 23:00:00'),
+    (1535.64593::numeric, TIMESTAMP '2026-06-29 00:00:00'),
+    (1535.68859::numeric, TIMESTAMP '2026-06-29 01:00:00'),
+    (1535.69136::numeric, TIMESTAMP '2026-06-29 02:00:00'),
+    (1535.86869::numeric, TIMESTAMP '2026-06-29 03:00:00'),
+    (1535.99068::numeric, TIMESTAMP '2026-06-29 04:00:00'),
+    (1535.53837::numeric, TIMESTAMP '2026-06-29 05:00:00'),
+    (1535.71912::numeric, TIMESTAMP '2026-06-29 06:00:00'),
+    (1535.21017::numeric, TIMESTAMP '2026-06-29 07:00:00'),
+    (1535.83271::numeric, TIMESTAMP '2026-06-29 08:00:00'),
+    (1539.71224::numeric, TIMESTAMP '2026-06-29 09:00:00'),
+    (1542.04437::numeric, TIMESTAMP '2026-06-29 10:00:00'),
+    (1544.29238::numeric, TIMESTAMP '2026-06-29 11:00:00'),
+    (1545.17382::numeric, TIMESTAMP '2026-06-29 12:00:00'),
+    (1544.67348::numeric, TIMESTAMP '2026-06-29 13:00:00'),
+    (1538.44983::numeric, TIMESTAMP '2026-06-29 14:00:00'),
+    (1542.14589::numeric, TIMESTAMP '2026-06-29 15:00:00'),
+    (1544.27624::numeric, TIMESTAMP '2026-06-29 16:00:00'),
+    (1542.6899::numeric, TIMESTAMP '2026-06-29 17:00:00'),
+    (1543.16963::numeric, TIMESTAMP '2026-06-29 18:00:00'),
+    (1542.92113::numeric, TIMESTAMP '2026-06-29 19:00:00'),
+    (1543.29886::numeric, TIMESTAMP '2026-06-29 20:00:00'),
+    (1543.2521::numeric, TIMESTAMP '2026-06-29 21:00:00'),
+    (1543.88081::numeric, TIMESTAMP '2026-06-29 22:00:00'),
+    (1543.16087::numeric, TIMESTAMP '2026-06-29 23:00:00'),
+    (1542.42471::numeric, TIMESTAMP '2026-06-30 00:00:00'),
+    (1541.87919::numeric, TIMESTAMP '2026-06-30 01:00:00'),
+    (1541.41566::numeric, TIMESTAMP '2026-06-30 02:00:00'),
+    (1539.96047::numeric, TIMESTAMP '2026-06-30 03:00:00'),
+    (1539.70859::numeric, TIMESTAMP '2026-06-30 04:00:00'),
+    (1541.63706::numeric, TIMESTAMP '2026-06-30 05:00:00'),
+    (1542.3813::numeric, TIMESTAMP '2026-06-30 06:00:00'),
+    (1541.74284::numeric, TIMESTAMP '2026-06-30 07:00:00'),
+    (1542.37448::numeric, TIMESTAMP '2026-06-30 08:00:00'),
+    (1548.85917::numeric, TIMESTAMP '2026-06-30 09:00:00'),
+    (1550.00402::numeric, TIMESTAMP '2026-06-30 10:00:00')
 ) AS v(mid, fetched)
 WHERE NOT EXISTS (
     SELECT 1 FROM fx_rates f
     WHERE f.base_currency = 'USD' AND f.quote_currency = 'KRW'
-      AND f.fetched_at < TIMESTAMP '2026-06-26 12:00:00'
+      AND f.fetched_at < TIMESTAMP '2026-06-30 11:00:00'
 );
