@@ -61,7 +61,7 @@ VALUES
     (9,  'test9@example.com',     'Test9',     '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
     (10, 'test10@example.com',    'Test10',    '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now()),
     (11, 'recipient@example.com', 'Recipient', '$2a$10$reqiGLwnF.Zyzqr/T9evfeGP/9nWl5eIKh2DP9nGTL0sNse8IBQzy', 'USER', 'ACTIVE', 'COMPLETED', 'STANDARD', 2000000, now(), now())
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE(MAX(id), 1), true) FROM users;
 
