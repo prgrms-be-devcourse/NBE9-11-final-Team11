@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: fxflow
+  config:
+    import: "optional:classpath:application-secret.yaml"
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/mydb}
+    username: ${SPRING_DATASOURCE_USERNAME:myuser}
+    password: ${SPRING_DATASOURCE_PASSWORD:mypassword}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+    defer-datasource-initialization: true
+    show-sql: true
+  sql:
+    init:
+      mode: always
+
+twelvedata:
+  api-key: ${TWELVEDATA_API_KEY:}
+
+exchange:
+  fee:
+    rates:
+      KRW-USD: 0.000
+      USD-KRW: 0.000
+  quote-expiration-minutes: 5
+
+jwt:
+  #placeholder(가짜 데이터, secret연결 안되있을때 오류나는걸 방지). 운영 환경에서는 반드시 JWT_SECRET 환경 변수로 덮어써야 함.
+  secret: ${JWT_SECRET:dev-only-placeholder-secret-key-32bytes-minimum-do-not-use-in-production}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+cookie:
+  secure: ${COOKIE_SECURE:false}
+  same-site: ${COOKIE_SAME_SITE:Lax}
+  max-age: ${COOKIE_MAX_AGE:900}
+  refresh-max-age: ${COOKIE_REFRESH_MAX_AGE:604800}  # 7일
+
+fxrate:
+  scheduler:
+    enabled: true            # 환율 수집 스케줄러 on/off (테스트/CI에서는 false로 비활성화)
+    fixed-delay-ms: 120000   # 수집 주기(ms). 기본 2분
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

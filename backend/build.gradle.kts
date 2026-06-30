@@ -1,0 +1,91 @@
+plugins {
+	java
+	id("org.springframework.boot") version "4.1.0"
+	id("io.spring.dependency-management") version "1.1.7"
+
+    jacoco
+}
+
+group = "com.fxflow"
+version = "0.0.1-SNAPSHOT"
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+	implementation("org.springframework.boot:spring-boot-starter-webmvc")
+	implementation("org.springframework.boot:spring-boot-starter-validation")
+	compileOnly("org.projectlombok:lombok")
+	runtimeOnly("org.postgresql:postgresql")
+	annotationProcessor("org.projectlombok:lombok")
+	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
+	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    runtimeOnly("com.h2database:h2")
+    testCompileOnly("org.projectlombok:lombok")
+	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+	testAnnotationProcessor("org.projectlombok:lombok")
+	//spring security
+	implementation("org.springframework.boot:spring-boot-starter-security")
+	testImplementation("org.springframework.security:spring-security-test")
+	//jwt
+	implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+	runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+	runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+
+	//swagger
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
+
+	//redis
+	implementation("org.springframework.boot:spring-boot-starter-data-redis")
+
+	//monitoring
+	implementation("org.springframework.boot:spring-boot-starter-actuator")
+	runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+
+	// Testcontainers
+	testImplementation(platform("org.testcontainers:testcontainers-bom:1.20.4"))
+	testImplementation("org.testcontainers:testcontainers")
+	testImplementation("org.testcontainers:postgresql")
+	testImplementation("org.testcontainers:junit-jupiter")
+	testImplementation("org.springframework.boot:spring-boot-testcontainers") // @ServiceConnection
+}
+
+jacoco {
+	toolVersion = "0.8.13"
+}
+
+tasks.test {
+	useJUnitPlatform()
+}
+
+tasks.jacocoTestReport {
+	dependsOn(tasks.test)
+	val isCI = System.getenv("CI") == "true"
+	reports {
+		xml.required = isCI
+		html.required = isCI
+	}
+	classDirectories.setFrom(
+		files(classDirectories.files.map {
+			fileTree(it) {
+				exclude(
+					"**/*Application*",
+					"**/dto/**",
+					"**/enums/**",
+					"**/config/**",
+					"**/errorcode/**",
+					"**/exception/**",
+					"**/event/**",
+				)
+			}
+		})
+	)
+}

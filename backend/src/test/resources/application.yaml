@@ -1,0 +1,55 @@
+# 테스트 전용 설정.
+# 주의: Spring Boot는 이 파일을 main 의 application.yaml 과 '병합'하지 않고 '대체'
+#       full @SpringBootTest(@SpringBootTest + Testcontainers) 에 필요한 설정을 여기에 포함.
+#       datasource URL은 @ServiceConnection이 런타임에 덮어쓰므로 placeholder 유지.
+#       redis host/port는 @DynamicPropertySource가 런타임에 덮어씀.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/test
+    username: test
+    password: test
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    defer-datasource-initialization: true
+    show-sql: false
+  sql:
+    init:
+      mode: always
+
+jwt:
+  # 테스트용 더미 시크릿 (운영에 사용 금지)
+  secret: test-only-jwt-secret-key-minimum-32bytes-placeholder
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
+
+cookie:
+  secure: false
+  same-site: Lax
+  max-age: 900
+  refresh-max-age: 604800
+
+exchange:
+  fee:
+    rates:
+      KRW-USD: 0.001
+      USD-KRW: 0.001
+  quote-expiration-minutes: 5
+
+twelvedata:
+  api-key: ""
+
+fxrate:
+  scheduler:
+    enabled: false   # 테스트/CI 에서 스케줄러 비활성화 → 외부 TwelveData 호출·쿼터 소모 차단
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
