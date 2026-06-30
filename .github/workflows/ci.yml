@@ -85,6 +85,8 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ${{ secrets.EC2_DEPLOY_PATH }}
+            git fetch origin
+            git checkout main
             git pull origin main
             docker compose pull backend
             docker compose up -d backend
