@@ -65,7 +65,9 @@ class KycVerifyConcurrencyTest extends AbstractIntegrationTest {
     @AfterEach
     void tearDown() {
         kycVerificationRepository.deleteAll();
-        userRepository.deleteAll();
+        if (testUser != null) {
+            userRepository.delete(testUser);
+        }
     }
 
     private void runConcurrent(int threads, Runnable task) throws InterruptedException {
