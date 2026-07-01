@@ -15,6 +15,10 @@ public interface FxRateRepository extends JpaRepository<FxRate, Long> {
     // @Query 사용 시 다른 코드를 참조하게 되고, "First" 가 SQL LIMIT 1 을 선언적으로 보장한다는 점에서 유지
     Optional<FxRate> findFirstByBaseCurrencyAndQuoteCurrencyOrderByFetchedAtDesc(String baseCurrency, String quoteCurrency);
 
+    // 환율 최신성 검증용 — "마지막으로 수집에 성공해 저장된 시각"(createdAt, 서버가 실제로 저장한 시각)을 조회.
+    // fetchedAt(API 응답 자체의 타임스탬프)이 아닌 createdAt을 쓰는 이유는 FxRateService.validateFreshness() 주석에 작성
+    Optional<FxRate> findFirstByBaseCurrencyAndQuoteCurrencyOrderByCreatedAtDesc(String baseCurrency, String quoteCurrency);
+
     // 전일 대비 기준값 조회 — 지정 시각(target, 전일 15:30) 이전 중 가장 최근 1건.
     // 2분 주기 수집이라 정확히 15:30 레코드가 없을 수 있어, "15:30 시점에 유효했던 값"을 as-of로 선택한다.
     Optional<FxRate> findFirstByBaseCurrencyAndQuoteCurrencyAndFetchedAtLessThanEqualOrderByFetchedAtDesc(
