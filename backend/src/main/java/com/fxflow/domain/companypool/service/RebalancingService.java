@@ -203,7 +203,7 @@ public class RebalancingService {
     }
 
     private BigDecimal fetchMidRate(TriggerType triggerType) {
-        return exchangeRateProvider.getLatestRate("USD", "KRW")
+        return exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW")
                 .map(FxRateSnapshot::midRate)
                 .orElseThrow(() -> {
                     log.warn("환율 조회 실패. triggerType={}", triggerType);

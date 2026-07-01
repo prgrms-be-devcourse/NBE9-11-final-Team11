@@ -39,6 +39,7 @@ exchange:
 fxrate:
   scheduler:
     enabled: false
+  staleness-threshold-minutes: 10
 
 twelvedata:
   api-key: test

@@ -48,7 +48,7 @@ class PoolConcurrencyIntegrationTest extends AbstractIntegrationTest {
     void setUp() {
         jdbcTemplate.execute("TRUNCATE TABLE rebalancing_orders CASCADE");
         jdbcTemplate.execute("TRUNCATE TABLE company_pools CASCADE");
-        given(fxRateQueryService.getLatestRate("USD", "KRW")).willReturn(
+        given(fxRateQueryService.getLatestRateOrThrowIfStale("USD", "KRW")).willReturn(
                 Optional.of(new FxRateSnapshot("USD", "KRW", MID_RATE, new BigDecimal("0.01"), LocalDateTime.now())));
     }
 
