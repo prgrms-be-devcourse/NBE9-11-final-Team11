@@ -5,6 +5,8 @@ import com.fxflow.domain.fxrate.entity.FxRate;
 import com.fxflow.domain.fxrate.enums.FxRateHistoryPeriod;
 import com.fxflow.domain.fxrate.repository.FxRateHistoryRow;
 import com.fxflow.domain.fxrate.repository.FxRateRepository;
+import com.fxflow.domain.fxrate.exception.FxRateErrorCode;
+import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.FxRateSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,9 +23,11 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -36,6 +40,9 @@ class FxRateQueryServiceTest {
 
     @Mock
     private FxRateRepository fxRateRepository;
+
+    @Mock
+    private FxRateService fxRateService;
 
     @InjectMocks
     private FxRateQueryService fxRateQueryService;
@@ -76,6 +83,37 @@ class FxRateQueryServiceTest {
 
         // then
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("신선도 검증을 통과하면 최신 환율을 그대로 반환한다 (거래용 조회)")
+    void getLatestRateOrThrowIfStale_freshReturnsRate() {
+        // given - fxRateService.validateFreshness()는 기본적으로 아무 예외도 던지지 않음(정상 상태)
+        LocalDateTime fetchedAt = LocalDateTime.of(2026, 6, 17, 9, 0, 0);
+        FxRate fxRate = FxRate.create("USD", "KRW", new BigDecimal("1300"), "TwelveData", fetchedAt);
+        given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyOrderByFetchedAtDesc("USD", "KRW"))
+                .willReturn(Optional.of(fxRate));
+
+        // when
+        Optional<FxRateSnapshot> result = fxRateQueryService.getLatestRateOrThrowIfStale("USD", "KRW");
+
+        // then
+        assertThat(result).isPresent();
+        assertThat(result.get().midRate()).isEqualByComparingTo("1300");
+    }
+
+    @Test
+    @DisplayName("신선도 검증에서 예외가 발생하면 그대로 전파해 거래를 차단한다")
+    void getLatestRateOrThrowIfStale_staleThrows() {
+        // given - 마지막 API 성공 호출이 임계값을 초과한 상태를 가정
+        willThrow(new BusinessException(FxRateErrorCode.FX_RATE_STALE))
+                .given(fxRateService).validateFreshness();
+
+        // when & then
+        assertThatThrownBy(() -> fxRateQueryService.getLatestRateOrThrowIfStale("USD", "KRW"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(FxRateErrorCode.FX_RATE_STALE);
     }
 
     @Test

@@ -81,7 +81,7 @@ class ExchangeServiceTest {
                 BigDecimal.valueOf(0.01), // 1% spread
                 LocalDateTime.now()
         );
-        given(exchangeRateProvider.getLatestRate("USD", "KRW"))
+        given(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW"))
                 .willReturn(Optional.of(snapshot));
 
         Map<String, BigDecimal> feeRates = Map.of("KRW-USD", BigDecimal.valueOf(0.005));
@@ -110,7 +110,7 @@ class ExchangeServiceTest {
                 BigDecimal.valueOf(0.01),
                 LocalDateTime.now()
         );
-        given(exchangeRateProvider.getLatestRate("USD", "KRW"))
+        given(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW"))
                 .willReturn(Optional.of(snapshot));
 
         Map<String, BigDecimal> feeRates = Map.of("USD-KRW", BigDecimal.valueOf(0.005));
@@ -132,7 +132,7 @@ class ExchangeServiceTest {
         Long userId = 1L;
         ExchangeQuoteRequest request = new ExchangeQuoteRequest("KRW", "USD", BigDecimal.valueOf(500000));
 
-        given(exchangeRateProvider.getLatestRate("USD", "KRW"))
+        given(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW"))
                 .willReturn(Optional.empty());
 
         // when & then
@@ -153,7 +153,7 @@ class ExchangeServiceTest {
                 BigDecimal.valueOf(0.01),
                 LocalDateTime.now()
         );
-        given(exchangeRateProvider.getLatestRate("USD", "KRW"))
+        given(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW"))
                 .willReturn(Optional.of(snapshot));
         given(exchangeFeeProperties.getRates()).willReturn(Map.of());
 
@@ -177,7 +177,7 @@ class ExchangeServiceTest {
                 BigDecimal.ZERO,       // spread 0 → buyRate = sellRate = 2
                 LocalDateTime.now()
         );
-        given(exchangeRateProvider.getLatestRate("USD", "KRW"))
+        given(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW"))
                 .willReturn(Optional.of(snapshot));
         given(exchangeFeeProperties.getRates())
                 .willReturn(Map.of("KRW-USD", BigDecimal.valueOf(0.1))); // 10% fee

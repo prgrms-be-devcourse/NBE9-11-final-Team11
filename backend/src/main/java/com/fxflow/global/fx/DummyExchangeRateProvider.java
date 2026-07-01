@@ -24,4 +24,12 @@ public class DummyExchangeRateProvider implements ExchangeRateProvider {
                 )
         );
     }
+
+    @Override
+    public Optional<FxRateSnapshot> getLatestRateOrThrowIfStale(
+            String baseCurrency,
+            String quoteCurrency
+    ) {
+        return getLatestRate(baseCurrency, quoteCurrency);
+    }
 }

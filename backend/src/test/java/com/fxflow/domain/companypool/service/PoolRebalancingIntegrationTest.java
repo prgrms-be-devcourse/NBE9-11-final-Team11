@@ -48,7 +48,7 @@ class PoolRebalancingIntegrationTest extends AbstractIntegrationTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.execute("TRUNCATE TABLE company_pools CASCADE");
-        given(exchangeRateProvider.getLatestRate("USD", "KRW")).willReturn(
+        given(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW")).willReturn(
                 Optional.of(new FxRateSnapshot(
                         "USD", "KRW", new BigDecimal("1300"), new BigDecimal("0.01"), LocalDateTime.now())));
     }

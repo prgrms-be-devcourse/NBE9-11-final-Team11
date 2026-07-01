@@ -1,4 +1,7 @@
 package com.fxflow.global.fx;
+
+import com.fxflow.global.exception.BusinessException;
+
 import java.util.Optional;
 
 /**
@@ -8,6 +11,12 @@ import java.util.Optional;
  */
 public interface ExchangeRateProvider {
 
-    // 통화쌍의 가장 최신 환율 스냅샷 조회 (저장된 환율이 없으면 empty)
+    // 통화쌍의 가장 최신 환율 스냅샷 조회 (저장된 환율이 없으면 empty). 신선도 검증 없음 — 단순 표시(조회) 용도 전용.
     Optional<FxRateSnapshot> getLatestRate(String baseCurrency, String quoteCurrency);
+
+    /**
+     * 최신 환율 스냅샷 조회 + 신선도 검증. 환전·송금·리밸런싱 등 자금이 이동하는 거래에서 사용한다.
+     * @throws BusinessException 환율 수집이 장시간 실패해 데이터 신선도가 보장되지 않을 때 (FX_RATE_STALE)
+     */
+    Optional<FxRateSnapshot> getLatestRateOrThrowIfStale(String baseCurrency, String quoteCurrency);
 }

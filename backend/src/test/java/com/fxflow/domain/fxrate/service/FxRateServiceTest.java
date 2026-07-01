@@ -21,10 +21,13 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -61,7 +64,7 @@ class FxRateServiceTest {
         RestClient.Builder builder = RestClient.builder();
         mockServer = MockRestServiceServer.bindTo(builder).build();
 
-        fxRateService = new FxRateService(fxRateRepository, eventPublisher, builder, "test-api-key");
+        fxRateService = new FxRateService(fxRateRepository, eventPublisher, builder, "test-api-key", 10L);
     }
 
     @Nested
@@ -189,6 +192,51 @@ class FxRateServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(FxRateErrorCode.FX_RATE_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("서버 기동 직후(첫 수집 전)에는 임계값 이내이므로 신선도 검증을 통과한다")
+        void justStarted_allowsRate() {
+            // given - lastSuccessCallAt이 생성 시점(서버 기동 시각)으로 초기화된 갓 생성된 인스턴스
+            FxRate fxRate = FxRate.create("USD", "KRW", new BigDecimal("1386.50"), "TwelveData", KstClock.now());
+            given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyOrderByFetchedAtDesc("USD", "KRW"))
+                    .willReturn(Optional.of(fxRate));
+
+            // when & then
+            assertThat(fxRateService.getRate("USD", "KRW")).isEqualByComparingTo("1386.50");
+        }
+
+        @Test
+        @DisplayName("임계값 이내에 API 호출이 성공했으면 신선도 검증을 통과한다")
+        void recentSuccessCall_allowsRate() throws Exception {
+            // given - 임계값(10분) 이내인 5분 전에 마지막으로 성공
+            setLastSuccessCallAt(Instant.now().minus(5, ChronoUnit.MINUTES));
+            FxRate fxRate = FxRate.create("USD", "KRW", new BigDecimal("1386.50"), "TwelveData", KstClock.now());
+            given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyOrderByFetchedAtDesc("USD", "KRW"))
+                    .willReturn(Optional.of(fxRate));
+
+            // when & then
+            assertThat(fxRateService.getRate("USD", "KRW")).isEqualByComparingTo("1386.50");
+        }
+
+        @Test
+        @DisplayName("임계값을 초과해 API 호출이 실패 중이면 FX_RATE_STALE로 거래를 차단한다")
+        void staleSuccessCall_throwsFxRateStale() throws Exception {
+            // given - 임계값(10분)을 초과한 11분 전이 마지막 성공 시각
+            setLastSuccessCallAt(Instant.now().minus(11, ChronoUnit.MINUTES));
+
+            // when & then - 신선도 검증에서 즉시 차단되므로 리포지토리는 호출되지 않음
+            assertThatThrownBy(() -> fxRateService.getRate("USD", "KRW"))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(FxRateErrorCode.FX_RATE_STALE);
+        }
+
+        @SuppressWarnings("unchecked")
+        private void setLastSuccessCallAt(Instant instant) throws Exception {
+            Field field = FxRateService.class.getDeclaredField("lastSuccessCallAt");
+            field.setAccessible(true);
+            ((AtomicReference<Instant>) field.get(fxRateService)).set(instant);
         }
     }
 }

@@ -80,7 +80,7 @@ public class ExchangeService {
             throw new BusinessException(ExchangeErrorCode.MINIMUM_AMOUNT_NOT_MET);
         }
 
-        FxRateSnapshot fxRateSnapshot = exchangeRateProvider.getLatestRate("USD", "KRW")
+        FxRateSnapshot fxRateSnapshot = exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW")
                 .orElseThrow( () -> new BusinessException(ExchangeErrorCode.FEE_RATE_NOT_FOUND));
         BigDecimal appliedRate = fromCurrency.equals("USD") ? fxRateSnapshot.sellRate() : fxRateSnapshot.buyRate(); // todo: 현재 USD <-> WON 고정, 추후 다른 환율 추가 시 수정 필요
 

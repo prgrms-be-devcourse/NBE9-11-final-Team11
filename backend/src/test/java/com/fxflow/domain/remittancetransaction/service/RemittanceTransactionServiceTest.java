@@ -127,7 +127,7 @@ class RemittanceTransactionServiceTest {
 
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
                 .thenReturn(Optional.of(recipient));
-        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+        when(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW"))
                 .thenReturn(Optional.of(fxRateSnapshot));
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 
@@ -184,7 +184,7 @@ class RemittanceTransactionServiceTest {
 
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
                 .thenReturn(Optional.of(recipient));
-        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+        when(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW"))
                 .thenReturn(Optional.of(fxRateSnapshot));
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 
@@ -245,7 +245,7 @@ class RemittanceTransactionServiceTest {
 
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
                 .thenReturn(Optional.of(recipient));
-        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+        when(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW"))
                 .thenReturn(Optional.empty());
 
         // when & then
@@ -270,7 +270,7 @@ class RemittanceTransactionServiceTest {
 
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
                 .thenReturn(Optional.of(recipient));
-        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+        when(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW"))
                 .thenReturn(Optional.of(fxRateSnapshot));
         doThrow(exception).when(remittanceValidator).validateLimits(userId, new BigDecimal("740.74074074"));
 
@@ -297,7 +297,7 @@ class RemittanceTransactionServiceTest {
 
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
                 .thenReturn(Optional.of(recipient));
-        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+        when(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW"))
                 .thenReturn(Optional.of(fxRateSnapshot));
 
         // when & then
@@ -325,7 +325,7 @@ class RemittanceTransactionServiceTest {
 
         when(recipientRepository.findByIdAndUserIdAndDeletedAtIsNull(request.recipientId(), userId))
                 .thenReturn(Optional.of(recipient));
-        when(exchangeRateProvider.getLatestRate("USD", "KRW"))
+        when(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW"))
                 .thenReturn(Optional.of(fxRateSnapshot));
 
         // when & then

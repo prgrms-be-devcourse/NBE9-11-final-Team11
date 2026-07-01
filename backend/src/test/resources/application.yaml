@@ -49,6 +49,7 @@ twelvedata:
 fxrate:
   scheduler:
     enabled: false   # 테스트/CI 에서 스케줄러 비활성화 → 외부 TwelveData 호출·쿼터 소모 차단
+  staleness-threshold-minutes: 10
 
 logging:
   level:

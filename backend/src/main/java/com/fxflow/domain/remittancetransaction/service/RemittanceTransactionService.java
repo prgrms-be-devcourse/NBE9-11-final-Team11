@@ -573,7 +573,7 @@ public class RemittanceTransactionService {
     ) {
         Recipient recipient = getRecipient(userId, request.recipientId());
 
-        FxRateSnapshot fxRateSnapshot = exchangeRateProvider.getLatestRate(USD, KRW)
+        FxRateSnapshot fxRateSnapshot = exchangeRateProvider.getLatestRateOrThrowIfStale(USD, KRW)
                 .orElseThrow(() -> new BusinessException(
                         RemittanceTransactionErrorCode.REMITTANCE_EXCHANGE_RATE_NOT_FOUND
                 ));
