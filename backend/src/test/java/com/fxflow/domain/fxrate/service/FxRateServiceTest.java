@@ -3,6 +3,7 @@ package com.fxflow.domain.fxrate.service;
 import com.fxflow.domain.fxrate.entity.FxRate;
 import com.fxflow.domain.fxrate.exception.FxRateErrorCode;
 import com.fxflow.domain.fxrate.repository.FxRateRepository;
+import com.fxflow.global.entity.BaseEntity;
 import com.fxflow.global.exception.BusinessException;
 import com.fxflow.global.fx.FxRateSnapshot;
 import com.fxflow.global.fx.FxRateUpdatedEvent;
@@ -25,9 +26,7 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -195,9 +194,11 @@ class FxRateServiceTest {
         }
 
         @Test
-        @DisplayName("서버 기동 직후(첫 수집 전)에는 임계값 이내이므로 신선도 검증을 통과한다")
-        void justStarted_allowsRate() {
-            // given - lastSuccessCallAt이 생성 시점(서버 기동 시각)으로 초기화된 갓 생성된 인스턴스
+        @DisplayName("수집 성공 이력이 전혀 없으면(최초 배포 등) 최신성 검증을 통과한다")
+        void noSuccessHistory_allowsRate() {
+            // given - createdAt 기준 조회 결과가 없음(한 번도 저장 성공한 적 없는 상태)
+            given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyOrderByCreatedAtDesc("USD", "KRW"))
+                    .willReturn(Optional.empty());
             FxRate fxRate = FxRate.create("USD", "KRW", new BigDecimal("1386.50"), "TwelveData", KstClock.now());
             given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyOrderByFetchedAtDesc("USD", "KRW"))
                     .willReturn(Optional.of(fxRate));
@@ -207,10 +208,13 @@ class FxRateServiceTest {
         }
 
         @Test
-        @DisplayName("임계값 이내에 API 호출이 성공했으면 신선도 검증을 통과한다")
+        @DisplayName("임계값 이내에 마지막 수집 성공 기록이 있으면 최신성 검증을 통과한다")
         void recentSuccessCall_allowsRate() throws Exception {
-            // given - 임계값(10분) 이내인 5분 전에 마지막으로 성공
-            setLastSuccessCallAt(Instant.now().minus(5, ChronoUnit.MINUTES));
+            // given - 임계값(10분) 이내인 5분 전에 마지막으로 저장 성공(createdAt 기준)
+            FxRate lastSuccess = FxRate.create("USD", "KRW", new BigDecimal("1300"), "TwelveData", KstClock.now());
+            setCreatedAt(lastSuccess, LocalDateTime.now().minusMinutes(5));
+            given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyOrderByCreatedAtDesc("USD", "KRW"))
+                    .willReturn(Optional.of(lastSuccess));
             FxRate fxRate = FxRate.create("USD", "KRW", new BigDecimal("1386.50"), "TwelveData", KstClock.now());
             given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyOrderByFetchedAtDesc("USD", "KRW"))
                     .willReturn(Optional.of(fxRate));
@@ -220,23 +224,27 @@ class FxRateServiceTest {
         }
 
         @Test
-        @DisplayName("임계값을 초과해 API 호출이 실패 중이면 FX_RATE_STALE로 거래를 차단한다")
+        @DisplayName("임계값을 초과해 마지막 수집 성공이 오래됐으면 FX_RATE_STALE로 거래를 차단한다")
         void staleSuccessCall_throwsFxRateStale() throws Exception {
-            // given - 임계값(10분)을 초과한 11분 전이 마지막 성공 시각
-            setLastSuccessCallAt(Instant.now().minus(11, ChronoUnit.MINUTES));
+            // given - 임계값(10분)을 초과한 11분 전이 마지막 저장 성공 시각(createdAt 기준)
+            FxRate lastSuccess = FxRate.create("USD", "KRW", new BigDecimal("1300"), "TwelveData", KstClock.now());
+            setCreatedAt(lastSuccess, LocalDateTime.now().minusMinutes(11));
+            given(fxRateRepository.findFirstByBaseCurrencyAndQuoteCurrencyOrderByCreatedAtDesc("USD", "KRW"))
+                    .willReturn(Optional.of(lastSuccess));
 
-            // when & then - 신선도 검증에서 즉시 차단되므로 리포지토리는 호출되지 않음
+            // when & then - 최신성 검증에서 즉시 차단되므로 fetchedAt 기준 조회는 호출되지 않음
             assertThatThrownBy(() -> fxRateService.getRate("USD", "KRW"))
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(FxRateErrorCode.FX_RATE_STALE);
         }
 
-        @SuppressWarnings("unchecked")
-        private void setLastSuccessCallAt(Instant instant) throws Exception {
-            Field field = FxRateService.class.getDeclaredField("lastSuccessCallAt");
+        // createdAt은 JPA Auditing이 영속화 시점에만 채우므로, 순수 단위 테스트(실제 저장 없음)에서
+        // 임의의 값을 주입하려면 리플렉션이 필요하다.
+        private void setCreatedAt(FxRate fxRate, LocalDateTime createdAt) throws Exception {
+            Field field = BaseEntity.class.getDeclaredField("createdAt");
             field.setAccessible(true);
-            ((AtomicReference<Instant>) field.get(fxRateService)).set(instant);
+            field.set(fxRate, createdAt);
         }
     }
 }
