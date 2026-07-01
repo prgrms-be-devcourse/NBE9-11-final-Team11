@@ -13,7 +13,8 @@ export function Hero() {
             시뮬레이션 전용 · 실제 자금 이동 없음
           </span>
           <h1 className="text-balance text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
-            실시간 환율 기반 <span className="text-primary">해외송금</span> 시뮬레이션
+            실시간 환율 기반 <br />
+            <span className="inline-block text-primary">해외송금</span> 시뮬레이션
           </h1>
           <p className="text-pretty text-lg leading-relaxed text-muted-foreground">
             은행보다 투명한 환율과 수수료를 경험해보세요. 가상 계좌로 환전과 해외송금의 모든 과정을 안전하게
