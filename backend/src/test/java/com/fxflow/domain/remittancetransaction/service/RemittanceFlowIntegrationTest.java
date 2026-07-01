@@ -85,7 +85,7 @@ class RemittanceFlowIntegrationTest extends AbstractIntegrationTest {
     void setUp() {
         truncateAll();
         seedRemittanceLimits();
-        given(exchangeRateProvider.getLatestRate(USD, KRW)).willReturn(
+        given(exchangeRateProvider.getLatestRateOrThrowIfStale(USD, KRW)).willReturn(
                 Optional.of(new FxRateSnapshot(
                         USD,
                         KRW,

@@ -63,7 +63,7 @@ class RebalancingServiceTest {
     @BeforeEach
     void setUp() {
         FxRateSnapshot snapshot = new FxRateSnapshot("USD", "KRW", MID_RATE, new BigDecimal("0.01"), java.time.LocalDateTime.now());
-        given(exchangeRateProvider.getLatestRate("USD", "KRW")).willReturn(Optional.of(snapshot));
+        given(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW")).willReturn(Optional.of(snapshot));
         given(companyPoolRepository.decreaseBalance(anyString(), any())).willReturn(1);
     }
 
@@ -192,7 +192,7 @@ class RebalancingServiceTest {
     @DisplayName("수동 실행 중 환율 데이터 없음(Optional.empty) → RATE_UNAVAILABLE 예외")
     void execute_manual_rateFetchFails_throwsRateUnavailable() {
         givenPools(new BigDecimal("5000000000"), new BigDecimal("6500000")); // KRW floor(60%) 미만
-        given(exchangeRateProvider.getLatestRate("USD", "KRW")).willReturn(Optional.empty());
+        given(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW")).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> rebalancingService.execute(TriggerType.MANUAL, null))
                 .isInstanceOf(BusinessException.class)
@@ -272,7 +272,7 @@ class RebalancingServiceTest {
 
         // 환율 조회 시점에서 Thread 1을 잡아두어 executing = true 상태를 유지시킨다.
         // Thread 2는 이 시점에 doExecute() 진입을 시도하여 REBALANCE_IN_PROGRESS를 받아야 한다.
-        given(exchangeRateProvider.getLatestRate("USD", "KRW")).willAnswer(inv -> {
+        given(exchangeRateProvider.getLatestRateOrThrowIfStale("USD", "KRW")).willAnswer(inv -> {
             thread1InProgress.countDown();
             releaseThread1.await();
             return Optional.of(new FxRateSnapshot(

@@ -38,7 +38,7 @@ class FxRateApiManualTest {
         FxRateRepository fxRateRepository = mock(FxRateRepository.class);
         ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
         String apiKey = System.getenv("TWELVEDATA_API_KEY");
-        FxRateService fxRateService = new FxRateService(fxRateRepository, eventPublisher, RestClient.builder(), apiKey);
+        FxRateService fxRateService = new FxRateService(fxRateRepository, eventPublisher, RestClient.builder(), apiKey, 10L);
 
         // when - 실제 Twelve Data 호출
         fxRateService.collectUsdKrwRate();

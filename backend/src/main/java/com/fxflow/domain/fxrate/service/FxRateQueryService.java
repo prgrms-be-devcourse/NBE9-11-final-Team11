@@ -31,6 +31,7 @@ import java.util.Optional;
 public class FxRateQueryService implements ExchangeRateProvider {
 
     private final FxRateRepository fxRateRepository;
+    private final FxRateService fxRateService;
 
     // 전일 대비 변동의 기준 시각 — 외환시장 마감 시각인 오후 3시 30분
     private static final LocalTime BASELINE_TIME = LocalTime.of(15, 30);
@@ -41,6 +42,13 @@ public class FxRateQueryService implements ExchangeRateProvider {
         return fxRateRepository
                 .findFirstByBaseCurrencyAndQuoteCurrencyOrderByFetchedAtDesc(baseCurrency, quoteCurrency)
                 .map(this::toSnapshot);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<FxRateSnapshot> getLatestRateOrThrowIfStale(String baseCurrency, String quoteCurrency) {
+        fxRateService.validateFreshness();
+        return getLatestRate(baseCurrency, quoteCurrency);
     }
 
     // 환율 이력 조회 — 기간별 윈도우/버킷 단위로 집계해 시계열 응답을 만든다.

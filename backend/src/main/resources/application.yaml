@@ -49,6 +49,7 @@ fxrate:
   scheduler:
     enabled: true            # 환율 수집 스케줄러 on/off (테스트/CI에서는 false로 비활성화)
     fixed-delay-ms: 120000   # 수집 주기(ms). 기본 2분
+  staleness-threshold-minutes: 10   # 마지막 API 성공 호출 후 이 시간(분)이 지나면 거래용 환율 조회를 차단 (수집 주기의 5배)
 
 management:
   endpoints:
