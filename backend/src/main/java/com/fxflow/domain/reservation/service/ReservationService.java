@@ -156,3 +156,4 @@ public class ReservationService {
                 request.amount(), request.targetRate(), request.expiresAt(), idempotencyKey);
     }
 }
+// 멘토님 코드리뷰용 브랜치 생성
